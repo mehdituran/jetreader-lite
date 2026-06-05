@@ -1,0 +1,44 @@
+{
+    "name": "jetreader",
+    "version": "1.0.0",
+    "private": true,
+    "description": "JetReader - Modern Digital Library Plugin for WordPress",
+    "author": "Mehdi Turan",
+    "license": "GPL-2.0-or-later",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "build:lite": "JR_LITE=1 vite build",
+        "preview": "vite preview",
+        "typecheck": "tsc --noEmit",
+        "audit": "npm audit --production",
+        "wp-env:start": "wp-env start",
+        "wp-env:stop": "wp-env stop",
+        "wp-env:destroy": "wp-env destroy"
+    },
+    "dependencies": {
+        "@tanstack/react-query": "^5.62.0",
+        "@types/dompurify": "^3.0.5",
+        "dompurify": "^3.4.5",
+        "fflate": "^0.8.2",
+        "framer-motion": "^11.12.0",
+        "keen-slider": "^6.8.6",
+        "mammoth": "^1.8.0",
+        "pdfjs-dist": "^4.8.69",
+        "react": "^18.3.1",
+        "react-dom": "^18.3.1",
+        "react-router-dom": "^6.28.0"
+    },
+    "devDependencies": {
+        "@types/node": "^25.6.2",
+        "@types/react": "^18.3.12",
+        "@types/react-dom": "^18.3.1",
+        "@vitejs/plugin-react": "^4.3.4",
+        "autoprefixer": "^10.4.20",
+        "postcss": "^8.4.49",
+        "tailwindcss": "^3.4.16",
+        "typescript": "^5.7.2",
+        "vite": "^4.5.5",
+        "vite-for-wp": "^0.8.0"
+    }
+}

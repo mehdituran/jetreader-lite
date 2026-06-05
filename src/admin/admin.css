@@ -1,0 +1,135 @@
+@import '../index.css';
+
+/* Scoped overrides to protect JetReader UI components inside the WordPress Admin from being squished or broken by WordPress styles */
+
+#jetreader-admin-app .jr-input {
+    background-color: #ffffff !important;
+    border: 1px solid #d1d5db !important;
+    border-width: 1px !important;
+    border-style: solid !important;
+    border-radius: 0.75rem !important; /* rounded-xl (12px) */
+    padding-top: 0.625rem !important; /* py-2.5 (10px) */
+    padding-bottom: 0.625rem !important;
+    padding-left: 1rem !important; /* px-4 (16px) */
+    padding-right: 1rem !important;
+    color: #111827 !important;
+    font-size: 0.875rem !important; /* text-sm (14px) */
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    display: block !important;
+    outline: none !important;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    height: auto !important; /* Overrides WP Admin height: 30px reset */
+    line-height: normal !important;
+}
+
+#jetreader-admin-app select.jr-input {
+    padding-right: 2.25rem !important;
+    appearance: select !important;
+    -webkit-appearance: select !important;
+}
+
+#jetreader-admin-app textarea.jr-input {
+    height: auto !important;
+}
+
+#jetreader-admin-app .jr-input::placeholder {
+    color: #9ca3af !important;
+}
+
+#jetreader-admin-app .jr-input:hover {
+    border-color: #9ca3af !important;
+}
+
+#jetreader-admin-app .jr-input:focus {
+    border-color: var(--jr-p500, #3b82f6) !important;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--jr-p500, #3b82f6) 15%, transparent) !important;
+    background-color: #ffffff !important;
+}
+
+/* Dark mode inputs in admin */
+.dark #jetreader-admin-app .jr-input {
+    background-color: #111827 !important;
+    border-color: #374151 !important;
+    color: #f9fafb !important;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.3) !important;
+}
+.dark #jetreader-admin-app .jr-input::placeholder {
+    color: #4b5563 !important;
+}
+.dark #jetreader-admin-app .jr-input:hover {
+    border-color: #4b5563 !important;
+}
+.dark #jetreader-admin-app .jr-input:focus {
+    border-color: var(--jr-p400, #60a5fa) !important;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--jr-p400, #60a5fa) 20%, transparent) !important;
+    background-color: #111827 !important;
+}
+
+/* 2. Scoped Primary Button Overrides */
+#jetreader-admin-app .jr-btn-primary {
+    background-color: var(--jr-p600, #2563eb) !important;
+    color: #ffffff !important;
+    border: 1px solid transparent !important;
+    border-radius: 0.75rem !important;
+    padding: 0.5rem 1rem !important; /* py-2 px-4 */
+    font-size: 0.875rem !important;
+    font-weight: 500 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+    transition: all 0.15s ease !important;
+    height: auto !important;
+    line-height: 1.25 !important;
+}
+
+#jetreader-admin-app .jr-btn-primary:hover {
+    background-color: var(--jr-p700, #1d4ed8) !important;
+}
+
+#jetreader-admin-app .jr-btn-primary:active {
+    background-color: var(--jr-p800, #1e40af) !important;
+    transform: scale(0.95) !important;
+}
+
+/* 3. Scoped Secondary Button Overrides */
+#jetreader-admin-app .jr-btn-secondary {
+    background-color: #f3f4f6 !important;
+    color: #374151 !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 0.75rem !important;
+    padding: 0.5rem 0.75rem !important; /* py-2 px-3 */
+    font-size: 0.875rem !important;
+    font-weight: 500 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+    height: auto !important;
+    line-height: 1.25 !important;
+}
+
+#jetreader-admin-app .jr-btn-secondary:hover {
+    background-color: #e5e7eb !important;
+}
+
+#jetreader-admin-app .jr-btn-secondary:active {
+    background-color: #d1d5db !important;
+    transform: scale(0.95) !important;
+}
+
+/* Dark mode overrides for secondary button */
+.dark #jetreader-admin-app .jr-btn-secondary {
+    background-color: #1f2937 !important;
+    color: #e5e7eb !important;
+    border-color: #374151 !important;
+}
+
+.dark #jetreader-admin-app .jr-btn-secondary:hover {
+    background-color: #374151 !important;
+}

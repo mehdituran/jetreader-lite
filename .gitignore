@@ -1,0 +1,9 @@
+# Node dependencies
+node_modules/
+
+# Composer dependencies
+vendor/
+
+# Operating system files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,1458 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─────────────────────────────────────────────────────────────────────────
+   PROFESSIONAL THEME & ISOLATION SYSTEM (LECTOR v1.0.0)
+   We use CSS variables scoped by [data-jr-theme] for clean architecture.
+   We use ID + Class specificity to beat theme styles without !important.
+   ───────────────────────────────────────────────────────────────────────── */
+
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root {
+    /* DEFAULT / LIGHT THEME */
+    --jr-sidebar-bg: #f8fafc;
+    --jr-header-bg: #f1f5f9;
+    --jr-border-color: #e2e8f0;
+    --jr-text-main: #1e293b;
+    --jr-text-muted: #64748b;
+    --jr-item-active-bg: #eff6ff;
+    --jr-item-active-text: #2563eb;
+    --jr-item-hover-bg: #f1f5f9;
+    --jr-badge-bg: rgba(0, 0, 0, 0.05);
+    --jr-scrollbar-thumb: rgba(0, 0, 0, 0.1);
+
+    /* Premium Button Variables */
+    --jr-btn-bg: #ffffff;
+    --jr-btn-hover-bg: #f8fafc;
+    --jr-btn-active-bg: #eff6ff;
+    --jr-btn-border: #cbd5e1;
+    --jr-btn-text: #334155;
+
+    /* Premium Input Variables */
+    --jr-input-bg: #ffffff;
+    --jr-input-border: #cbd5e1;
+}
+
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root[data-jr-theme="dark"] {
+    --jr-sidebar-bg: #0f172a;
+    --jr-header-bg: #090d16;
+    --jr-border-color: #1e293b;
+    --jr-text-main: #f1f5f9;
+    --jr-text-muted: #94a3b8;
+    --jr-item-active-bg: rgba(59, 130, 246, 0.15);
+    --jr-item-active-text: #3b82f6;
+    --jr-item-hover-bg: rgba(255, 255, 255, 0.04);
+    --jr-badge-bg: rgba(255, 255, 255, 0.06);
+    --jr-scrollbar-thumb: rgba(255, 255, 255, 0.12);
+
+    /* Premium Button Variables */
+    --jr-btn-bg: #1e293b;
+    --jr-btn-hover-bg: #334155;
+    --jr-btn-active-bg: #0f172a;
+    --jr-btn-border: #334155;
+    --jr-btn-text: #cbd5e1;
+
+    /* Premium Input Variables */
+    --jr-input-bg: #0f172a;
+    --jr-input-border: #334155;
+}
+
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root[data-jr-theme="sepia"] {
+    --jr-sidebar-bg: #fbf0d9;
+    --jr-header-bg: #f4e4bc;
+    --jr-border-color: #e4d2a3;
+    --jr-text-main: #433422;
+    --jr-text-muted: #7e6e58;
+    --jr-item-active-bg: #ecd99f;
+    --jr-item-active-text: #78350f;
+    --jr-item-hover-bg: rgba(120, 53, 15, 0.05);
+    --jr-badge-bg: rgba(120, 53, 15, 0.06);
+    --jr-scrollbar-thumb: rgba(120, 53, 15, 0.1);
+
+    /* Premium Button Variables */
+    --jr-btn-bg: #faf3e0;
+    --jr-btn-hover-bg: #f4ebd0;
+    --jr-btn-active-bg: #e8dcb9;
+    --jr-btn-border: #d7c595;
+    --jr-btn-text: #433422;
+
+    /* Premium Input Variables */
+    --jr-input-bg: #faf3e0;
+    --jr-input-border: #d7c595;
+}
+
+/* 1. Global Reset (Scoped to Reader Portal and Frontend Display apps) */
+/* Prevent root element font-size overrides by WordPress themes from shrinking rem-based sizes */
+html.jr-modal-open {
+    font-size: 16px !important;
+}
+
+#jetreader-portal-root,
+#jetreader-page-app,
+#jetreader-frontend-app,
+#jetreader-search-app,
+[data-jr-display] {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+    line-height: 1.5 !important;
+}
+
+#jetreader-portal-root,
+#jetreader-page-app {
+    z-index: 2147483647 !important;
+    position: fixed !important;
+}
+
+/* 2. Surgical Element Reset using :where() to keep specificity at (0,0,1) so Tailwind classes can override them */
+:where(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) :is(button, input, select, textarea) {
+    margin: 0 !important;
+    padding: 0 !important;
+    border-width: 0 !important;
+    border-style: solid !important;
+    box-sizing: border-box !important;
+}
+
+/* Reset for normal text/structural elements doesn't need !important */
+:where(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) :is(p, h1, h2, h3, h4, h5, h6, ul, ol, li, div, span, aside) {
+    margin: 0;
+    padding: 0;
+    border-width: 0;
+    border-style: solid;
+    box-sizing: border-box;
+}
+
+/* General Button Reset for all app containers and modal portals - beats theme styles while letting Tailwind !important utilities win */
+:where(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) button {
+    background: transparent !important;
+    background-color: transparent !important;
+    border: 0 solid transparent !important;
+    border-width: 0 !important;
+    outline: none !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border-radius: 0 !important;
+    cursor: pointer !important;
+    color: inherit !important;
+    line-height: inherit !important;
+    width: auto !important;
+    height: auto !important;
+    font-weight: inherit !important;
+    text-transform: none !important;
+    transition: all 0.2s ease !important;
+    min-height: 0 !important;
+    min-width: 0 !important;
+    max-height: none !important;
+    max-width: none !important;
+}
+
+/* Specific Selects/Inputs resets using :where() to neutralize WordPress theme overrides */
+:where(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) select {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    font-family: inherit !important;
+    font-size: inherit !important;
+    line-height: normal !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    border-width: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    outline: none !important;
+    appearance: none !important;
+}
+
+/* Prevent WordPress theme styles from stretching select elements inside the reader modal or page app */
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root select {
+    width: auto !important;
+    max-width: 100% !important;
+    height: 2rem !important;
+    min-height: 2rem !important;
+    background-size: 10px 6px !important;
+    background-position: right 6px center !important;
+    background-repeat: no-repeat !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+}
+
+/* Prevent WordPress theme styles from stretching, padding, or adding border/bg to the page indicator input in the reader bottom bar */
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root input.jr-page-input {
+    width: 2rem !important;
+    height: auto !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    outline: none !important;
+    text-align: center !important;
+}
+
+@media (min-width: 640px) {
+    :is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root input.jr-page-input {
+        width: 3rem !important;
+    }
+}
+
+/* ── Library filter sidebar: Language <select> ──────────────────────────────
+   The global :where() reset strips padding, border, bg with !important.
+   Using ID+class (specificity 1,1,0 + !important) beats the reset (0,0,1 + !important). */
+#jetreader-frontend-app .jr-filter-select,
+#jetreader-search-app   .jr-filter-select {
+    display: block !important;
+    width: 100% !important;
+    height: 38px !important;
+    padding: 0 36px 0 12px !important;
+    border: 1px solid rgba(0,0,0,0.14) !important;
+    border-width: 1px !important;
+    border-radius: 8px !important;
+    background-color: var(--jr-sidebar-input-bg, rgba(0,0,0,0.04)) !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' stroke='%239ca3af' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 12px center !important;
+    background-size: 12px 8px !important;
+    font-size: 13px !important;
+    font-family: inherit !important;
+    line-height: 38px !important;
+    color: inherit !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    cursor: pointer !important;
+    box-sizing: border-box !important;
+    box-shadow: none !important;
+    outline: none !important;
+    transition: border-color 0.15s, box-shadow 0.15s !important;
+}
+
+#jetreader-frontend-app .jr-filter-select:hover,
+#jetreader-search-app   .jr-filter-select:hover {
+    border-color: var(--jr-p300, rgba(0,0,0,0.25)) !important;
+}
+
+#jetreader-frontend-app .jr-filter-select:focus,
+#jetreader-search-app   .jr-filter-select:focus {
+    border-color: var(--jr-p500, #6366f1) !important;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--jr-p500, #6366f1) 18%, transparent) !important;
+    outline: none !important;
+}
+
+.dark #jetreader-frontend-app .jr-filter-select,
+.dark #jetreader-search-app   .jr-filter-select {
+    border-color: rgba(255,255,255,0.13) !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' stroke='%236b7280' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+}
+
+/* ── Library filter sidebar: Year <input type="number"> ─────────────────── */
+#jetreader-frontend-app .jr-filter-year-input,
+#jetreader-search-app   .jr-filter-year-input {
+    display: block !important;
+    height: 38px !important;
+    padding: 0 10px !important;
+    border: 1px solid rgba(0,0,0,0.14) !important;
+    border-width: 1px !important;
+    border-radius: 8px !important;
+    background: var(--jr-sidebar-input-bg, rgba(0,0,0,0.04)) !important;
+    font-size: 13px !important;
+    font-family: inherit !important;
+    line-height: 38px !important;
+    color: inherit !important;
+    appearance: textfield !important;
+    -webkit-appearance: textfield !important;
+    box-sizing: border-box !important;
+    box-shadow: none !important;
+    outline: none !important;
+    min-width: 0 !important;
+    transition: border-color 0.15s, box-shadow 0.15s !important;
+}
+
+#jetreader-frontend-app .jr-filter-year-input::-webkit-outer-spin-button,
+#jetreader-frontend-app .jr-filter-year-input::-webkit-inner-spin-button,
+#jetreader-search-app   .jr-filter-year-input::-webkit-outer-spin-button,
+#jetreader-search-app   .jr-filter-year-input::-webkit-inner-spin-button {
+    -webkit-appearance: none !important;
+    margin: 0 !important;
+}
+
+#jetreader-frontend-app .jr-filter-year-input:focus,
+#jetreader-search-app   .jr-filter-year-input:focus {
+    border-color: var(--jr-p500, #6366f1) !important;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--jr-p500, #6366f1) 18%, transparent) !important;
+    outline: none !important;
+}
+
+.dark #jetreader-frontend-app .jr-filter-year-input,
+.dark #jetreader-search-app   .jr-filter-year-input {
+    border-color: rgba(255,255,255,0.13) !important;
+}
+
+/* Scoped sidebar font controls container to prevent WordPress theme overrides and use theme-compatible background */
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root .jr-font-controls-container {
+    background-color: var(--jr-badge-bg) !important;
+}
+
+/* Sidebar active tab bottom border color to match the theme palette */
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root button.jr-item-active {
+    border-bottom-width: 2px !important;
+    border-bottom-style: solid !important;
+    border-bottom-color: var(--jr-item-active-text) !important;
+    color: var(--jr-item-active-text) !important;
+    font-weight: 700 !important;
+    padding-top: 0.75rem !important;
+    padding-bottom: 0.75rem !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+}
+
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root button.jr-item-idle {
+    border-bottom-width: 2px !important;
+    border-bottom-style: solid !important;
+    border-bottom-color: transparent !important;
+    color: var(--jr-text-muted) !important;
+    font-weight: 600 !important;
+    transition: all 0.2s ease !important;
+    padding-top: 0.75rem !important;
+    padding-bottom: 0.75rem !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+}
+
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root button.jr-item-idle:hover {
+    color: var(--jr-text-main) !important;
+    border-bottom-color: var(--jr-border-color) !important;
+}
+
+
+
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) input {
+    background: transparent;
+    border: 0 solid transparent;
+    border-width: 0;
+    outline: none;
+    box-shadow: none;
+    margin: 0;
+    padding: 0;
+    color: inherit;
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: normal;
+    box-sizing: border-box;
+}
+
+/* Explicit button pointer/hover targeting */
+.jrc-btn-read,
+.jrc-btn-info,
+.jr-btn-primary,
+.jr-btn-secondary,
+.reader-sidebar-list-item {
+    cursor: pointer !important;
+}
+
+/* Sidebar and Header button resets are handled cleanly by the low-specificity global resets */
+
+/* Unified High-Specificity Button Styling */
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root :is(
+    button.jr-btn-close,
+    button.jr-btn-search,
+    button.jr-btn-sidebar,
+    button.jr-btn-dualpage,
+    button.jr-btn-toc,
+    button.jr-btn-back,
+    button.jr-btn-zoom-out,
+    button.jr-btn-zoom-fit,
+    button.jr-btn-zoom-in,
+    button.jr-btn-search-submit,
+    button.jr-btn-search-prev,
+    button.jr-btn-search-next,
+    button.jr-btn-search-close,
+    button.jr-btn-prev,
+    button.jr-btn-next,
+    button.jr-btn-bookmark-toggle,
+    button.jr-btn-bookmarks-tab,
+    button.jr-btn-annotations-tab,
+    button.jr-btn-font-decrease,
+    button.jr-btn-font-increase,
+    button.jr-btn-sidebar-close
+) {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    outline: none !important;
+    text-shadow: none !important;
+    font-family: inherit !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    border-style: solid !important;
+    border-width: 1px !important;
+    border-radius: 8px !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+    
+    /* Theme color variables */
+    background-color: var(--jr-btn-bg) !important;
+    border-color: var(--jr-btn-border) !important;
+    color: var(--jr-btn-text) !important;
+}
+
+/* Hover State */
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root :is(
+    button.jr-btn-close,
+    button.jr-btn-search,
+    button.jr-btn-sidebar,
+    button.jr-btn-dualpage,
+    button.jr-btn-toc,
+    button.jr-btn-back,
+    button.jr-btn-zoom-out,
+    button.jr-btn-zoom-fit,
+    button.jr-btn-zoom-in,
+    button.jr-btn-search-submit,
+    button.jr-btn-search-prev,
+    button.jr-btn-search-next,
+    button.jr-btn-search-close,
+    button.jr-btn-prev,
+    button.jr-btn-next,
+    button.jr-btn-bookmark-toggle,
+    button.jr-btn-bookmarks-tab,
+    button.jr-btn-annotations-tab,
+    button.jr-btn-font-decrease,
+    button.jr-btn-font-increase,
+    button.jr-btn-sidebar-close
+):not(:disabled):hover {
+    background-color: var(--jr-btn-hover-bg) !important;
+    border-color: var(--jr-border-color) !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03) !important;
+    transform: translateY(-1px) !important;
+}
+
+/* Active State */
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root :is(
+    button.jr-btn-close,
+    button.jr-btn-search,
+    button.jr-btn-sidebar,
+    button.jr-btn-dualpage,
+    button.jr-btn-toc,
+    button.jr-btn-back,
+    button.jr-btn-zoom-out,
+    button.jr-btn-zoom-fit,
+    button.jr-btn-zoom-in,
+    button.jr-btn-search-submit,
+    button.jr-btn-search-prev,
+    button.jr-btn-search-next,
+    button.jr-btn-search-close,
+    button.jr-btn-prev,
+    button.jr-btn-next,
+    button.jr-btn-bookmark-toggle,
+    button.jr-btn-bookmarks-tab,
+    button.jr-btn-annotations-tab,
+    button.jr-btn-font-decrease,
+    button.jr-btn-font-increase,
+    button.jr-btn-sidebar-close
+):not(:disabled):active {
+    background-color: var(--jr-btn-active-bg) !important;
+    transform: scale(0.95) translateY(0px) !important;
+}
+
+/* Disabled State */
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root :is(
+    button.jr-btn-close,
+    button.jr-btn-search,
+    button.jr-btn-sidebar,
+    button.jr-btn-dualpage,
+    button.jr-btn-toc,
+    button.jr-btn-back,
+    button.jr-btn-zoom-out,
+    button.jr-btn-zoom-fit,
+    button.jr-btn-zoom-in,
+    button.jr-btn-search-submit,
+    button.jr-btn-search-prev,
+    button.jr-btn-search-next,
+    button.jr-btn-search-close,
+    button.jr-btn-prev,
+    button.jr-btn-next,
+    button.jr-btn-bookmark-toggle,
+    button.jr-btn-bookmarks-tab,
+    button.jr-btn-annotations-tab,
+    button.jr-btn-font-decrease,
+    button.jr-btn-font-increase,
+    button.jr-btn-sidebar-close
+):disabled {
+    opacity: 0.4 !important;
+    cursor: not-allowed !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+/* Square control buttons (38px width, 2rem height) */
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root :is(
+    button.jr-btn-close,
+    button.jr-btn-search,
+    button.jr-btn-sidebar,
+    button.jr-btn-dualpage,
+    button.jr-btn-toc
+) {
+    width: 38px !important;
+    height: 2rem !important;
+    padding: 0 !important;
+}
+
+/* Back button (2rem height) */
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root button.jr-btn-back {
+    height: 2rem !important;
+    padding: 0 0.75rem !important;
+}
+
+/* Zoom buttons (28px height) */
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root :is(
+    button.jr-btn-zoom-out,
+    button.jr-btn-zoom-in,
+    button.jr-btn-search-close
+) {
+    width: 1.75rem !important;
+    height: 1.75rem !important;
+    border-radius: 6px !important;
+    padding: 0 !important;
+}
+
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root button.jr-btn-zoom-fit {
+    height: 1.75rem !important;
+    padding: 0 0.5rem !important;
+    border-radius: 6px !important;
+}
+
+/* Sidebar font controls & sidebar close */
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root :is(
+    button.jr-btn-font-decrease,
+    button.jr-btn-font-increase,
+    button.jr-btn-sidebar-close
+) {
+    width: 1.75rem !important;
+    height: 1.75rem !important;
+    padding: 0 !important;
+}
+
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root button.jr-btn-sidebar-close {
+    border-radius: 50% !important;
+}
+
+/* Search panel controls */
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root button.jr-btn-search-submit {
+    height: 1.75rem !important;
+    padding: 0 0.75rem !important;
+    font-size: 0.75rem !important;
+    border-radius: 6px !important;
+}
+
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root :is(
+    button.jr-btn-search-prev,
+    button.jr-btn-search-next
+) {
+    width: 1.5rem !important;
+    height: 1.5rem !important;
+    border-radius: 4px !important;
+    padding: 0 !important;
+    font-size: 0.75rem !important;
+}
+
+/* Bottombar navigation buttons */
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root :is(
+    button.jr-btn-prev,
+    button.jr-btn-next
+) {
+    height: 2.25rem !important;
+    padding: 0 1rem !important;
+    border-radius: 8px !important;
+}
+
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root :is(
+    button.jr-btn-bookmark-toggle,
+    button.jr-btn-bookmarks-tab,
+    button.jr-btn-annotations-tab
+) {
+    height: 1.875rem !important;
+    padding: 0 0.625rem !important;
+    border-radius: 6px !important;
+}
+
+/* Active/Selected State Overrides for Search/Sidebar/Dualpage/TOC, Zoom Fit, and Bottom tabs */
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root :is(
+    button.jr-btn-search,
+    button.jr-btn-sidebar,
+    button.jr-btn-dualpage,
+    button.jr-btn-toc,
+    button.jr-btn-bookmarks-tab,
+    button.jr-btn-annotations-tab,
+    button.jr-btn-zoom-fit
+):is(.bg-blue-600, .bg-blue-700, .bg-amber-600) {
+    background-color: var(--jr-item-active-text) !important;
+    border-color: var(--jr-item-active-text) !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--jr-item-active-text) 30%, transparent) !important;
+}
+
+/* Bookmark Active/Selected State Override */
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root button.jr-btn-bookmark-toggle.text-yellow-600 {
+    background-color: #fef08a !important;
+    border-color: #ca8a04 !important;
+    color: #854d0e !important;
+}
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root[data-jr-theme="dark"] button.jr-btn-bookmark-toggle.text-yellow-600 {
+    background-color: rgba(234, 179, 8, 0.2) !important;
+    border-color: #eab308 !important;
+    color: #fef08a !important;
+}
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root[data-jr-theme="sepia"] button.jr-btn-bookmark-toggle.text-yellow-600 {
+    background-color: #fef9c3 !important;
+    border-color: #d97706 !important;
+    color: #78350f !important;
+}
+
+/* Custom Select Dropdown Styling */
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root :is(select.jr-select-volume, select.jr-select-font, select.jr-select-theme) {
+    background-color: var(--jr-input-bg) !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 8px center !important;
+    background-size: 10px 6px !important;
+    border: 1px solid var(--jr-input-border) !important;
+    color: var(--jr-text-main) !important;
+    border-radius: 8px !important;
+    height: 2rem !important;
+    padding-left: 0.75rem !important;
+    padding-right: 1.75rem !important;
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02) !important;
+    appearance: none !important;
+}
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root :is(select.jr-select-volume, select.jr-select-font, select.jr-select-theme):hover {
+    border-color: var(--jr-border-color) !important;
+}
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root :is(select.jr-select-volume, select.jr-select-font, select.jr-select-theme):focus {
+    border-color: var(--jr-item-active-text) !important;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--jr-item-active-text) 25%, transparent) !important;
+}
+
+/* SVG Icon alignment and size protection inside all buttons */
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root button svg {
+    display: inline-block !important;
+    vertical-align: middle !important;
+    flex-shrink: 0 !important;
+    margin: 0 !important;
+    transition: transform 0.2s ease !important;
+}
+
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root button.jr-btn-bookmark-toggle svg,
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root button.jr-btn-bookmarks-tab svg,
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root button.jr-btn-annotations-tab svg {
+    width: 12px !important;
+    height: 12px !important;
+}
+
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root button:is(
+    .jr-btn-close,
+    .jr-btn-search,
+    .jr-btn-sidebar,
+    .jr-btn-toc,
+    .jr-btn-back,
+    .jr-btn-zoom-out,
+    .jr-btn-zoom-in,
+    .jr-btn-search-close,
+    .jr-btn-search-prev,
+    .jr-btn-search-next,
+    .jr-btn-font-decrease,
+    .jr-btn-font-increase,
+    .jr-btn-sidebar-close
+) svg {
+    width: 14px !important;
+    height: 14px !important;
+}
+
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root button.jr-btn-dualpage svg {
+    width: 16px !important;
+    height: 14px !important;
+}
+
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root button:hover:not(:disabled) svg {
+    transform: scale(1.08) !important;
+}
+
+/* Responsive visibility overrides */
+@media (min-width: 640px) {
+    :is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root button.jr-btn-search-mobile {
+        display: none !important;
+    }
+}
+@media (max-width: 639px) {
+    :is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root :is(
+        button.jr-btn-search-desktop,
+        button.jr-btn-dualpage
+    ) {
+        display: none !important;
+    }
+}
+
+/* 3. Structural Themes — scoped with (1,2,0) specificity to beat any WP override */
+#jetreader-portal-root .jetreader-modal-root .jr-sidebar,
+#jetreader-page-app .jr-sidebar {
+    background-color: var(--jr-sidebar-bg) !important;
+    color: var(--jr-text-main) !important;
+    border-color: var(--jr-border-color) !important;
+}
+
+#jetreader-portal-root .jetreader-modal-root .jr-header,
+#jetreader-page-app .jr-header {
+    background-color: var(--jr-header-bg) !important;
+    color: var(--jr-text-main) !important;
+    border-color: var(--jr-border-color) !important;
+}
+
+#jetreader-portal-root .jetreader-modal-root .jr-text-main,
+#jetreader-page-app .jr-text-main {
+    color: var(--jr-text-main) !important;
+}
+
+#jetreader-portal-root .jetreader-modal-root .jr-text-muted,
+#jetreader-page-app .jr-text-muted {
+    color: var(--jr-text-muted) !important;
+}
+
+#jetreader-portal-root .jetreader-modal-root .jr-border,
+#jetreader-page-app .jr-border {
+    border-color: var(--jr-border-color) !important;
+}
+
+#jetreader-portal-root .jetreader-modal-root .jr-badge-bg,
+#jetreader-page-app .jr-badge-bg {
+    background-color: var(--jr-badge-bg) !important;
+}
+
+#jetreader-portal-root .jetreader-modal-root .jr-item-active,
+#jetreader-page-app .jr-item-active {
+    background-color: var(--jr-item-active-bg) !important;
+    color: var(--jr-item-active-text) !important;
+}
+
+#jetreader-portal-root .jetreader-modal-root .jr-item-idle,
+#jetreader-page-app .jr-item-idle {
+    background-color: transparent !important;
+    color: var(--jr-text-main) !important;
+}
+
+#jetreader-portal-root .jetreader-modal-root .jr-item-idle:hover,
+#jetreader-page-app .jr-item-idle:hover {
+    background-color: var(--jr-item-hover-bg) !important;
+    color: var(--jr-text-main) !important;
+}
+
+/* Scoped Sidebar List Item styling to enforce full-width block display */
+.reader-sidebar-list-item {
+    display: block !important;
+    width: 100% !important;
+    text-align: left !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    border-bottom-width: 1px !important;
+    border-bottom-style: solid !important;
+    border-bottom-color: var(--jr-border-color) !important;
+    transition: all 0.2s ease !important;
+    padding-top: 10px !important;
+    padding-bottom: 10px !important;
+    padding-right: 16px !important;
+    padding-left: var(--jr-toc-depth-padding, 16px) !important;
+}
+
+/* Toc Hierarchy Styling */
+.reader-sidebar-list-item[data-depth="0"] {
+    font-weight: 600 !important;
+}
+
+.reader-sidebar-list-item:not([data-depth="0"]) {
+    font-weight: 400 !important;
+    opacity: 0.8 !important;
+}
+
+.reader-sidebar-list-item.jr-item-active {
+    font-weight: 600 !important;
+    opacity: 1 !important;
+}
+
+/* TOC depth padding override — same (1,2,1) specificity as jr-item-active/jr-item-idle
+   but placed AFTER them, so cascade order wins and depth-based padding is restored. */
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root button.reader-sidebar-list-item {
+    padding-left: var(--jr-toc-depth-padding, 16px) !important;
+    padding-top: 10px !important;
+    padding-bottom: 10px !important;
+    padding-right: 16px !important;
+}
+
+/* Prevent live WordPress theme overrides on outline/TOC lists and headers inside the sidebar */
+.reader-sidebar-list-item span:not(.jr-text-muted) {
+    color: inherit !important;
+}
+
+.reader-sidebar-list-item span.jr-text-muted {
+    color: var(--jr-text-muted) !important;
+}
+
+#jetreader-portal-root .jetreader-modal-root .jr-sidebar h3,
+#jetreader-page-app .jr-sidebar h3 {
+    color: var(--jr-text-muted) !important;
+}
+
+/* ── Reader header title (h2) ─────────────────────────────────────────────
+   WordPress themes set h2 { font-size, margin } with element-level specificity
+   (0,0,1) which beats :where() resets (0 specificity). This scoped rule with
+   (1,2,1) specificity + !important ensures the title stays flat inside flex. */
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root h2.jr-reader-title {
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 0.875rem !important;  /* text-sm */
+    line-height: 1.5 !important;
+    font-weight: 600 !important;
+    border: none !important;
+}
+
+/* ── Volume/cilt separator divider ────────────────────────────────────────
+   Tailwind border-l has (0,1,0) specificity with no !important. Theme rules
+   that target div borders (or use !important) make it invisible. Force it. */
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root .jr-vol-divider {
+    border-left-width: 1px !important;
+    border-left-style: solid !important;
+    display: flex !important;
+    align-items: center !important;
+}
+
+/* Ensure aside is always transparent so our jr-sidebar div wins */
+#jetreader-portal-root .jetreader-modal-root aside {
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+/* 4. Premium Modern Scrollbar */
+.jr-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: var(--jr-scrollbar-thumb) transparent;
+}
+
+/* User specifically asked for more modern & visible scrollbar */
+.jr-scrollbar::-webkit-scrollbar {
+    width: 10px;
+    /* Slightly thicker for better accessibility but still modern */
+    height: 10px;
+}
+
+.jr-scrollbar::-webkit-scrollbar-track {
+    background: transparent !important;
+}
+
+.jr-scrollbar::-webkit-scrollbar-thumb {
+    background-color: var(--jr-scrollbar-thumb) !important;
+    border-radius: 20px;
+    border: 3px solid transparent;
+    /* The "floating" gap look */
+    background-clip: content-box;
+    transition: background-color 0.2s;
+}
+
+.jr-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(0, 0, 0, 0.2) !important;
+}
+
+.jetreader-modal-root[data-jr-theme="dark"] .jr-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+/* 5. Utility Layer */
+@layer components {
+    /* ── Cards ── */
+    .jr-card {
+        @apply bg-white dark:bg-gray-900 rounded-2xl
+               border border-gray-100 dark:border-gray-800
+               shadow-sm overflow-hidden
+               transition-all duration-200
+               hover:shadow-lg hover:-translate-y-0.5;
+    }
+
+    /* ── Buttons ── */
+    .jr-btn {
+        @apply inline-flex items-center justify-center
+               px-4 py-2 rounded-xl font-medium text-sm
+               transition-all duration-150 active:scale-95
+               focus:outline-none focus:ring-2 focus:ring-offset-2;
+    }
+
+    .jr-btn-primary {
+        @apply jr-btn
+               bg-primary-600 hover:bg-primary-700 active:bg-primary-800
+               text-white shadow-sm hover:shadow-md
+               focus:ring-primary-500;
+    }
+
+    .jr-btn-secondary {
+        @apply jr-btn
+               bg-gray-100 hover:bg-gray-200 active:bg-gray-300
+               text-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-200
+               border border-gray-200 dark:border-gray-700
+               focus:ring-gray-400;
+    }
+
+    /* ── Inputs ── */
+    .jr-input {
+        @apply w-full px-4 py-2.5
+               bg-gray-50 dark:bg-gray-900
+               border border-gray-200 dark:border-gray-700
+               rounded-xl text-gray-900 dark:text-gray-100
+               placeholder:text-gray-400 dark:placeholder:text-gray-500
+               focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500
+               transition-all duration-200;
+    }
+
+    /* ── Skeleton loader ── */
+    .jr-skeleton {
+        @apply bg-gray-100 dark:bg-gray-800 rounded-xl animate-pulse;
+    }
+}
+
+/* PDF Content Specifics */
+.jr-pdf-text-layer {
+    position: absolute;
+    inset: 0;
+    overflow: clip;
+    opacity: 1;
+    line-height: 1;
+    z-index: 1;
+    pointer-events: none;
+    user-select: none;
+}
+
+.jr-pdf-text-layer.jr-select-enabled {
+    pointer-events: auto;
+    user-select: text;
+}
+
+.jr-pdf-text-layer :is(span, br) {
+    color: transparent;
+    position: absolute;
+    white-space: pre;
+    cursor: text;
+    transform-origin: 0% 0%;
+}
+
+.jr-pdf-text-layer ::selection {
+    background: rgba(0, 100, 255, 0.25);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   SEARCH BOX & BUTTON OVERRIDES (To beat WordPress/Elementor theme resets)
+───────────────────────────────────────────────────────────────────────── */
+
+/* 1. Scoped Input Overrides */
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .jr-input {
+    background-color: #ffffff !important;
+    border: 1px solid #d1d5db !important;
+    border-width: 1px !important;
+    border-style: solid !important;
+    border-radius: 0.75rem !important; /* rounded-xl (12px) */
+    padding-top: 0.625rem !important; /* py-2.5 */
+    padding-bottom: 0.625rem !important;
+    padding-left: 1rem !important; /* px-4 */
+    padding-right: 1rem !important;
+    color: #111827 !important;
+    font-size: 0.875rem !important; /* text-sm */
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    display: block !important;
+    outline: none !important;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .jr-input::placeholder {
+    color: #9ca3af !important;
+}
+
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .jr-input:hover {
+    border-color: #9ca3af !important;
+}
+
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .jr-input:focus {
+    border-color: var(--jr-p500, #3b82f6) !important;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--jr-p500, #3b82f6) 15%, transparent) !important;
+    background-color: #ffffff !important;
+}
+
+/* Dark theme input */
+.dark :is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .jr-input,
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display])[data-jr-theme="dark"] .jr-input {
+    background-color: #111827 !important;
+    border-color: #374151 !important;
+    color: #f9fafb !important;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.3) !important;
+}
+.dark :is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .jr-input::placeholder,
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display])[data-jr-theme="dark"] .jr-input::placeholder {
+    color: #4b5563 !important;
+}
+.dark :is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .jr-input:hover,
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display])[data-jr-theme="dark"] .jr-input:hover {
+    border-color: #4b5563 !important;
+}
+.dark :is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .jr-input:focus,
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display])[data-jr-theme="dark"] .jr-input:focus {
+    border-color: var(--jr-p400, #60a5fa) !important;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--jr-p400, #60a5fa) 20%, transparent) !important;
+    background-color: #111827 !important;
+}
+
+/* Sepia theme input */
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display])[data-jr-theme="sepia"] .jr-input {
+    background-color: #fdfaf2 !important;
+    border-color: #e8d69a !important;
+    color: #433422 !important;
+    box-shadow: 0 1px 2px 0 rgba(120, 53, 15, 0.05) !important;
+}
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display])[data-jr-theme="sepia"] .jr-input::placeholder {
+    color: #b5a484 !important;
+}
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display])[data-jr-theme="sepia"] .jr-input:hover {
+    border-color: #7d6a4a !important;
+}
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display])[data-jr-theme="sepia"] .jr-input:focus {
+    border-color: #b45309 !important;
+    box-shadow: 0 0 0 3px rgba(180, 83, 9, 0.2) !important;
+    background-color: #fdfaf2 !important;
+}
+
+/* 2. Scoped Primary Button Overrides */
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .jr-btn-primary {
+    background-color: var(--jr-p600, #2563eb) !important; /* primary-600 */
+    color: #ffffff !important;
+    border: 1px solid transparent !important;
+    border-width: 1px !important;
+    border-style: solid !important;
+    border-radius: 0.75rem !important; /* rounded-xl */
+    padding-top: 0.5rem !important; /* py-2 */
+    padding-bottom: 0.5rem !important;
+    padding-left: 1rem !important; /* px-4 */
+    padding-right: 1rem !important;
+    font-size: 0.875rem !important; /* text-sm */
+    font-weight: 500 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+    transition: all 0.15s ease !important;
+}
+
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .jr-btn-primary:hover {
+    background-color: var(--jr-p700, #1d4ed8) !important; /* primary-700 */
+}
+
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .jr-btn-primary:active {
+    background-color: var(--jr-p800, #1e40af) !important; /* primary-800 */
+    transform: scale(0.95) !important;
+}
+
+/* 3. Scoped Secondary Button Overrides */
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .jr-btn-secondary {
+    background-color: #f3f4f6 !important; /* gray-100 */
+    color: #374151 !important; /* gray-700 */
+    border: 1px solid #e5e7eb !important; /* border-gray-200 */
+    border-width: 1px !important;
+    border-style: solid !important;
+    border-radius: 0.75rem !important;
+    padding-top: 0.5rem !important; /* py-2 */
+    padding-bottom: 0.5rem !important;
+    padding-left: 0.75rem !important; /* px-3 */
+    padding-right: 0.75rem !important;
+    font-size: 0.875rem !important; /* text-sm */
+    font-weight: 500 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+}
+
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .jr-btn-secondary:hover {
+    background-color: #e5e7eb !important; /* gray-200 */
+}
+
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .jr-btn-secondary:active {
+    background-color: #d1d5db !important; /* gray-300 */
+    transform: scale(0.95) !important;
+}
+
+/* Dark mode overrides for secondary button */
+.dark :is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .jr-btn-secondary,
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display])[data-jr-theme="dark"] .jr-btn-secondary {
+    background-color: #1f2937 !important; /* dark:bg-gray-800 */
+    color: #e5e7eb !important; /* dark:text-gray-200 */
+    border-color: #374151 !important; /* dark:border-gray-700 */
+}
+
+.dark :is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .jr-btn-secondary:hover,
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display])[data-jr-theme="dark"] .jr-btn-secondary:hover {
+    background-color: #374151 !important; /* dark:hover:bg-gray-700 */
+}
+
+/* Sepia mode overrides for secondary button */
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display])[data-jr-theme="sepia"] .jr-btn-secondary {
+    background-color: #fce895 !important;
+    color: #78350f !important;
+    border-color: #e8d69a !important;
+}
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display])[data-jr-theme="sepia"] .jr-btn-secondary:hover {
+    background-color: #fbd663 !important;
+}
+
+/* 4. Scoped Goto Button Overrides (Inside Search Results matches) */
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .jr-goto-btn {
+    background-color: var(--jr-p600, #2563eb) !important; /* primary-600 */
+    color: #ffffff !important;
+    border: 1px solid transparent !important;
+    border-width: 1px !important;
+    border-style: solid !important;
+    border-radius: 0.25rem !important; /* rounded (4px) */
+    padding-top: 0.125rem !important; /* py-0.5 */
+    padding-bottom: 0.125rem !important;
+    padding-left: 0.5rem !important; /* px-2 */
+    padding-right: 0.5rem !important;
+    font-size: 0.75rem !important; /* text-xs */
+    font-weight: 500 !important;
+    line-height: 1rem !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    transition: background-color 0.15s ease !important;
+}
+
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .jr-goto-btn:hover {
+    background-color: var(--jr-p700, #1d4ed8) !important; /* primary-700 */
+}
+
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .jr-goto-btn:active {
+    background-color: var(--jr-p800, #1e40af) !important; /* primary-800 */
+    transform: scale(0.95) !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   TAILWIND PRIMARY CLASS PALETTE VARIABLE OVERRIDES
+   Ensures active tabs, search result badges, pagination, etc. use brand palette.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* 1. Backgrounds */
+:is(#jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .bg-primary-50 {
+    background-color: var(--jr-p50) !important;
+}
+:is(#jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .bg-primary-100 {
+    background-color: var(--jr-p100) !important;
+}
+:is(#jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .bg-primary-600 {
+    background-color: var(--jr-p600) !important;
+}
+
+/* Dark mode backgrounds */
+.dark :is(#jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .dark\:bg-primary-900\/30,
+:is(#jetreader-frontend-app, #jetreader-search-app, [data-jr-display])[data-jr-theme="dark"] .dark\:bg-primary-900\/30 {
+    background-color: color-mix(in srgb, var(--jr-p900) 30%, transparent) !important;
+}
+.dark :is(#jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .dark\:bg-primary-900\/50,
+:is(#jetreader-frontend-app, #jetreader-search-app, [data-jr-display])[data-jr-theme="dark"] .dark\:bg-primary-900\/50 {
+    background-color: color-mix(in srgb, var(--jr-p900) 50%, transparent) !important;
+}
+
+/* 2. Text colors */
+:is(#jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .text-primary-600 {
+    color: var(--jr-p600) !important;
+}
+:is(#jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .text-primary-700 {
+    color: var(--jr-p700) !important;
+}
+
+/* Dark mode text */
+.dark :is(#jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .dark\:text-primary-300,
+:is(#jetreader-frontend-app, #jetreader-search-app, [data-jr-display])[data-jr-theme="dark"] .dark\:text-primary-300 {
+    color: var(--jr-p300) !important;
+}
+.dark :is(#jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .dark\:text-primary-400,
+:is(#jetreader-frontend-app, #jetreader-search-app, [data-jr-display])[data-jr-theme="dark"] .dark\:text-primary-400 {
+    color: var(--jr-p400) !important;
+}
+
+/* Hover text */
+:is(#jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .hover\:text-primary-600:hover {
+    color: var(--jr-p600) !important;
+}
+:is(#jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .hover\:text-primary-700:hover {
+    color: var(--jr-p700) !important;
+}
+
+/* Dark mode hover text */
+.dark :is(#jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .dark\:hover\:text-primary-300:hover,
+:is(#jetreader-frontend-app, #jetreader-search-app, [data-jr-display])[data-jr-theme="dark"] .dark\:hover\:text-primary-300:hover {
+    color: var(--jr-p300) !important;
+}
+.dark :is(#jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .dark\:hover\:text-primary-400:hover,
+:is(#jetreader-frontend-app, #jetreader-search-app, [data-jr-display])[data-jr-theme="dark"] .dark\:hover\:text-primary-400:hover {
+    color: var(--jr-p400) !important;
+}
+
+/* 3. Borders */
+:is(#jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .border-primary-500 {
+    border-color: var(--jr-p500) !important;
+}
+:is(#jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .border-primary-600 {
+    border-color: var(--jr-p600) !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   READER TEXT FONT-SIZE OVERRIDES (14px to 28px)
+   Overrides theme styles to guarantee uniform text resizing.
+   ───────────────────────────────────────────────────────────────────────── */
+.jr-font-size-small,
+.jr-font-size-small :is(p, span, div, li, a, blockquote) {
+    font-size: 14px !important;
+    line-height: 1.6 !important;
+}
+
+.jr-font-size-medium,
+.jr-font-size-medium :is(p, span, div, li, a, blockquote) {
+    font-size: 18px !important;
+    line-height: 1.65 !important;
+}
+
+.jr-font-size-large,
+.jr-font-size-large :is(p, span, div, li, a, blockquote) {
+    font-size: 22px !important;
+    line-height: 1.7 !important;
+}
+
+.jr-font-size-xlarge,
+.jr-font-size-xlarge :is(p, span, div, li, a, blockquote) {
+    font-size: 28px !important;
+    line-height: 1.75 !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   SIDEBAR TOC/OUTLINE FONT-SIZE STEPS (xs: 12px to xl: 23px)
+   Applied on wrapper to prevent re-rendering of all list items.
+   ───────────────────────────────────────────────────────────────────────── */
+.jr-sidebar-font-xs button.reader-sidebar-list-item {
+    font-size: 12px !important;
+}
+.jr-sidebar-font-sm button.reader-sidebar-list-item {
+    font-size: 14px !important;
+}
+.jr-sidebar-font-base button.reader-sidebar-list-item {
+    font-size: 16px !important;
+}
+.jr-sidebar-font-lg button.reader-sidebar-list-item {
+    font-size: 19px !important;
+}
+.jr-sidebar-font-xl button.reader-sidebar-list-item {
+    font-size: 23px !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   ItemCard Read/Info Buttons Custom Overrides (Immune to resets)
+   ───────────────────────────────────────────────────────────────────────── */
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .jrc-btn-read {
+    background: var(--jr-p600, #4f46e5) !important;
+    background-color: var(--jr-p600, #4f46e5) !important;
+    color: #ffffff !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08) !important;
+    border-radius: 0.75rem !important;
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+    font-size: 0.75rem !important;
+    font-weight: 600 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+}
+
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .jrc-btn-read:hover {
+    background: var(--jr-p700, #4338ca) !important;
+    background-color: var(--jr-p700, #4338ca) !important;
+    box-shadow: 0 4px 14px rgba(99,102,241,0.35) !important;
+}
+
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .jrc-btn-read:active {
+    transform: scale(0.95) !important;
+}
+
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .jrc-btn-info {
+    background: transparent !important;
+    background-color: transparent !important;
+    color: var(--jr-p600, #4f46e5) !important;
+    border: 1.5px solid var(--jr-p200, #c7d2fe) !important;
+    border-width: 1.5px !important;
+    border-style: solid !important;
+    border-radius: 0.75rem !important;
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+    font-size: 0.75rem !important;
+    font-weight: 600 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+}
+
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .jrc-btn-info:hover {
+    background: var(--jr-p50, #eef2ff) !important;
+    background-color: var(--jr-p50, #eef2ff) !important;
+    border-color: var(--jr-p400, #818cf8) !important;
+}
+
+:is(#jetreader-portal-root, #jetreader-page-app, #jetreader-frontend-app, #jetreader-search-app, [data-jr-display]) .jrc-btn-info:active {
+    transform: scale(0.95) !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   WebKit/Blink Paint Fixes for dynamic text containers
+   Forces compositing layer creation to avoid invisible text before scroll.
+   ───────────────────────────────────────────────────────────────────────── */
+.jr-html-scroll-container {
+    transform: translateZ(0) !important;
+    will-change: transform !important;
+    perspective: 1000 !important;
+    backface-visibility: hidden !important;
+}
+
+.jr-html-scroll-page {
+    transform: translateZ(0) !important;
+    will-change: transform !important;
+    backface-visibility: hidden !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   JetReader Custom Card Appearance Modifiers
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* 1. Radius Overrides */
+.jr-radius-none {
+    border-radius: 0px !important;
+}
+.jr-radius-none img,
+.jr-radius-none .overflow-hidden,
+.jr-radius-none > div {
+    border-radius: 0px !important;
+}
+
+.jr-radius-small {
+    border-radius: 6px !important;
+}
+.jr-radius-small img,
+.jr-radius-small .overflow-hidden,
+.jr-radius-small > div {
+    border-radius: 6px !important;
+}
+
+.jr-radius-medium {
+    border-radius: 12px !important;
+}
+.jr-radius-medium img,
+.jr-radius-medium .overflow-hidden,
+.jr-radius-medium > div {
+    border-radius: 12px !important;
+}
+
+.jr-radius-large {
+    border-radius: 16px !important;
+}
+.jr-radius-large img,
+.jr-radius-large .overflow-hidden,
+.jr-radius-large > div {
+    border-radius: 16px !important;
+}
+
+.jr-radius-xlarge {
+    border-radius: 24px !important;
+}
+.jr-radius-xlarge img,
+.jr-radius-xlarge .overflow-hidden,
+.jr-radius-xlarge > div {
+    border-radius: 24px !important;
+}
+
+/* 2. Border Overrides */
+.jr-border-none {
+    border: none !important;
+}
+.jr-border-subtle {
+    border: 1px solid var(--jr-p200, rgba(0,0,0,0.08)) !important;
+}
+.jr-border-thick {
+    border: 2px solid var(--jr-p300, rgba(0,0,0,0.15)) !important;
+}
+
+/* 3. Shadow Overrides */
+.jr-shadow-none {
+    box-shadow: none !important;
+}
+.jr-shadow-subtle {
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03) !important;
+}
+.jr-shadow-medium {
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -1px rgba(0,0,0,0.04) !important;
+}
+.jr-shadow-large {
+    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -2px rgba(0,0,0,0.03) !important;
+}
+
+/* 4. Hover Animations */
+.jr-hover-none:hover,
+.jr-hover-glow:hover,
+.jr-hover-shadow:hover,
+.jr-hover-zoom:hover {
+    transform: none !important;
+}
+.jr-hover-lift {
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease !important;
+}
+.jr-hover-lift:hover {
+    transform: translateY(-4px) !important;
+    box-shadow: 0 12px 20px -8px rgba(0,0,0,0.15) !important;
+}
+.jr-hover-glow {
+    transition: border-color 0.3s, box-shadow 0.3s !important;
+}
+.jr-hover-glow:hover {
+    border-color: var(--jr-p500, #4f46e5) !important;
+    box-shadow: 0 0 0 4px var(--jr-p200, rgba(99,102,241,0.15)) !important;
+}
+.jr-hover-shadow {
+    transition: box-shadow 0.3s ease !important;
+}
+.jr-hover-shadow:hover {
+    box-shadow: 0 12px 20px -8px rgba(0,0,0,0.15) !important;
+}
+
+/* 5. Horizontal layout structure tweaks */
+.jr-card.flex-row .min-h-full {
+    height: 100% !important;
+}
