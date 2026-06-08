@@ -1639,6 +1639,46 @@ class JetReader_REST_API {
 
         $placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
 
+        // Fetch items to delete their files first if they live under uploads/jetreader
+        $items_to_clean = $wpdb->get_results( $wpdb->prepare( "SELECT file_path, cover_image, volumes FROM {$wpdb->prefix}jetreader_items WHERE id IN ({$placeholders})", $ids ) );
+        if ( ! empty( $items_to_clean ) ) {
+            if ( ! class_exists( 'JetReader_Upload_Handler' ) ) {
+                require_once JETREADER_PLUGIN_DIR . 'includes/class-upload-handler.php';
+            }
+            $upload_dir    = wp_upload_dir();
+            $jetreader_dir = realpath( $upload_dir['basedir'] . '/jetreader' );
+
+            foreach ( $items_to_clean as $item ) {
+                $files_to_delete = array();
+                if ( ! empty( $item->file_path ) ) {
+                    $files_to_delete[] = $item->file_path;
+                }
+                if ( ! empty( $item->cover_image ) ) {
+                    $files_to_delete[] = $item->cover_image;
+                }
+                if ( ! empty( $item->volumes ) ) {
+                    $vols = json_decode( $item->volumes, true );
+                    if ( is_array( $vols ) ) {
+                        foreach ( $vols as $vol ) {
+                            if ( ! empty( $vol['file_path'] ) ) {
+                                $files_to_delete[] = $vol['file_path'];
+                            }
+                        }
+                    }
+                }
+                foreach ( $files_to_delete as $file_url ) {
+                    $local_path = JetReader_Upload_Handler::url_to_local_path( $file_url );
+                    $real_file_path = realpath( $local_path );
+                    if ( false !== $real_file_path && file_exists( $real_file_path ) && is_file( $real_file_path ) ) {
+                        if ( $jetreader_dir && strpos( $real_file_path, $jetreader_dir ) === 0 ) {
+                            // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink
+                            @unlink( $real_file_path );
+                        }
+                    }
+                }
+            }
+        }
+
         $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}jetreader_chapters WHERE item_id IN ({$placeholders})", $ids ) );
         $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}jetreader_item_categories WHERE item_id IN ({$placeholders})", $ids ) );
         $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}jetreader_item_tags WHERE item_id IN ({$placeholders})", $ids ) );
@@ -1682,6 +1722,41 @@ class JetReader_REST_API {
         // Delete CPT post first.
         if ( class_exists( 'JetReader_CPT' ) ) {
             JetReader_CPT::delete_by_item( $item_id );
+        }
+
+        // Fetch item to delete its files first if they live under uploads/jetreader
+        if ( ! class_exists( 'JetReader_Upload_Handler' ) ) {
+            require_once JETREADER_PLUGIN_DIR . 'includes/class-upload-handler.php';
+        }
+        $upload_dir    = wp_upload_dir();
+        $jetreader_dir = realpath( $upload_dir['basedir'] . '/jetreader' );
+
+        $files_to_delete = array();
+        if ( ! empty( $item->file_path ) ) {
+            $files_to_delete[] = $item->file_path;
+        }
+        if ( ! empty( $item->cover_image ) ) {
+            $files_to_delete[] = $item->cover_image;
+        }
+        if ( ! empty( $item->volumes ) ) {
+            $vols = json_decode( $item->volumes, true );
+            if ( is_array( $vols ) ) {
+                foreach ( $vols as $vol ) {
+                    if ( ! empty( $vol['file_path'] ) ) {
+                        $files_to_delete[] = $vol['file_path'];
+                    }
+                }
+            }
+        }
+        foreach ( $files_to_delete as $file_url ) {
+            $local_path = JetReader_Upload_Handler::url_to_local_path( $file_url );
+            $real_file_path = realpath( $local_path );
+            if ( false !== $real_file_path && file_exists( $real_file_path ) && is_file( $real_file_path ) ) {
+                if ( $jetreader_dir && strpos( $real_file_path, $jetreader_dir ) === 0 ) {
+                    // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink
+                    @unlink( $real_file_path );
+                }
+            }
         }
 
         // Delete all related records in cascade (bookmarks, notes, annotations included).
