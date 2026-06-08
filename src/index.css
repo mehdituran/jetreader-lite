@@ -759,6 +759,8 @@ html.jr-modal-open {
 .reader-sidebar-list-item {
     display: block !important;
     width: 100% !important;
+    box-sizing: border-box !important;
+    white-space: normal !important;
     text-align: left !important;
     box-shadow: none !important;
     border-radius: 0 !important;
@@ -799,6 +801,9 @@ html.jr-modal-open {
 /* Prevent live WordPress theme overrides on outline/TOC lists and headers inside the sidebar */
 .reader-sidebar-list-item span:not(.jr-text-muted) {
     color: inherit !important;
+    white-space: normal !important;
+    overflow-wrap: break-word !important;
+    word-break: break-word !important;
 }
 
 .reader-sidebar-list-item span.jr-text-muted {

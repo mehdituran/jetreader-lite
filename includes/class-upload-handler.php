@@ -213,9 +213,15 @@ class JetReader_Upload_Handler {
             HOUR_IN_SECONDS
         );
 
-        // Schedule once; avoid double-scheduling on rapid re-saves.
-        if ( ! wp_next_scheduled( 'jetreader_index_item', array( $item_id ) ) ) {
-            wp_schedule_single_event( time() + 10, 'jetreader_index_item', array( $item_id ) );
+        // Schedule once using Action Scheduler if available, otherwise fallback to WP-Cron.
+        if ( function_exists( 'as_has_scheduled_action' ) ) {
+            if ( ! as_has_scheduled_action( 'jetreader_index_item', array( $item_id ), 'jetreader' ) ) {
+                as_schedule_single_action( time() + 10, 'jetreader_index_item', array( $item_id ), 'jetreader' );
+            }
+        } else {
+            if ( ! wp_next_scheduled( 'jetreader_index_item', array( $item_id ) ) ) {
+                wp_schedule_single_event( time() + 10, 'jetreader_index_item', array( $item_id ) );
+            }
         }
     }
 
@@ -262,7 +268,11 @@ class JetReader_Upload_Handler {
         // reschedule for 2 minutes later instead of running in parallel.
         $lock_key = 'jetreader_indexing_' . $item_id;
         if ( get_transient( $lock_key ) ) {
-            wp_schedule_single_event( time() + 120, 'jetreader_index_item', array( $item_id ) );
+            if ( function_exists( 'as_schedule_single_action' ) ) {
+                as_schedule_single_action( time() + 120, 'jetreader_index_item', array( $item_id ), 'jetreader' );
+            } else {
+                wp_schedule_single_event( time() + 120, 'jetreader_index_item', array( $item_id ) );
+            }
             return;
         }
         set_transient( $lock_key, 1, 15 * MINUTE_IN_SECONDS );
@@ -293,24 +303,77 @@ class JetReader_Upload_Handler {
                 return;
             }
 
+            // Clear existing chapters first.
+            $wpdb->delete( "{$wpdb->prefix}jetreader_chapters", array( 'item_id' => $item_id ) );
+
             // resolve_files() handles both single-file and multi-volume items,
             // converting URLs to local paths and verifying they exist.
             $files     = JetReader_Search_Index::resolve_files( $item );
             $all_pages = array();
+            $vol_counts = array();
+            $page_offset = 0;
+            $chapter_order = 0;
+            $parser = new JetReader_Parser_Engine();
 
             foreach ( $files as $vol_idx => $file_info ) {
                 $pages = JetReader_Parser_Engine::extract_all_pages( $file_info['path'], $file_info['type'] );
+                $vol_counts[ $vol_idx ] = count( $pages );
+
+                // Parse and save chapters.
+                $vol_chapters = $parser->parse_chapters( $file_info['path'], $file_info['type'] );
+                if ( is_array( $vol_chapters ) ) {
+                    foreach ( $vol_chapters as $chap ) {
+                        $p_start = ( isset( $chap['page_start'] ) ? intval( $chap['page_start'] ) : 0 ) + $page_offset;
+                        $p_end   = ( isset( $chap['page_end'] ) ? intval( $chap['page_end'] ) : 0 ) + $page_offset;
+
+                        $wpdb->insert(
+                            "{$wpdb->prefix}jetreader_chapters",
+                            array(
+                                'item_id'     => $item_id,
+                                'title'       => sanitize_text_field( $chap['title'] ),
+                                'content'     => isset( $chap['content'] ) ? wp_kses_post( $chap['content'] ) : '',
+                                'order_index' => $chapter_order++,
+                                'page_start'  => $p_start,
+                                'page_end'    => $p_end,
+                            )
+                        );
+                    }
+                }
+
                 foreach ( $pages as &$p ) {
                     $p['volume_idx'] = $vol_idx;
                 }
                 unset( $p );
                 $all_pages = array_merge( $all_pages, $pages );
+                $page_offset += count( $pages );
             }
 
             // populate() deletes all existing rows for the item before inserting,
             // so all volumes land in one atomic operation.
             if ( ! empty( $all_pages ) ) {
                 JetReader_Search_Index::populate( $item_id, $all_pages );
+
+                // Update page_count and volumes (with individual page counts) in the items table.
+                $update_data = array( 'page_count' => count( $all_pages ) );
+                if ( ! empty( $item->volumes ) && ! empty( $vol_counts ) ) {
+                    $decoded = json_decode( $item->volumes, true );
+                    if ( is_array( $decoded ) ) {
+                        foreach ( $decoded as $idx => &$vol ) {
+                            if ( isset( $vol_counts[ $idx ] ) ) {
+                                $vol['page_count'] = $vol_counts[ $idx ];
+                            }
+                        }
+                        unset( $vol );
+                        $update_data['volumes'] = wp_json_encode( $decoded );
+                    }
+                }
+
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+                $wpdb->update(
+                    "{$wpdb->prefix}jetreader_items",
+                    $update_data,
+                    array( 'id' => $item_id )
+                );
             }
 
             // Also ensure the CPT post exists / is up-to-date.
@@ -319,6 +382,14 @@ class JetReader_Upload_Handler {
             }
 
         } finally {
+            // Cleanup temp downloaded files.
+            if ( isset( $files ) && is_array( $files ) ) {
+                foreach ( $files as $file_info ) {
+                    if ( ! empty( $file_info['is_temp'] ) && file_exists( $file_info['path'] ) ) {
+                        @unlink( $file_info['path'] );
+                    }
+                }
+            }
             delete_transient( $lock_key );
         }
     }
@@ -375,6 +446,12 @@ class JetReader_Upload_Handler {
         );
 
         if ( $extension === 'epub' ) {
+            if ( ! class_exists( 'JetReader_Parser_Engine' ) ) {
+                require_once JETREADER_PLUGIN_DIR . 'includes/class-parser-engine.php';
+            }
+            if ( ! JetReader_Parser_Engine::is_safe_zip( $file_path ) ) {
+                return $metadata;
+            }
             $zip = new ZipArchive();
             if ( $zip->open( $file_path ) === true ) {
                 // Try to read container.xml and OPF for metadata.
@@ -515,6 +592,12 @@ class JetReader_Upload_Handler {
             'publisher'   => '',
         );
 
+        if ( ! class_exists( 'JetReader_Parser_Engine' ) ) {
+            require_once JETREADER_PLUGIN_DIR . 'includes/class-parser-engine.php';
+        }
+        if ( ! JetReader_Parser_Engine::is_safe_zip( $file_path ) ) {
+            return $metadata;
+        }
         $zip = new ZipArchive();
         if ( $zip->open( $file_path ) === true ) {
             // Read core.xml for metadata.

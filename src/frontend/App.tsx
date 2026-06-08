@@ -88,6 +88,8 @@ interface VolumeEntry {
     file_path: string;
     file_type: string;
     cover_image: string;
+    page_count?: number;
+    encoding?: string;
 }
 
 interface LibraryItem {
@@ -105,11 +107,15 @@ interface LibraryItem {
     publisher: string;
     publication_year: number;
     reading_time: number;
+    page_count?: number;
     featured: boolean;
     view_count: number;
     volumes?: VolumeEntry[] | null;
     cpt_url?: string;
     created_at: string;
+    metadata?: {
+        encoding?: string;
+    } | null;
 }
 
 interface PaginatedResponse {
@@ -153,6 +159,7 @@ interface PublicSettings {
     show_card_year: boolean;
     show_card_type: boolean;
     show_card_language?: boolean;
+    show_card_page_count?: boolean;
     library_card_radius?: string;
     library_card_border?: string;
     library_card_shadow?: string;
@@ -167,6 +174,7 @@ interface PublicSettings {
     show_detail_year?: boolean;
     show_detail_type?: boolean;
     show_detail_language?: boolean;
+    show_detail_page_count?: boolean;
 }
 
 interface ActiveFilters {
@@ -283,16 +291,63 @@ function useContentSearch( q: string ) {
     } as any );
 }
 
-/** Highlight every occurrence of `term` in `text` with a yellow mark. */
+// Single quotes / apostrophes → ' (U+0027) — includes Arabic romanization ʾ/ʿ
+const _APOS_RE   = /[‘’‚‛ʼʻ＇`´ʾʿ]/g;
+// Double quotes → " (U+0022)
+const _DQUOTE_RE = /[“”„‟«»]/g;
+// Dashes → - (U+002D): en-dash, em-dash, minus sign, fullwidth dash variants
+const _DASH_RE   = /[‐‑‒–—―−﹘﹣－]/g;
+// Full-width ASCII punctuation → ASCII  (U+FFxx − 0xFEE0 = ASCII code)
+const _FWIDTH_RE = /[！？．，；：（）]/g;
+
+/**
+ * Normalise a string for highlight comparison: NFC + Turkish İ/ı → i +
+ * all typographic variants (apostrophes, double quotes, dashes, full-width) → ASCII.
+ * Every substitution is 1:1 BMP code-unit, so normText.length === text.length always.
+ */
+function _normHL( s: string ): string {
+    return s
+        .normalize( 'NFC' )
+        .replace( /İ/g, 'i' )
+        .replace( _APOS_RE,   "'" )
+        .replace( _DQUOTE_RE, '"' )
+        .replace( _DASH_RE,   '-' )
+        .replace( _FWIDTH_RE, ( m ) => String.fromCodePoint( m.codePointAt( 0 )! - 0xFEE0 ) )
+        .toLowerCase()
+        .replace( /ı/g, 'i' );
+}
+
+/** Highlight every occurrence of `term` in `text` with a yellow mark.
+ *  Case-insensitive, apostrophe-variant-insensitive, Turkish-aware. */
 function highlightTerm( text: string, term: string ): React.ReactNode {
     if ( ! term || ! text ) return text;
-    const esc = term.replace( /[.*+?^${}()|[\]\\]/g, '\\$&' );
-    const parts = text.split( new RegExp( `(${ esc })`, 'gi' ) );
-    return parts.map( ( p, i ) =>
-        p.toLowerCase() === term.toLowerCase()
-            ? <mark key={ i } className="bg-yellow-200 dark:bg-yellow-800 rounded-sm px-0.5 not-italic">{ p }</mark>
-            : p
-    );
+    const normTerm = _normHL( term );
+    const normText = _normHL( text );
+    if ( ! normTerm || normText.length !== text.length ) return text;
+
+    const hits: [ number, number ][] = [];
+    let i = 0;
+    while ( i < normText.length ) {
+        const idx = normText.indexOf( normTerm, i );
+        if ( idx === -1 ) break;
+        hits.push( [ idx, idx + normTerm.length ] );
+        i = idx + 1;
+    }
+    if ( ! hits.length ) return text;
+
+    const out: React.ReactNode[] = [];
+    let pos = 0;
+    hits.forEach( ( [ s, e ], ki ) => {
+        if ( s > pos ) out.push( text.slice( pos, s ) );
+        out.push(
+            <mark key={ ki } className="bg-yellow-200 dark:bg-yellow-800 rounded-sm px-0.5 not-italic">
+                { text.slice( s, e ) }
+            </mark>
+        );
+        pos = e;
+    } );
+    if ( pos < text.length ) out.push( text.slice( pos ) );
+    return out;
 }
 
 
@@ -667,6 +722,7 @@ const ItemCard: React.FC<{
     showCardYear?: boolean;
     showCardType?: boolean;
     showCardLanguage?: boolean;
+    showCardPageCount?: boolean;
     cardRadius?: string;
     cardBorder?: string;
     cardShadow?: string;
@@ -680,7 +736,7 @@ const ItemCard: React.FC<{
     showCardImage = true, showCardTitle = true,
     showCardAuthor = true, showCardTranslator = false,
     showCardPublisher = false, showCardYear = true, showCardType = true,
-    showCardLanguage = false,
+    showCardLanguage = false, showCardPageCount = true,
     cardRadius = 'medium', cardBorder = 'subtle', cardShadow = 'subtle',
     cardHover = 'zoom', cardAlign = 'left', cardLayout = 'vertical',
 } ) => {
@@ -703,6 +759,9 @@ const ItemCard: React.FC<{
     if ( showCardLanguage && item.language ) {
         metaBadges.push( { label: getLangDisplayName( item.language, locale ), key: 'lang' } );
     }
+    if ( showCardPageCount && item.page_count && item.page_count > 0 ) {
+        metaBadges.push( { label: `${ item.page_count } ${ t( 'reader.pages' ) }`, key: 'page_count' } );
+    }
     if ( item.volumes && item.volumes.length > 1 ) {
         metaBadges.push( { label: `${ item.volumes.length } ${ item.type === 'magazine' ? t( 'frontend.volumeMagazine' ) : t( 'frontend.volumeBook' ) }`, key: 'volumes' } );
     }
@@ -715,7 +774,7 @@ const ItemCard: React.FC<{
         if ( hasFile && ! isQA && item.file_path.trim() !== '' ) {
             prefetchRef.current = setTimeout( () => {
                 import( '../reader/ReaderEngine' ).then( ( { ReaderEngine } ) => {
-                    ReaderEngine.prefetchBook( item.file_path, ( item.file_type || '' ).toLowerCase() as ReaderFormat );
+                    ReaderEngine.prefetchBook( item.file_path, ( item.file_type || '' ).toLowerCase() as ReaderFormat, item.metadata?.encoding );
                 } ).catch( () => {} );
             }, 1000 );
         }
@@ -1001,13 +1060,13 @@ const TYPE_EMOJI: Record<string, string> = { book: '📚', article: '📄', maga
 const InfoModal: React.FC<{
     item: LibraryItem;
     onClose: () => void;
-    onRead: () => void;
+    onRead: ( selectedVolumeIdx?: number ) => void;
     showReadButton?: boolean;
     downloadEnabled?: boolean;
     settings?: PublicSettings;
 }> = ( { item, onClose, onRead, showReadButton = true, downloadEnabled = false, settings } ) => {
     const { t, locale } = useTranslation();
-    const [ selectedVol, setSelectedVol ] = React.useState<VolumeEntry | null>( null );
+    const [ selectedVolIdx, setSelectedVolIdx ] = React.useState<number | null>( null );
 
     // Fire-and-forget view ping — no await, no UI impact, keepalive ensures
     // delivery even if the user closes the modal immediately.
@@ -1027,7 +1086,7 @@ const InfoModal: React.FC<{
     React.useEffect( () => {
         if ( item.file_path && item.type !== 'qa' && item.file_path.trim() !== '' ) {
             import( '../reader/ReaderEngine' ).then( ( { ReaderEngine } ) => {
-                ReaderEngine.prefetchBook( item.file_path, ( item.file_type || '' ).toLowerCase() as ReaderFormat );
+                ReaderEngine.prefetchBook( item.file_path, ( item.file_type || '' ).toLowerCase() as ReaderFormat, item.metadata?.encoding );
             } ).catch( () => {} );
         }
     }, [ item.file_path, item.file_type, item.type ] );
@@ -1035,10 +1094,14 @@ const InfoModal: React.FC<{
     const isMultiVol = !! ( item.volumes && item.volumes.length > 1 );
 
     const handleRead = () => {
+        const volIdx = item.volumes && item.volumes.length > 0
+            ? ( selectedVolIdx !== null ? selectedVolIdx : 0 )
+            : -1;
+        const volParam = volIdx >= 0 ? `#volume=${ volIdx + 1 }` : '';
         if ( item.cpt_url ) {
-            window.location.href = item.cpt_url;
+            window.location.href = item.cpt_url + volParam;
         } else {
-            onRead();
+            onRead( volIdx >= 0 ? volIdx : undefined );
         }
     };
 
@@ -1047,6 +1110,7 @@ const InfoModal: React.FC<{
         settings?.show_detail_type !== false ? [ t( 'frontend.infoModalFormat' ),     item.file_type ? item.file_type.toUpperCase() : null ] : null,
         settings?.show_detail_language !== false ? [ t( 'frontend.infoModalLanguage' ),   item.language ? getLangDisplayName( item.language, locale ) : null ] : null,
         settings?.show_detail_publisher !== false ? [ t( 'frontend.infoModalPublisher' ),  item.publisher || null ] : null,
+        settings?.show_detail_page_count !== false ? [ t( 'frontend.infoModalPages' ),  item.page_count && item.page_count > 0 ? `${ item.page_count } ${ t( 'reader.pages' ) }` : null ] : null,
         item.volumes && item.volumes.length > 1
             ? [ t( 'frontend.infoModalVolumes' ), `${ item.volumes.length } ${ t( 'frontend.infoModalVolumesCount' ) }` ]
             : null,
@@ -1054,8 +1118,8 @@ const InfoModal: React.FC<{
         .filter( ( p ): p is [ string, string ] => !! p && !! p[1] );
 
     const hasFile    = !! item.file_path;
-    const showDl     = downloadEnabled && ( isMultiVol ? !! selectedVol?.file_path : hasFile );
-    const dlHref     = isMultiVol ? ( selectedVol?.file_path ?? '' ) : item.file_path;
+    const showDl     = downloadEnabled && ( isMultiVol ? ( selectedVolIdx !== null && !! item.volumes?.[selectedVolIdx]?.file_path ) : hasFile );
+    const dlHref     = isMultiVol && selectedVolIdx !== null ? ( item.volumes?.[selectedVolIdx]?.file_path ?? '' ) : item.file_path;
     const hasActions = ( showReadButton && hasFile ) || downloadEnabled;
 
     return (
@@ -1238,21 +1302,21 @@ const InfoModal: React.FC<{
                                             </span>
                                         ) }
                                     </p>
-                                    <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '6px' } }>
-                                        { item.volumes.map( ( vol ) => {
-                                            const isSelected = selectedVol?.vol === vol.vol;
+                                    <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '8px' } }>
+                                        { item.volumes.map( ( vol, idx ) => {
+                                            const isSelected = selectedVolIdx === idx;
                                             return (
                                                 <div
-                                                    key={ vol.vol }
-                                                    onClick={ () => setSelectedVol( isSelected ? null : vol ) }
+                                                    key={ idx }
+                                                    onClick={ () => setSelectedVolIdx( isSelected ? null : idx ) }
                                                     style={ {
                                                         background: isSelected ? 'var(--jr-p100, #e0e7ff)' : 'var(--jr-modal-badge-bg, #f1f5f9)',
                                                         border: isSelected ? '2px solid var(--jr-p400, #818cf8)' : '2px solid transparent',
-                                                        borderRadius: '8px',
-                                                        padding: '6px 10px',
+                                                        borderRadius: '10px',
+                                                        padding: '8px 12px',
                                                         display: 'flex',
                                                         alignItems: 'center',
-                                                        gap: '6px',
+                                                        gap: '8px',
                                                         fontSize: '12px',
                                                         fontWeight: 600,
                                                         color: isSelected ? 'var(--jr-p700, #4338ca)' : 'var(--jr-modal-text, #334155)',
@@ -1260,9 +1324,30 @@ const InfoModal: React.FC<{
                                                         transition: 'background 0.15s, border-color 0.15s',
                                                     } }
                                                 >
-                                                    <span style={ { fontSize: '12px' } }>{ item.type === 'magazine' ? '🗞️' : '📖' }</span>
-                                                    <span>{ item.type === 'magazine' ? `${ t( 'frontend.infoModalVolItemMagazine' ) } ${ vol.vol }` : `${ t( 'frontend.infoModalVolItemBook' ) } ${ vol.vol }` }</span>
-                                                    { vol.file_type && <span style={ { marginLeft: 'auto', fontSize: '10px', fontWeight: 700, color: isSelected ? 'var(--jr-p500, #6366f1)' : 'var(--jr-modal-meta, #94a3b8)', textTransform: 'uppercase', fontFamily: 'monospace' } }>{ vol.file_type }</span> }
+                                                    <span style={ { fontSize: '14px', flexShrink: 0 } }>{ item.type === 'magazine' ? '🗞️' : '📖' }</span>
+                                                    <div style={ { display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1, lineHeight: 1.25 } }>
+                                                        <span style={ { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }>
+                                                            { item.type === 'magazine' ? `${ t( 'frontend.infoModalVolItemMagazine' ) } ${ idx + 1 }` : `${ t( 'frontend.infoModalVolItemBook' ) } ${ idx + 1 }` }
+                                                        </span>
+                                                        { vol.page_count && vol.page_count > 0 ? (
+                                                            <span style={ { fontSize: '10px', fontWeight: 500, color: isSelected ? 'var(--jr-p600, #4f46e5)' : 'var(--jr-modal-meta, #94a3b8)', marginTop: '2px' } }>
+                                                                { vol.page_count } { t( 'reader.pages' ) }
+                                                            </span>
+                                                        ) : null }
+                                                    </div>
+                                                    { vol.file_type && (
+                                                        <span style={ {
+                                                            fontSize: '10px',
+                                                            fontWeight: 700,
+                                                            color: isSelected ? 'var(--jr-p500, #6366f1)' : 'var(--jr-modal-meta, #94a3b8)',
+                                                            textTransform: 'uppercase',
+                                                            fontFamily: 'monospace',
+                                                            flexShrink: 0,
+                                                            marginLeft: '4px'
+                                                        } }>
+                                                            { vol.file_type }
+                                                        </span>
+                                                    ) }
                                                 </div>
                                             );
                                         } ) }
@@ -1304,7 +1389,7 @@ const InfoModal: React.FC<{
                                 >{ t( 'frontend.infoModalReadNow' ) }</button>
                             ) }
                             { downloadEnabled && (
-                                isMultiVol && ! selectedVol ? (
+                                isMultiVol && selectedVolIdx === null ? (
                                     <button
                                         disabled
                                         className="jr-btn-secondary"
@@ -1548,15 +1633,22 @@ const ContentSearchResultItem: React.FC<{
     const visibleMatches = result.matches.slice( 0, 2 );
     const extraCount     = Math.max( 0, ( result.total_matches ?? result.matches.length ) - visibleMatches.length );
 
-    const handleGoto = ( pageNum: number, volumeIdx: number ) => {
+    const handleGoto = ( pageNum: number, volumeIdx: number, excerpt?: string ) => {
         if ( ! result.cpt_url ) return;
-        sessionStorage.setItem( 'jetreader_deeplink', JSON.stringify( { page: pageNum, volume: volumeIdx, search: searchTerm } ) );
+        const deeplink: Record<string, unknown> = { itemId: result.item_id, page: pageNum, volume: volumeIdx, search: searchTerm };
+        if ( excerpt ) {
+            // Fallback anchor: if the search term fails to match in the reader
+            // (e.g. different apostrophe encoding in the file), this raw excerpt
+            // snippet lets the reader locate the correct passage by its content.
+            deeplink.anchor = excerpt.trim().slice( 0, 80 );
+        }
+        sessionStorage.setItem( 'jetreader_deeplink', JSON.stringify( deeplink ) );
         window.location.href = result.cpt_url;
     };
 
     const handleSearchInBook = () => {
         if ( ! result.cpt_url ) return;
-        sessionStorage.setItem( 'jetreader_deeplink', JSON.stringify( { search: searchTerm } ) );
+        sessionStorage.setItem( 'jetreader_deeplink', JSON.stringify( { itemId: result.item_id, search: searchTerm } ) );
         window.location.href = result.cpt_url;
     };
 
@@ -1572,60 +1664,61 @@ const ContentSearchResultItem: React.FC<{
     const metaText = metaParts.join( ' | ' );
 
     return (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition-shadow text-left">
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-md transition-shadow text-left flex">
 
-            { /* ── Header: cover + title ── */ }
-            <div className="flex items-start gap-3">
+            { /* ── Left: Cover full height ── */ }
+            <div className="shrink-0 w-48 self-stretch">
                 { result.cover_url ? (
                     <img
                         src={ result.cover_url }
                         alt={ result.title }
-                        className="w-10 h-14 object-cover rounded shadow-sm shrink-0"
+                        className="w-full h-full object-cover"
                     />
                 ) : (
-                    <div className="w-10 h-14 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded text-xl shrink-0">
+                    <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-700 text-2xl">
                         { TYPE_ICONS[ result.type ] ?? '📄' }
                     </div>
                 ) }
-                <div className="min-w-0 flex-1">
-                    <a
-                        href={ result.cpt_url || '#' }
-                        onClick={ handleTitleClick }
-                        className="font-semibold text-sm text-gray-900 dark:text-white hover:text-primary-600 dark:hover:text-primary-400 transition-colors line-clamp-2 block leading-snug"
-                    >
-                        { result.title }
-                    </a>
-                    
-                    { metaText && (
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-1">
-                            { metaText }
-                        </p>
-                    ) }
-
-                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                        { result.file_type && (
-                            <span className="px-1.5 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded text-[9px] font-bold uppercase">
-                                { result.file_type }
-                            </span>
-                        ) }
-                        <span className="text-xs text-gray-400 dark:text-gray-500 capitalize">
-                            { TYPE_ICONS[ result.type ] } { result.type }
-                        </span>
-                        { result.match_type === 'content' && (
-                            <span className="px-1.5 py-0.5 bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded-full text-[10px] font-medium">
-                                { t( 'search.contentSearch' ) }
-                            </span>
-                        ) }
-                    </div>
-                </div>
             </div>
+
+            { /* ── Right: All content ── */ }
+            <div className="flex-1 min-w-0 p-4">
+                <a
+                    href={ result.cpt_url || '#' }
+                    onClick={ handleTitleClick }
+                    className="font-semibold text-sm text-gray-900 dark:text-white hover:text-primary-600 dark:hover:text-primary-400 transition-colors line-clamp-2 block leading-snug"
+                >
+                    { result.title }
+                </a>
+
+                { metaText && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-1">
+                        { metaText }
+                    </p>
+                ) }
+
+                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                    { result.file_type && (
+                        <span className="px-1.5 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded text-[9px] font-bold uppercase">
+                            { result.file_type }
+                        </span>
+                    ) }
+                    <span className="text-xs text-gray-400 dark:text-gray-500 capitalize">
+                        { TYPE_ICONS[ result.type ] } { result.type }
+                    </span>
+                    { result.match_type === 'content' && (
+                        <span className="px-1.5 py-0.5 bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded-full text-[10px] font-medium">
+                            { t( 'search.contentSearch' ) }
+                        </span>
+                    ) }
+                </div>
 
             { /* ── Match list — max 2 ── */ }
             { visibleMatches.length > 0 && (
                 <ul className="flex flex-col gap-2 border-t border-gray-100 dark:border-gray-700 pt-2.5 mt-2.5">
                     { visibleMatches.map( ( m, i ) => (
                         <li key={ i } className="flex items-start gap-2">
-                            <span className="shrink-0 mt-0.5 text-[10px] font-mono bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded px-1.5 py-0.5 leading-tight whitespace-nowrap">
+                            <span className="shrink-0 text-[10px] font-semibold bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-700/50 rounded-full px-2 py-0.5 leading-tight whitespace-nowrap tracking-wide">
                                 { ( m.volume_idx > 0 || result.matches.some( match => match.volume_idx > 0 ) ) ? (
                                     <>
                                         { t( 'frontend.infoModalVolItemBook' ) || 'Cilt' } { m.volume_idx + 1 } - { t( 'search.pageLabel' ) } { m.page_num + 1 }
@@ -1641,7 +1734,7 @@ const ContentSearchResultItem: React.FC<{
                             </span>
                             { result.cpt_url && (
                                 <button
-                                    onClick={ () => handleGoto( m.page_num, m.volume_idx ?? 0 ) }
+                                    onClick={ () => handleGoto( m.page_num, m.volume_idx ?? 0, m.excerpt ) }
                                     className="jr-goto-btn"
                                 >
                                     { t( 'search.gotoBtn' ) || 'Git' }
@@ -1681,6 +1774,7 @@ const ContentSearchResultItem: React.FC<{
                     </button>
                 </div>
             ) }
+            </div>{ /* ── end right content ── */ }
         </div>
     );
 };
@@ -1704,6 +1798,7 @@ const LibraryContent: React.FC<LibraryContentProps> = ( {
     const [ page, setPage ] = useState( 1 );
     const [ readerItem, setReaderItem ] = useState<LibraryItem | null>( null );
     const [ infoItem,   setInfoItem   ] = useState<LibraryItem | null>( null );
+    const [ readerVolIdx, setReaderVolIdx ] = useState<number | undefined>( undefined );
 
     const effectiveType = forcedType ?? ( filters.type || activeType );
 
@@ -1747,6 +1842,7 @@ const LibraryContent: React.FC<LibraryContentProps> = ( {
     const showCardYear     = settings.show_card_year       !== false;
     const showCardType     = settings.show_card_type       !== false;
     const showCardLanguage = !! settings.show_card_language;
+    const showCardPageCount = settings.show_card_page_count !== false;
     const gap = 20;
     const gridStyle: React.CSSProperties = {
         display: 'grid',
@@ -1769,7 +1865,9 @@ const LibraryContent: React.FC<LibraryContentProps> = ( {
                             title={ readerItem.title }
                             volumes={ readerItem.volumes && readerItem.volumes.length > 1 ? readerItem.volumes : undefined }
                             itemType={ readerItem.type }
-                            onClose={ () => setReaderItem( null ) }
+                            encoding={ readerItem.metadata?.encoding }
+                            onClose={ () => { setReaderItem( null ); setReaderVolIdx( undefined ); } }
+                            initialVolume={ readerVolIdx }
                         />
                     </Suspense>
                 ) }
@@ -1820,6 +1918,7 @@ const LibraryContent: React.FC<LibraryContentProps> = ( {
                                     showCardYear={ showCardYear }
                                     showCardType={ showCardType }
                                     showCardLanguage={ showCardLanguage }
+                                    showCardPageCount={ showCardPageCount }
                                     cardRadius={ settings.library_card_radius }
                                     cardBorder={ settings.library_card_border }
                                     cardShadow={ settings.library_card_shadow }
@@ -1851,7 +1950,9 @@ const LibraryContent: React.FC<LibraryContentProps> = ( {
                         title={ readerItem.title }
                         volumes={ readerItem.volumes && readerItem.volumes.length > 1 ? readerItem.volumes : undefined }
                         itemType={ readerItem.type }
-                        onClose={ () => setReaderItem( null ) }
+                        encoding={ readerItem.metadata?.encoding }
+                        onClose={ () => { setReaderItem( null ); setReaderVolIdx( undefined ); } }
+                        initialVolume={ readerVolIdx }
                     />
                 </Suspense>
             ) }
@@ -1861,7 +1962,11 @@ const LibraryContent: React.FC<LibraryContentProps> = ( {
                         key={ infoItem.id }
                         item={ infoItem }
                         onClose={ () => setInfoItem( null ) }
-                        onRead={ () => { setReaderItem( infoItem ); setInfoItem( null ); } }
+                        onRead={ ( volIdx ) => {
+                            setReaderVolIdx( volIdx );
+                            setReaderItem( infoItem );
+                            setInfoItem( null );
+                        } }
                         showReadButton={ showReadButton }
                         downloadEnabled={ settings.download_enabled === true }
                         settings={ settings }

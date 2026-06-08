@@ -122,6 +122,7 @@
     "bulkNoChange": "❌ Change at least one field.",
     "bulkAddButton": "📋 Bulk Add",
     "bulkAddTitle": "📋 Bulk Add Items",
+    "bulkAddSubtitle": "Add multiple items at once using a simple tabular format.",
     "bulkAddAddRow": "➕ Add Row",
     "bulkAddSave": "💾 Save All",
     "bulkAddSuccess": "✅ {N} items added successfully.",
@@ -131,6 +132,7 @@
     "bulkTabChangeContinue": "Continue",
     "bulkCloseWarning": "⚠️ Entered data has not been saved yet. If you close the window, this data will be lost.",
     "bulkCloseConfirm": "Close",
+    "dropToFillRow": "Drag down…",
     "saveFailed": "Save failed",
     "filterCategory": "Category",
     "filterAuthor": "Author",
@@ -170,7 +172,9 @@
       "zh": "Chinese",
       "ru": "Russian",
       "ja": "Japanese"
-    }
+    },
+    "bulkDragDropHintTitle": "Drag & Drop Multiple Files",
+    "bulkDragDropHintDesc": "Drag and drop files onto a specific row to populate it, or drop them on the general form background to automatically upload and create new pre-filled rows."
   },
   "itemForm": {
     "createTitle": "➕ Create New Item",
@@ -183,6 +187,7 @@
     "typeMagazine": "Magazine",
     "typeQA": "Q&A",
     "categoryLabel": "🏷️ Category",
+    "categoryPlaceholder": "Category name...",
     "selectCategories": "Select categories...",
     "noCategoryWarning": "⚠️ You must add a category for this type first.",
     "goToCategories": "Categories →",
@@ -234,7 +239,11 @@
     "noAuthorWarning": "⚠️ Please add authors in the Constants page first.",
     "selectPublisher": "Select publisher...",
     "noPublisherWarning": "⚠️ Please add publishers in the Constants page first.",
-    "goToConstants": "Constants →"
+    "goToConstants": "Constants →",
+    "dragDropHintTitle": "Drag & Drop Support",
+    "dragDropHintDesc": "You can drag and drop EPUB, PDF, TXT, or DOCX files anywhere on this form to upload them and automatically pre-fill the fields.",
+    "dropToUpload": "Drop file here to upload & autofill",
+    "supportedFormats": "Supports EPUB, PDF, TXT, DOCX"
   },
   "categories": {
     "title": "🏷️ Categories",
@@ -340,6 +349,8 @@
     "cardTypeDesc": "Show the file format badge (PDF, EPUB…) on cards",
     "cardLanguage": "🏴 Language",
     "cardLanguageDesc": "Show language info on cards",
+    "cardPageCount": "📖 Page Count",
+    "cardPageCountDesc": "Show the page count on cards",
     "libraryCardAppearance": "Library Card Appearance",
     "libraryImageSize": "Image Size",
     "libraryImageFit": "Image Fit",
@@ -363,6 +374,8 @@
     "detailTypeDesc": "Show the file format badge (PDF, EPUB…) in the detail modal",
     "detailLanguage": "🏴 Language",
     "detailLanguageDesc": "Show language info in the detail modal",
+    "detailPageCount": "📖 Page Count",
+    "detailPageCountDesc": "Show the page count on the details panel",
     "licenseTitle": "🔑 JetReader Pro License Verification",
     "licenseActivePro": "Active Pro",
     "licenseFreeVersion": "Free Version",
@@ -507,6 +520,7 @@
     "infoModalLanguage": "Language",
     "infoModalYear": "Year",
     "infoModalFormat": "Format",
+    "infoModalPages": "Pages",
     "infoModalVolumes": "Volumes/Issues",
     "infoModalVolumesCount": "total",
     "infoModalVolumesListBook": "Volumes",
@@ -608,7 +622,8 @@
     "wpRequirement": "JetReader requires WordPress version %s or higher.",
     "menuAbout": "About",
     "menuImport": "Import / Export",
-    "menuConstants": "Constants"
+    "menuConstants": "Constants",
+    "menuFiles": "File Manager"
   },
   "search": {
     "searching": "Searching...",
@@ -811,6 +826,8 @@
     "showYearDesc": "Show publication year on cards",
     "showLanguage": "Show Language Information",
     "showLanguageDesc": "Show language information on cards",
+    "showPageCount": "Show Page Count",
+    "showPageCountDesc": "Show page count on cards",
     "cardMinWidthPlaceholder": "180"
   },
   "about": {
@@ -957,5 +974,40 @@
     "fieldDescVolCoverImage": ". volume cover URL (vol. 1 = item cover)",
     "templateQaTitle": "Question Text",
     "templateQaDescription": "Answer Text"
+  },
+  "files": {
+    "title": "📁 File Manager",
+    "subtitle": "Manage raw files uploaded to the JetReader repository.",
+    "tabImages": "Images",
+    "fileName": "File Name",
+    "fileSize": "Size",
+    "uploadDate": "Upload Date",
+    "linkedItem": "Linked Item",
+    "actions": "Actions",
+    "copyUrl": "Copy URL",
+    "rename": "Rename",
+    "delete": "Delete",
+    "bulkDelete": "Delete Selected",
+    "uploadFiles": "Upload Files",
+    "dropToUpload": "Drop files here or click to select",
+    "renameTitle": "Rename File",
+    "renameLabel": "New File Name",
+    "renameSuccess": "File renamed successfully.",
+    "deleteConfirmTitle": "Delete File",
+    "deleteConfirmMsg": "Are you sure you want to delete this file from disk?",
+    "deleteLinkedWarning": "Warning: This file is currently linked to the library item \"{title}\". Deleting it will cause the item to become unreadable.",
+    "deleteSuccess": "File deleted successfully.",
+    "urlCopied": "URL copied to clipboard!",
+    "noFilesFound": "No files found in this category.",
+    "ghostFile": "Not linked to any library item",
+    "ghostFilesOnly": "Show Ghost Files Only",
+    "searchPlaceholder": "Search files...",
+    "wpMediaLibrary": "WordPress Media Library",
+    "selectStandardLibrary": "Select standard library files",
+    "uploadAndSelect": "Upload & Select File",
+    "selectExistingJetReader": "Select Existing JetReader File",
+    "choose": "Choose",
+    "uploading": "Uploading...",
+    "processing": "Processing..."
   }
 }

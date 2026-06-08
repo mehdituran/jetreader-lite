@@ -66,6 +66,14 @@ interface VolumeEntry {
     file_path: string;
     file_type: string;
     cover_image: string;
+    page_count?: number;
+    encoding?: string;
+}
+
+interface ImportError {
+    row: number;
+    title: string;
+    message: string;
 }
 
 interface LibraryItem {
@@ -84,6 +92,7 @@ interface LibraryItem {
     isbn: string;
     publication_year: number;
     reading_time: number;
+    page_count?: number;
     visibility: string;
     featured: boolean;
     view_count: number;
@@ -147,32 +156,422 @@ function openWpMedia( title: string, imageOnly: boolean, onSelect: ( url: string
     frame.open();
 }
 
+// Helper: format size
+const formatBytes = ( bytes: number ) => {
+    if ( bytes === 0 ) return '0 Bytes';
+    const k = 1024;
+    const sizes = [ 'Bytes', 'KB', 'MB', 'GB' ];
+    const i = Math.floor( Math.log( bytes ) / Math.log( k ) );
+    return parseFloat( ( bytes / Math.pow( k, i ) ).toFixed( 2 ) ) + ' ' + sizes[ i ];
+};
+
+// Helper: format date
+const formatDate = ( timestamp: number ) => {
+    return new Date( timestamp * 1000 ).toLocaleString();
+};
+
+interface JetReaderFileSelectorModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onSelect: ( url: string ) => void;
+    imageOnly?: boolean;
+    title: string;
+}
+
+const JetReaderFileSelectorModal: React.FC<JetReaderFileSelectorModalProps> = ( {
+    isOpen,
+    onClose,
+    onSelect,
+    imageOnly = false,
+    title,
+} ) => {
+    const { t } = useTranslation();
+    const queryClient = useQueryClient();
+    const apiBase = ( window as any ).jetreaderSettings?.apiUrl?.replace( /\/$/, '' ) ?? '/wp-json/jetreader/v1';
+    const nonce = ( window as any ).jetreaderSettings?.nonce ?? '';
+    const authHeader = React.useMemo( () => ( { 'X-WP-Nonce': nonce } ), [ nonce ] );
+
+    const [ searchTerm, setSearchTerm ] = useState( '' );
+    const [ activeTab, setActiveTab ] = useState<'pdf' | 'epub' | 'docx' | 'txt' | 'images'>(
+        imageOnly ? 'images' : 'pdf'
+    );
+    const [ uploading, setUploading ] = useState( false );
+    const [ uploadProgress, setUploadProgress ] = useState( 0 );
+    const [ uploadError, setUploadError ] = useState( '' );
+    const [ isDragging, setIsDragging ] = useState( false );
+    const dragCounterRef = React.useRef( 0 );
+
+    const { data: files = [], isLoading } = useQuery<any[]>({
+        queryKey: [ 'files' ],
+        queryFn: async () => {
+            const res = await fetch( `${ apiBase }/files`, { headers: authHeader } );
+            const json = await res.json();
+            return Array.isArray( json ) ? json : [];
+        },
+        enabled: isOpen,
+    });
+
+    if ( ! isOpen ) return null;
+
+    const filteredFiles = files.filter( ( f: any ) => {
+        if ( searchTerm.trim() && ! f.name.toLowerCase().includes( searchTerm.toLowerCase() ) ) {
+            return false;
+        }
+
+        const ext = f.extension;
+        const isImage = [ 'png', 'jpg', 'jpeg', 'webp', 'gif', 'svg' ].includes( ext );
+        
+        if ( activeTab === 'images' && ! isImage ) return false;
+        if ( activeTab !== 'images' && ext !== activeTab ) return false;
+
+        return true;
+    } );
+
+    const getTabCount = ( tab: string ) => {
+        return files.filter( ( f: any ) => {
+            const ext = f.extension;
+            const isImage = [ 'png', 'jpg', 'jpeg', 'webp', 'gif', 'svg' ].includes( ext );
+            if ( tab === 'images' ) return isImage;
+            return ext === tab;
+        } ).length;
+    };
+
+    const handleUpload = async ( file: File ) => {
+        setUploadError( '' );
+        setUploading( true );
+        setUploadProgress( 10 );
+
+        const formData = new FormData();
+        formData.append( 'file', file );
+
+        try {
+            const xhr = new XMLHttpRequest();
+            xhr.open( 'POST', `${ apiBase }/upload` );
+            xhr.setRequestHeader( 'X-WP-Nonce', nonce );
+
+            xhr.upload.onprogress = ( event ) => {
+                if ( event.lengthComputable ) {
+                    const pct = Math.round( ( event.loaded / event.total ) * 90 ) + 10;
+                    setUploadProgress( pct );
+                }
+            };
+
+            xhr.onload = () => {
+                if ( xhr.status === 200 ) {
+                    try {
+                        const res = JSON.parse( xhr.responseText );
+                        if ( res.file_url ) {
+                            queryClient.invalidateQueries( { queryKey: [ 'files' ] } );
+                            onSelect( res.file_url );
+                        } else {
+                            setUploadError( 'Upload response missing file URL.' );
+                        }
+                    } catch {
+                        setUploadError( 'Failed to parse upload response.' );
+                    }
+                } else {
+                    try {
+                        const err = JSON.parse( xhr.responseText );
+                        setUploadError( err.message || 'Upload failed.' );
+                    } catch {
+                        setUploadError( 'Upload failed.' );
+                    }
+                }
+                setUploading( false );
+            };
+
+            xhr.onerror = () => {
+                setUploadError( 'Network error.' );
+                setUploading( false );
+            };
+
+            xhr.send( formData );
+        } catch ( e ) {
+            setUploadError( 'Upload error.' );
+            setUploading( false );
+        }
+    };
+
+    const onDragOver = ( e: React.DragEvent ) => {
+        e.preventDefault();
+        e.stopPropagation();
+    };
+
+    const onDragEnter = ( e: React.DragEvent ) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounterRef.current++;
+        if ( dragCounterRef.current === 1 ) {
+            setIsDragging( true );
+        }
+    };
+
+    const onDragLeave = ( e: React.DragEvent ) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounterRef.current--;
+        if ( dragCounterRef.current === 0 ) {
+            setIsDragging( false );
+        }
+    };
+
+    const onDrop = ( e: React.DragEvent ) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging( false);
+        dragCounterRef.current = 0;
+        if ( e.dataTransfer.files && e.dataTransfer.files.length > 0 ) {
+            handleUpload( e.dataTransfer.files[0] );
+        }
+    };
+
+    const triggerWpMedia = () => {
+        onClose();
+        openWpMedia( title, imageOnly, onSelect );
+    };
+
+    return (
+        <AnimatePresence>
+            <motion.div
+                initial={ { opacity: 0 } }
+                animate={ { opacity: 1 } }
+                exit={ { opacity: 0 } }
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
+                onClick={ onClose }
+            >
+                <motion.div
+                    initial={ { scale: 0.95, opacity: 0 } }
+                    animate={ { scale: 1, opacity: 1 } }
+                    exit={ { scale: 0.95, opacity: 0 } }
+                    className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full relative flex flex-col max-h-[85vh] overflow-hidden border border-gray-255 dark:border-gray-700"
+                    onClick={ ( e ) => e.stopPropagation() }
+                >
+                    {/* Header */}
+                    <div className="flex items-center justify-between p-5 border-b border-gray-150 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800">
+                        <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                            📂 { title }
+                        </h3>
+                        <button onClick={ onClose } className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-500 dark:text-gray-400" type="button">
+                            ✕
+                        </button>
+                    </div>
+
+                    {/* Content */}
+                    <div className="p-5 flex-1 overflow-y-auto space-y-4">
+                        
+                        {/* WP Media & Upload Area */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* WP Media Button */}
+                            <button
+                                type="button"
+                                onClick={ triggerWpMedia }
+                                className="flex flex-col items-center justify-center gap-2 p-5 rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-750/30 hover:bg-gray-100 dark:hover:bg-gray-750 hover:border-blue-400 dark:hover:border-blue-500 transition-all group cursor-pointer text-center"
+                            >
+                                <span className="text-2xl group-hover:scale-110 transition-transform" role="img" aria-label="world">🌐</span>
+                                <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                                    { t( 'files.wpMediaLibrary' ) }
+                                </div>
+                                <div className="text-xs text-gray-400 dark:text-gray-500">
+                                    { t( 'files.selectStandardLibrary' ) }
+                                </div>
+                            </button>
+
+                            {/* Upload area */}
+                            <div
+                                onDragOver={ onDragOver }
+                                onDragEnter={ onDragEnter }
+                                onDragLeave={ onDragLeave }
+                                onDrop={ onDrop }
+                                onClick={ () => {
+                                    const inputId = imageOnly ? 'modal-upload-input-img' : 'modal-upload-input-file';
+                                    document.getElementById( inputId )?.click();
+                                } }
+                                className={`border border-dashed rounded-xl p-5 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-1.5 ${
+                                    isDragging
+                                        ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-950/20'
+                                        : 'border-gray-300 dark:border-gray-700 hover:border-primary-400 bg-white dark:bg-gray-800 hover:bg-gray-50/50 dark:hover:bg-gray-750/30'
+                                }`}
+                            >
+                                <input
+                                    type="file"
+                                    id={ imageOnly ? 'modal-upload-input-img' : 'modal-upload-input-file' }
+                                    accept={ imageOnly ? 'image/*' : '.pdf,.epub,.docx,.txt,.doc' }
+                                    onChange={ ( e ) => { if ( e.target.files?.[0] ) handleUpload( e.target.files[0] ); } }
+                                    className="hidden"
+                                />
+                                <span className="text-2xl animate-pulse" role="img" aria-label="upload">📥</span>
+                                <div className="text-sm font-semibold text-gray-700 dark:text-gray-255">
+                                    { t( 'files.uploadAndSelect' ) }
+                                </div>
+                                <div className="text-xs text-gray-400 dark:text-gray-500">
+                                    { imageOnly ? 'PNG, JPG, WEBP, GIF, SVG' : 'PDF, EPUB, TXT, DOCX' }
+                                </div>
+                            </div>
+                        </div>
+
+                        { uploadProgress > 0 && (
+                            <div className="space-y-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-3 rounded-xl shadow-sm">
+                                <div className="flex justify-between text-xs text-gray-700 dark:text-gray-300 font-semibold">
+                                    <span>{ uploading ? t( 'files.uploading' ) : t( 'files.processing' ) }</span>
+                                    <span>{ uploadProgress }%</span>
+                                </div>
+                                <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden">
+                                    <div className="bg-primary-500 h-1.5 rounded-full transition-all duration-300" style={ { width: `${ uploadProgress }%` } } />
+                                </div>
+                            </div>
+                        ) }
+
+                        { uploadError && (
+                            <div className="text-xs text-red-655 dark:text-red-400 bg-red-50 dark:bg-red-950/20 border border-red-200/40 p-2.5 rounded-lg">
+                                ❌ { uploadError }
+                            </div>
+                        ) }
+
+                        {/* Search & Tabs */}
+                        <div className="space-y-3 pt-2">
+                            <div className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                                { t( 'files.selectExistingJetReader' ) }
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row gap-3">
+                                <input
+                                    type="text"
+                                    placeholder={ t( 'files.searchPlaceholder' ) }
+                                    value={ searchTerm }
+                                    onChange={ e => setSearchTerm( e.target.value ) }
+                                    className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-750 text-gray-900 dark:text-gray-100 placeholder-gray-450 dark:placeholder-gray-500 flex-1 focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
+                                />
+                            </div>
+
+                            {/* Tabs (only show tabs if NOT imageOnly) */}
+                            { ! imageOnly && (
+                                <div className="flex border-b border-gray-250 dark:border-gray-700 overflow-x-auto gap-2 text-xs">
+                                    {( [ 'pdf', 'epub', 'docx', 'txt', 'images' ] as const ).map( tab => {
+                                        const isActive = activeTab === tab;
+                                        const count = getTabCount( tab );
+                                        return (
+                                            <button
+                                                key={ tab }
+                                                type="button"
+                                                onClick={ () => setActiveTab( tab ) }
+                                                className={ `py-2 px-3 font-medium border-b-2 transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                                                    isActive
+                                                        ? 'border-primary-600 text-primary-650 dark:text-primary-400'
+                                                        : 'border-transparent text-gray-550 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                                                }` }
+                                            >
+                                                <span>
+                                                    { tab === 'pdf' && 'PDF' }
+                                                    { tab === 'epub' && 'EPUB' }
+                                                    { tab === 'docx' && 'DOCX' }
+                                                    { tab === 'txt' && 'TXT' }
+                                                    { tab === 'images' && t( 'files.tabImages' ) }
+                                                </span>
+                                                <span className="text-[10px] px-1.5 py-0.2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full">
+                                                    { count }
+                                                </span>
+                                            </button>
+                                        );
+                                    } ) }
+                                </div>
+                            ) }
+                        </div>
+
+                        {/* Files list */}
+                        { isLoading ? (
+                            <div className="flex items-center justify-center py-10">
+                                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-500" />
+                            </div>
+                        ) : filteredFiles.length === 0 ? (
+                            <div className="text-center py-10 text-gray-450 dark:text-gray-500 text-xs">
+                                📁 { t( 'files.noFilesFound' ) }
+                            </div>
+                        ) : (
+                            <div className="max-h-[30vh] overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-xl divide-y divide-gray-150 dark:divide-gray-700 bg-gray-50/20">
+                                { filteredFiles.map( ( file: any ) => (
+                                    <div
+                                        key={ file.name }
+                                        onClick={ () => onSelect( file.url ) }
+                                        className="p-3 flex items-center justify-between hover:bg-primary-50/30 dark:hover:bg-primary-950/10 cursor-pointer transition-colors group"
+                                    >
+                                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                                            { file.extension === 'png' || file.extension === 'jpg' || file.extension === 'jpeg' || file.extension === 'webp' || file.extension === 'gif' || file.extension === 'svg' ? (
+                                                <img src={ file.url } alt="" className="w-8 h-8 rounded border border-gray-250 dark:border-gray-700 object-cover bg-white" />
+                                            ) : (
+                                                <span className="text-xl shrink-0">
+                                                    { file.extension === 'pdf' && '📕' }
+                                                    { file.extension === 'epub' && '📘' }
+                                                    { file.extension === 'docx' && '📄' }
+                                                    { file.extension === 'txt' && '📝' }
+                                                </span>
+                                            )}
+                                            <div className="min-w-0 flex-1">
+                                                <div className="font-mono text-xs truncate text-gray-900 dark:text-white group-hover:text-primary-650 dark:group-hover:text-primary-400 font-semibold" title={ file.name }>
+                                                    { file.name }
+                                                </div>
+                                                <div className="text-[10px] text-gray-455 dark:text-gray-500 flex items-center gap-1.5 mt-0.5">
+                                                    <span>{ formatBytes( file.size ) }</span>
+                                                    <span>•</span>
+                                                    <span>{ formatDate( file.modified ) }</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className="px-2.5 py-1 text-[11px] font-bold bg-white dark:bg-gray-750 hover:bg-primary-600 hover:text-white dark:hover:bg-primary-500 border border-gray-200 dark:border-gray-650 rounded-lg shadow-sm transition-all text-gray-700 dark:text-gray-300"
+                                        >
+                                            { t( 'files.choose' ) }
+                                        </button>
+                                    </div>
+                                ) ) }
+                            </div>
+                        ) }
+                    </div>
+                </motion.div>
+            </motion.div>
+        </AnimatePresence>
+    );
+};
+
 const WpMediaButton: React.FC<{
     onSelect: ( url: string ) => void;
     imageOnly?: boolean;
     title: string;
     disabled?: boolean;
-}> = ( { onSelect, imageOnly = false, title, disabled } ) => (
-    <button
-        type="button"
-        disabled={ disabled }
-        title={ title }
-        onClick={ () => ! disabled && openWpMedia( title, imageOnly, onSelect ) }
-        className="flex-shrink-0 w-9 h-9 flex items-center justify-center bg-gray-150 dark:bg-gray-700 hover:bg-gray-250 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-600 dark:text-gray-300 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 shadow-sm"
-    >
-        { imageOnly ? (
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                <circle cx="8.5" cy="8.5" r="1.5"/>
-                <polyline points="21 15 16 10 5 21"/>
-            </svg>
-        ) : (
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-            </svg>
-        ) }
-    </button>
-);
+}> = ( { onSelect, imageOnly = false, title, disabled } ) => {
+    const [ isModalOpen, setIsModalOpen ] = useState( false );
+
+    return (
+        <>
+            <button
+                type="button"
+                disabled={ disabled }
+                title={ title }
+                onClick={ () => ! disabled && setIsModalOpen( true ) }
+                className="flex-shrink-0 w-9 h-9 flex items-center justify-center bg-gray-150 dark:bg-gray-700 hover:bg-gray-250 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-600 dark:text-gray-300 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 shadow-sm"
+            >
+                { imageOnly ? (
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                        <circle cx="8.5" cy="8.5" r="1.5"/>
+                        <polyline points="21 15 16 10 5 21"/>
+                    </svg>
+                ) : (
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                    </svg>
+                ) }
+            </button>
+            <JetReaderFileSelectorModal
+                isOpen={ isModalOpen }
+                onClose={ () => setIsModalOpen( false ) }
+                onSelect={ ( url ) => { onSelect( url ); setIsModalOpen( false ); } }
+                imageOnly={ imageOnly }
+                title={ title }
+            />
+        </>
+    );
+};
 
 /* ------------------------------------------------------------------ */
 /*  Dashboard                                                          */
@@ -260,17 +659,23 @@ const LectorDashboard: React.FC = () => {
         total_views: 0,
         total_reads: 0,
     } );
+    const [ statsLoading, setStatsLoading ] = React.useState( false );
 
-    React.useEffect( () => {
-        fetch( `${API_BASE}/dashboard`, {
+    const fetchStats = React.useCallback( ( force = false ) => {
+        setStatsLoading( true );
+        fetch( `${API_BASE}/dashboard${force ? '?force=1' : ''}`, {
             headers: { 'X-WP-Nonce': getNonce() },
         } )
             .then( ( res ) => res.json() )
             .then( ( data ) => {
                 if ( data && ! data.code ) setStats( data );
+                else dbg( 'dashboard stats error:', data );
             } )
-            .catch( ( err ) => dbg( 'dashboard fetch error:', err ) );
+            .catch( ( err ) => dbg( 'dashboard fetch error:', err ) )
+            .finally( () => setStatsLoading( false ) );
     }, [] );
+
+    React.useEffect( () => { fetchStats(); }, [] );
 
     const statCards = [
         { label: t('dashboard.totalBooks'), value: stats.total_books, iconBg: 'bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400', icon: '📚' },
@@ -283,13 +688,24 @@ const LectorDashboard: React.FC = () => {
 
     return (
         <div className="p-6">
-            <div className="mb-6">
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {t('dashboard.title')}
-                </h1>
-                <p className="mt-1 text-gray-500 dark:text-gray-400 text-sm">
-                    {t('dashboard.welcome')}
-                </p>
+            <div className="mb-6 flex items-start justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {t('dashboard.title')}
+                    </h1>
+                    <p className="mt-1 text-gray-500 dark:text-gray-400 text-sm">
+                        {t('dashboard.welcome')}
+                    </p>
+                </div>
+                <button
+                    onClick={ () => fetchStats( true ) }
+                    disabled={ statsLoading }
+                    className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-750 disabled:opacity-50 transition-colors"
+                    title="Refresh statistics"
+                >
+                    <span className={ statsLoading ? 'animate-spin' : '' }>↻</span>
+                    { statsLoading ? 'Loading…' : 'Refresh Stats' }
+                </button>
             </div>
 
             { ( isLite || !isPro ) && <ProUpgradeBanner /> }
@@ -480,7 +896,7 @@ interface BulkEditForm {
 
 interface BulkAddItem {
     title: string;
-    category_id: string;
+    category_names: string;
     author: string;
     translator: string;
     publisher: string;
@@ -494,7 +910,7 @@ interface BulkAddItem {
 }
 
 const EMPTY_BULK_ITEM: BulkAddItem = {
-    title: '', category_id: '', author: '', translator: '', publisher: '',
+    title: '', category_names: '', author: '', translator: '', publisher: '',
     publication_year: '', description: '', visibility: 'publish',
     featured: false, cover_image: '', file_path: '', file_type: '',
 };
@@ -513,6 +929,9 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
     const [ saving, setSaving ] = useState( false );
     const [ pendingType, setPendingType ] = useState<string | null>( null );
     const [ pendingClose, setPendingClose ] = useState( false );
+    const [ isDraggingModal, setIsDraggingModal ] = useState( false );
+    const [ activeDragRowIndex, setActiveDragRowIndex ] = useState<number | null>( null );
+    const dragCounter = React.useRef( 0 );
 
     const TYPE_SVG: Record<string, React.ReactNode> = {
         book: (
@@ -590,7 +1009,7 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
         row.description.trim() !== '' ||
         row.cover_image.trim() !== '' ||
         row.file_path.trim() !== '' ||
-        row.category_id !== '' ||
+        row.category_names.trim() !== '' ||
         row.file_type !== '' ||
         row.featured ||
         row.visibility !== 'publish'
@@ -646,6 +1065,103 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
         ] );
     };
 
+    const handleModalDragEnter = ( e: React.DragEvent ) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounter.current++;
+        if ( dragCounter.current === 1 ) {
+            setIsDraggingModal( true );
+        }
+    };
+
+    const handleModalDragLeave = ( e: React.DragEvent ) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounter.current--;
+        if ( dragCounter.current === 0 ) {
+            setIsDraggingModal( false );
+        }
+    };
+
+    const handleModalDragOver = ( e: React.DragEvent ) => {
+        e.preventDefault();
+        e.stopPropagation();
+    };
+
+    const uploadAndParseFile = async ( file: File ) => {
+        const formData = new FormData();
+        formData.append( 'file', file );
+
+        const res = await fetch( `${ API_BASE }/upload`, {
+            method: 'POST',
+            headers: { 'X-WP-Nonce': getNonce() },
+            body: formData,
+        } );
+        const json = await res.json();
+        if ( json.code ) throw new Error( json.message );
+        return json;
+    };
+
+    const handleModalDrop = async ( e: React.DragEvent ) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounter.current = 0;
+        setIsDraggingModal( false );
+
+        const files = Array.from( e.dataTransfer.files || [] );
+        if ( files.length === 0 ) return;
+
+        setSaving( true );
+        flashMessage( `⚡ Uploading and parsing ${ files.length } files...` );
+
+        let updatedRows = [ ...rows ];
+        let successCount = 0;
+
+        for ( const file of files ) {
+            const ext = file.name.split( '.' ).pop()?.toLowerCase();
+            const supported = [ 'epub', 'pdf', 'txt', 'docx', 'doc' ];
+            if ( ! ext || ! supported.includes( ext ) ) {
+                flashMessage( `❌ Unsupported file type: .${ ext }` );
+                continue;
+            }
+
+            try {
+                const json = await uploadAndParseFile( file );
+                const meta = json.metadata || {};
+
+                const itemData: BulkAddItem = {
+                    title: meta.title || file.name.replace( /\.[^/.]+$/, "" ),
+                    category_names: meta.category || '',
+                    author: meta.author || '',
+                    translator: meta.translator || '',
+                    publisher: meta.publisher || '',
+                    publication_year: meta.publication_year ? String( meta.publication_year ) : '',
+                    description: meta.description || '',
+                    visibility: 'publish',
+                    featured: false,
+                    cover_image: meta.cover_image || '',
+                    file_path: json.file_url || '',
+                    file_type: json.file_type || ext,
+                };
+
+                if ( successCount === 0 && updatedRows.length === 1 && updatedRows[0].title.trim() === '' && updatedRows[0].file_path.trim() === '' ) {
+                    updatedRows[0] = itemData;
+                } else {
+                    updatedRows.push( itemData );
+                }
+                successCount++;
+            } catch ( err ) {
+                flashMessage( `❌ Upload failed for "${ file.name }": ${ err instanceof Error ? err.message : 'Unknown error' }` );
+            }
+        }
+
+        setRows( updatedRows );
+        setSaving( false );
+        if ( successCount > 0 ) {
+            flashMessage( `✅ ${ successCount } files uploaded and parsed!` );
+        }
+    };
+
     const handleSave = async () => {
         const validRows = rows.filter( ( r ) => r.title.trim() );
         if ( validRows.length === 0 ) {
@@ -653,35 +1169,40 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
             return;
         }
         setSaving( true );
+        const payloadItems = validRows.map( ( row ) => {
+            const payload: Record<string, unknown> = {
+                type:           activeType,
+                title:          row.title.trim(),
+                visibility:     row.visibility || 'publish',
+                featured:       row.featured,
+                category_names: row.category_names,
+                description:    row.description,
+            };
+            if ( activeType !== 'qa' ) {
+                payload.author           = row.author;
+                payload.translator       = row.translator;
+                payload.publisher        = row.publisher;
+                payload.publication_year = parseInt( row.publication_year, 10 ) || null;
+                payload.cover_image      = row.cover_image;
+                payload.file_path        = row.file_path;
+                payload.file_type        = row.file_type;
+                payload.volumes          = [ { vol: 1, file_path: row.file_path, file_type: row.file_type, cover_image: row.cover_image } ];
+            }
+            return payload;
+        } );
+
         let ok = 0, fail = 0;
-        for ( const row of validRows ) {
-            try {
-                const payload: Record<string, unknown> = {
-                    type:         activeType,
-                    title:        row.title.trim(),
-                    visibility:   row.visibility || 'publish',
-                    featured:     row.featured,
-                    category_ids: row.category_id ? [ Number( row.category_id ) ] : [],
-                    description:  row.description,
-                };
-                if ( activeType !== 'qa' ) {
-                    payload.author           = row.author;
-                    payload.translator       = row.translator;
-                    payload.publisher        = row.publisher;
-                    payload.publication_year = parseInt( row.publication_year, 10 ) || null;
-                    payload.cover_image      = row.cover_image;
-                    payload.file_path        = row.file_path;
-                    payload.file_type        = row.file_type;
-                    payload.volumes          = [ { vol: 1, file_path: row.file_path, file_type: row.file_type, cover_image: row.cover_image } ];
-                }
-                const res = await fetch( `${API_BASE}/items`, {
-                    method:  'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': getNonce() },
-                    body:    JSON.stringify( payload ),
-                } );
-                const json = await res.json();
-                json.code ? fail++ : ok++;
-            } catch { fail++; }
+        try {
+            const res = await fetch( `${API_BASE}/items/bulk-create`, {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': getNonce() },
+                body:    JSON.stringify( { items: payloadItems } ),
+            } );
+            const json = await res.json();
+            ok = json.success ?? 0;
+            fail = json.failed ?? 0;
+        } catch {
+            fail = payloadItems.length;
         }
         setSaving( false );
         flashMessage(
@@ -729,9 +1250,18 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                     initial={ { scale: 0.95, opacity: 0, y: 20 } }
                     animate={ { scale: 1, opacity: 1, y: 0 } }
                     exit={ { scale: 0.95, opacity: 0, y: 20 } }
-                    className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-5xl mb-6 border border-gray-100 dark:border-gray-700/60 overflow-hidden"
+                    className={ `bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-5xl mb-6 border transition-all duration-300 overflow-hidden relative ${
+                        isDraggingModal
+                            ? 'border-blue-500 ring-2 ring-blue-500/20 shadow-[0_0_20px_rgba(59,130,246,0.15)] bg-blue-50/5 dark:bg-blue-900/5'
+                            : 'border-gray-100 dark:border-gray-700/60'
+                    }` }
                     onClick={ ( e ) => e.stopPropagation() }
+                    onDragEnter={ handleModalDragEnter }
+                    onDragOver={ handleModalDragOver }
+                    onDragLeave={ handleModalDragLeave }
+                    onDrop={ handleModalDrop }
                 >
+
                     {/* Header */}
                     <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/10">
                         <div className="flex items-center gap-2.5">
@@ -798,8 +1328,89 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
 
                     {/* Rows – scrollable */}
                     <div className="px-6 py-5 space-y-4 max-h-[55vh] overflow-y-auto bg-gray-50/30 dark:bg-gray-900/5">
+                        {/* Drag & Drop Hint Banner */}
+                        <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 rounded-xl p-3 text-xs text-blue-700 dark:text-blue-300 flex items-start gap-2.5 shadow-sm">
+                            <span className="text-base shrink-0">💡</span>
+                            <div>
+                                <p className="font-semibold">{ t( 'items.bulkDragDropHintTitle' ) }</p>
+                                <p className="mt-0.5 opacity-90">{ t( 'items.bulkDragDropHintDesc' ) }</p>
+                            </div>
+                        </div>
+
                         { rows.map( ( row, idx ) => (
-                            <div key={ idx } className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-4 shadow-sm hover:border-gray-300 dark:hover:border-gray-650 transition-all duration-200">
+                            <div
+                                key={ idx }
+                                onDragEnter={ ( e ) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setActiveDragRowIndex( idx );
+                                } }
+                                onDragOver={ ( e ) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                } }
+                                onDragLeave={ ( e ) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setActiveDragRowIndex( null );
+                                } }
+                                onDrop={ async ( e ) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setActiveDragRowIndex( null );
+
+                                    const file = e.dataTransfer.files?.[0];
+                                    if ( ! file ) return;
+
+                                    const ext = file.name.split( '.' ).pop()?.toLowerCase();
+                                    const supported = [ 'epub', 'pdf', 'txt', 'docx', 'doc' ];
+                                    if ( ! ext || ! supported.includes( ext ) ) {
+                                        flashMessage( `❌ Unsupported file type: .${ ext }` );
+                                        return;
+                                    }
+
+                                    setSaving( true );
+                                    flashMessage( `⚡ Uploading and parsing "${ file.name }" for row #${ idx + 1 }...` );
+                                    try {
+                                        const json = await uploadAndParseFile( file );
+                                        const meta = json.metadata || {};
+
+                                        setRows( ( prev ) => prev.map( ( r, i ) => i === idx ? {
+                                            ...r,
+                                            title: meta.title || r.title || file.name.replace( /\.[^/.]+$/, "" ),
+                                            category_names: meta.category || r.category_names || '',
+                                            author: meta.author || r.author || '',
+                                            translator: meta.translator || r.translator || '',
+                                            publisher: meta.publisher || r.publisher || '',
+                                            publication_year: meta.publication_year ? String( meta.publication_year ) : r.publication_year || '',
+                                            description: meta.description || r.description || '',
+                                            cover_image: meta.cover_image || r.cover_image || '',
+                                            file_path: json.file_url || '',
+                                            file_type: json.file_type || ext,
+                                        } : r ) );
+
+                                        flashMessage( `✅ Row #${ idx + 1 } populated!` );
+                                    } catch ( err ) {
+                                        flashMessage( `❌ Upload failed for row #${ idx + 1 }: ${ err instanceof Error ? err.message : 'Unknown error' }` );
+                                    } finally {
+                                        setSaving( false );
+                                    }
+                                } }
+                                className={ `bg-white dark:bg-gray-800 rounded-xl border p-4 space-y-4 shadow-sm hover:border-gray-300 dark:hover:border-gray-650 transition-all duration-200 relative ${
+                                    activeDragRowIndex === idx
+                                        ? 'border-dashed border-2 border-blue-500 bg-blue-50/20 dark:bg-blue-900/10'
+                                        : 'border-gray-200 dark:border-gray-700'
+                                }` }
+                            >
+                                { activeDragRowIndex === idx && (
+                                    <div className="absolute inset-0 bg-blue-500/5 backdrop-blur-[1px] rounded-xl flex items-center justify-center pointer-events-none z-10">
+                                        <div className="bg-white dark:bg-gray-850 px-3 py-1.5 rounded-lg shadow-md border border-blue-200 dark:border-blue-900/50 flex items-center gap-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 animate-pulse">
+                                            <span>📥</span>
+                                            <span>{ t( 'items.dropToFillRow' ) || 'Drop to populate row' }</span>
+                                        </div>
+                                    </div>
+                                ) }
+
                                 {/* Row Header */}
                                 <div className="flex items-center justify-between border-b border-gray-150 dark:border-gray-700/60 pb-2.5">
                                     <div className="flex items-center gap-2">
@@ -857,17 +1468,15 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                                 { t( 'itemForm.categoryLabel' ) }
                                             </label>
                                             <div className="flex items-center gap-1.5">
-                                                <select
-                                                    value={ row.category_id }
-                                                    onChange={ ( e ) => updateRow( idx, 'category_id', e.target.value ) }
+                                                <input
+                                                    type="text"
+                                                    value={ row.category_names }
+                                                    onChange={ ( e ) => updateRow( idx, 'category_names', e.target.value ) }
+                                                    list="bulk-categories-list"
                                                     className="jr-input text-sm w-full"
-                                                >
-                                                    <option value="">— { t( 'itemForm.categoryLabel' ) } —</option>
-                                                    { bulkCategories.map( ( c ) => (
-                                                        <option key={ c.id } value={ String( c.id ) }>{ c.name }</option>
-                                                    ) ) }
-                                                </select>
-                                                <CopyToAll idx={ idx } field="category_id" />
+                                                    placeholder={ t( 'itemForm.categoryPlaceholder' ) || 'e.g. Felsefe, Mantık' }
+                                                />
+                                                <CopyToAll idx={ idx } field="category_names" />
                                             </div>
                                         </div>
 
@@ -887,7 +1496,7 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                         </div>
 
                                         {/* Featured */}
-                                        <div className="flex items-center justify-between border border-gray-250 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/10 rounded-xl px-3.5 py-2 hover:border-gray-300 dark:hover:border-gray-650 transition-colors">
+                                        <div className="flex items-center justify-between border border-gray-250 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/10 rounded-xl px-3.5 py-2 hover:border-gray-300 dark:hover:border-gray-655 transition-colors">
                                             <label className="flex items-center gap-2.5 text-xs font-semibold text-gray-655 dark:text-gray-400 uppercase tracking-wide cursor-pointer select-none">
                                                 <input type="checkbox" checked={ row.featured } onChange={ ( e ) => updateRow( idx, 'featured', e.target.checked ) } className="rounded accent-blue-600 w-4 h-4" />
                                                 <span>{ t( 'itemForm.featuredLabel' ) }</span>
@@ -932,17 +1541,15 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                                 { t( 'itemForm.categoryLabel' ) }
                                             </label>
                                             <div className="flex items-center gap-1.5">
-                                                <select
-                                                    value={ row.category_id }
-                                                    onChange={ ( e ) => updateRow( idx, 'category_id', e.target.value ) }
+                                                <input
+                                                    type="text"
+                                                    value={ row.category_names }
+                                                    onChange={ ( e ) => updateRow( idx, 'category_names', e.target.value ) }
+                                                    list="bulk-categories-list"
                                                     className="jr-input text-sm w-full"
-                                                >
-                                                    <option value="">— { t( 'itemForm.categoryLabel' ) } —</option>
-                                                    { bulkCategories.map( ( c ) => (
-                                                        <option key={ c.id } value={ String( c.id ) }>{ c.name }</option>
-                                                    ) ) }
-                                                </select>
-                                                <CopyToAll idx={ idx } field="category_id" />
+                                                    placeholder={ t( 'itemForm.categoryPlaceholder' ) || 'e.g. Felsefe, Mantık' }
+                                                />
+                                                <CopyToAll idx={ idx } field="category_names" />
                                             </div>
                                         </div>
 
@@ -952,17 +1559,14 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                                 { t( 'items.authorLabel' ) }
                                             </label>
                                             <div className="flex items-center gap-1.5">
-                                                { bulkAuthors.length > 0 ? (
-                                                    <select value={ row.author } onChange={ ( e ) => updateRow( idx, 'author', e.target.value ) } className="jr-input text-sm w-full">
-                                                        <option value="">{ t( 'itemForm.selectAuthor' ) }</option>
-                                                        { bulkAuthors.map( ( a ) => <option key={ a.id } value={ a.name }>{ a.name }</option> ) }
-                                                    </select>
-                                                ) : (
-                                                    <span className="jr-input text-xs text-gray-400 w-full flex items-center gap-1 opacity-50 select-none">
-                                                        { t( 'itemForm.noAuthorWarning' ) }{ ' ' }
-                                                        <NavLink page="jetreader-constants" className="text-blue-500 underline">{ t( 'itemForm.goToConstants' ) }</NavLink>
-                                                    </span>
-                                                ) }
+                                                <input
+                                                    type="text"
+                                                    value={ row.author }
+                                                    onChange={ ( e ) => updateRow( idx, 'author', e.target.value ) }
+                                                    list="bulk-authors-list"
+                                                    className="jr-input w-full text-sm"
+                                                    placeholder={ t( 'itemForm.authorPlaceholder' ) || 'Enter author name' }
+                                                />
                                                 <CopyToAll idx={ idx } field="author" />
                                             </div>
                                         </div>
@@ -973,17 +1577,14 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                                 { t( 'itemForm.publisherLabel' ) }
                                             </label>
                                             <div className="flex items-center gap-1.5">
-                                                { bulkPublishers.length > 0 ? (
-                                                    <select value={ row.publisher } onChange={ ( e ) => updateRow( idx, 'publisher', e.target.value ) } className="jr-input text-sm w-full">
-                                                        <option value="">{ t( 'itemForm.selectPublisher' ) }</option>
-                                                        { bulkPublishers.map( ( p ) => <option key={ p.id } value={ p.name }>{ p.name }</option> ) }
-                                                    </select>
-                                                ) : (
-                                                    <span className="jr-input text-xs text-gray-400 w-full flex items-center gap-1 opacity-50 select-none">
-                                                        { t( 'itemForm.noPublisherWarning' ) }{ ' ' }
-                                                        <NavLink page="jetreader-constants" className="text-blue-500 underline">{ t( 'itemForm.goToConstants' ) }</NavLink>
-                                                    </span>
-                                                ) }
+                                                <input
+                                                    type="text"
+                                                    value={ row.publisher }
+                                                    onChange={ ( e ) => updateRow( idx, 'publisher', e.target.value ) }
+                                                    list="bulk-publishers-list"
+                                                    className="jr-input w-full text-sm"
+                                                    placeholder={ t( 'itemForm.publisherPlaceholder' ) || 'Enter publisher name' }
+                                                />
                                                 <CopyToAll idx={ idx } field="publisher" />
                                             </div>
                                         </div>
@@ -1075,7 +1676,7 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
 
                                         {/* Featured */}
                                         <div className="flex items-center justify-between border border-gray-250 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/10 rounded-xl px-3.5 py-2 hover:border-gray-300 dark:hover:border-gray-650 transition-colors mt-5">
-                                            <label className="flex items-center gap-2.5 text-xs font-semibold text-gray-650 dark:text-gray-450 uppercase tracking-wide cursor-pointer select-none">
+                                            <label className="flex items-center gap-2.5 text-xs font-semibold text-gray-650 dark:text-gray-455 uppercase tracking-wide cursor-pointer select-none">
                                                 <input type="checkbox" checked={ row.featured } onChange={ ( e ) => updateRow( idx, 'featured', e.target.checked ) } className="rounded accent-blue-600 w-4 h-4" />
                                                 <span>{ t( 'itemForm.featuredLabel' ) }</span>
                                             </label>
@@ -1125,6 +1726,23 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                             </button>
                         </div>
                     </div>
+
+                    {/* Datalists for autocompletion */}
+                    <datalist id="bulk-categories-list">
+                        { bulkCategories.map( ( c ) => (
+                            <option key={ c.id } value={ c.name } />
+                        ) ) }
+                    </datalist>
+                    <datalist id="bulk-authors-list">
+                        { bulkAuthors.map( ( a ) => (
+                            <option key={ a.id } value={ a.name } />
+                        ) ) }
+                    </datalist>
+                    <datalist id="bulk-publishers-list">
+                        { bulkPublishers.map( ( p ) => (
+                            <option key={ p.id } value={ p.name } />
+                        ) ) }
+                    </datalist>
                 </motion.div>
             </motion.div>
         </AnimatePresence>
@@ -2214,9 +2832,92 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
     const [ sharedCover, setSharedCover ] = useState( '' );
     const [ saving, setSaving ] = useState( false );
     const [ selectedCategoryIds, setSelectedCategoryIds ] = useState<number[]>( [] );
+    const [ formCategoriesText, setFormCategoriesText ] = useState( '' );
+    const [ isDragging, setIsDragging ] = useState( false );
 
     const isMultiVolType = ( type: string ) => type === 'book' || type === 'magazine';
     const volLabel = ( type: string ) => type === 'magazine' ? t( 'reader.volLabelMagazine' ) : t( 'reader.volLabelBook' );
+
+    const handleDragEnter = ( e: React.DragEvent ) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging( true );
+    };
+
+    const handleDragLeave = ( e: React.DragEvent ) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if ( e.currentTarget === e.target ) {
+            setIsDragging( false );
+        }
+    };
+
+    const handleDragOver = ( e: React.DragEvent ) => {
+        e.preventDefault();
+        e.stopPropagation();
+    };
+
+    const handleDrop = async ( e: React.DragEvent ) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging( false );
+
+        const file = e.dataTransfer.files?.[0];
+        if ( ! file ) return;
+
+        const ext = file.name.split( '.' ).pop()?.toLowerCase();
+        const supported = [ 'epub', 'pdf', 'txt', 'docx', 'doc' ];
+        if ( ! ext || ! supported.includes( ext ) ) {
+            flashMessage( `❌ Unsupported file type: .${ ext }` );
+            return;
+        }
+
+        setSaving( true );
+        flashMessage( `⚡ Uploading and parsing "${ file.name }"...` );
+        try {
+            const formData = new FormData();
+            formData.append( 'file', file );
+
+            const res = await fetch( `${ API_BASE }/upload`, {
+                method: 'POST',
+                headers: { 'X-WP-Nonce': getNonce() },
+                body: formData,
+            } );
+            const json = await res.json();
+            if ( json.code ) throw new Error( json.message );
+
+            const meta = json.metadata || {};
+            setForm( ( prev ) => ( {
+                ...prev,
+                title: meta.title || prev.title || file.name.replace( /\.[^/.]+$/, "" ),
+                author: meta.author || prev.author || '',
+                language: meta.language || prev.language || 'en',
+                file_path: json.file_url || '',
+                file_type: json.file_type || ext,
+                publisher: meta.publisher || prev.publisher || '',
+                isbn: meta.isbn || prev.isbn || '',
+                cover_image: meta.cover_image || prev.cover_image || '',
+            } ) );
+
+            if ( isMultiVolType( form.type ) ) {
+                setVolumes( [ {
+                    vol: 1,
+                    file_path: json.file_url || '',
+                    file_type: json.file_type || ext,
+                    cover_image: meta.cover_image || '',
+                } ] );
+                if ( meta.cover_image ) {
+                    setSharedCover( meta.cover_image );
+                }
+            }
+
+            flashMessage( `✅ File uploaded and form fields populated!` );
+        } catch ( err ) {
+            flashMessage( `❌ Upload failed: ${ err instanceof Error ? err.message : 'Unknown error' }` );
+        } finally {
+            setSaving( false );
+        }
+    };
 
     // Fetch categories for the current selected type
     const { data: formCategories = [] } = useQuery<CategoryExtended[]>( {
@@ -2280,6 +2981,14 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
                 featured: editingItem.featured || false,
             } );
             setSelectedCategoryIds( editingItem.category_ids || [] );
+            if ( editingItem.category_ids && formCategories.length > 0 ) {
+                const names = formCategories
+                    .filter( ( c ) => editingItem.category_ids?.includes( c.id ) )
+                    .map( ( c ) => c.name );
+                setFormCategoriesText( names.join( ', ' ) );
+            } else {
+                setFormCategoriesText( '' );
+            }
             if ( editingItem.volumes && editingItem.volumes.length > 0 ) {
                 setVolumes( editingItem.volumes );
                 const allSame = editingItem.volumes.every( ( v ) => v.cover_image === editingItem.volumes![0].cover_image );
@@ -2297,13 +3006,15 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
                 cover_image: '', visibility: 'publish', featured: false,
             } );
             setSelectedCategoryIds( [] );
+            setFormCategoriesText( '' );
             resetVolumes();
         }
-    }, [ editingItem ] );
+    }, [ editingItem, formCategories ] );
 
     const updateField = ( field: string, value: string | boolean ) => {
         if ( field === 'type' ) {
             setSelectedCategoryIds( [] );
+            setFormCategoriesText( '' );
         }
         setForm( ( prev ) => ( { ...prev, [ field ]: value } ) );
     };
@@ -2379,7 +3090,7 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
                 payload.cover_image = form.cover_image;
             }
 
-            payload.category_ids = selectedCategoryIds;
+            payload.category_names = formCategoriesText;
 
             const res = await fetch( url, {
                 method,
@@ -2413,9 +3124,22 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
                     initial={ { scale: 0.95, opacity: 0, y: 20 } }
                     animate={ { scale: 1, opacity: 1, y: 0 } }
                     exit={ { scale: 0.95, opacity: 0, y: 20 } }
-                    className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full"
+                    className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full relative"
                     onClick={ ( e ) => e.stopPropagation() }
+                    onDragEnter={ handleDragEnter }
+                    onDragOver={ handleDragOver }
+                    onDragLeave={ handleDragLeave }
+                    onDrop={ handleDrop }
                 >
+                    { isDragging && (
+                        <div className="absolute inset-0 bg-blue-500/10 backdrop-blur-sm border-2 border-dashed border-blue-500 rounded-2xl flex flex-col items-center justify-center z-50 pointer-events-none">
+                            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl flex flex-col items-center gap-2">
+                                <span className="text-4xl animate-bounce">📥</span>
+                                <p className="text-sm font-semibold text-gray-800 dark:text-white">{ t( 'itemForm.dropToUpload' ) || 'Drop file here to upload & autofill' }</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">{ t( 'itemForm.supportedFormats' ) || 'Supports EPUB, PDF, TXT, DOCX' }</p>
+                            </div>
+                        </div>
+                    ) }
                     <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
                         <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                             { editingItem ? t('itemForm.editTitle') : t('itemForm.createTitle') }
@@ -2426,6 +3150,15 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
                     </div>
 
                     <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                        {/* Drag & Drop Hint Banner */}
+                        <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 rounded-xl p-3 text-xs text-blue-700 dark:text-blue-300 flex items-start gap-2.5 shadow-sm">
+                            <span className="text-base shrink-0">💡</span>
+                            <div>
+                                <p className="font-semibold">{ t( 'itemForm.dragDropHintTitle' ) }</p>
+                                <p className="mt-0.5 opacity-90">{ t( 'itemForm.dragDropHintDesc' ) }</p>
+                            </div>
+                        </div>
+
                         {/* Row 1 */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
@@ -2446,111 +3179,82 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
                                 <input type="text" disabled={ form.type === 'qa' } value={ form.translator } onChange={ ( e ) => updateField( 'translator', e.target.value ) } className="jr-input w-full text-sm disabled:opacity-50" placeholder={ t( 'itemForm.translatorPlaceholder' ) } />
                             </div>
                         </div>
+
                         {/* Row 1.5 – Category, Author, Publisher (single row) */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('itemForm.categoryLabel')}</label>
-                                { formCategories.length > 0 ? (
-                                    <div className="relative group">
-                                        <div className="jr-input w-full text-sm min-h-[38px] flex flex-wrap items-center gap-1 px-2 py-1 cursor-pointer overflow-y-auto max-h-[120px]">
-                                            { selectedCategoryIds.length === 0 && (
-                                                <span className="text-gray-400 text-xs">{t('itemForm.selectCategories')}</span>
-                                            ) }
-                                            { formCategories
-                                                .filter( ( c ) => selectedCategoryIds.includes( c.id ) )
-                                                .map( ( c ) => (
-                                                    <span key={ c.id } className="inline-flex items-center gap-1 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs rounded-full px-2 py-0.5">
-                                                        { c.name }
-                                                        <button
-                                                            onClick={ () => toggleCategory( c.id ) }
-                                                            className="ml-0.5 w-3.5 h-3.5 flex items-center justify-center rounded-full hover:bg-blue-200 dark:hover:bg-blue-800 text-blue-500 dark:text-blue-400"
-                                                        >✕</button>
-                                                    </span>
-                                                ) ) }
-                                        </div>
-                                        <div className="absolute left-0 right-0 top-full mt-1 z-20 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-2 max-h-48 overflow-y-auto hidden group-hover:block group-focus-within:block">
-                                            { formCategories.map( ( cat ) => {
-                                                const isSelected = selectedCategoryIds.includes( cat.id );
-                                                return (
-                                                    <label
-                                                        key={ cat.id }
-                                                        className={ `flex items-center gap-2 px-2 py-1.5 rounded text-xs cursor-pointer transition-colors ${
-                                                            isSelected
-                                                                ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                                                                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                                                        }` }
-                                                    >
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={ isSelected }
-                                                            onChange={ () => toggleCategory( cat.id ) }
-                                                            className="rounded accent-blue-600"
-                                                        />
-                                                        { cat.name }
-                                                    </label>
-                                                );
-                                            } ) }
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="relative group">
-                                        <div className="jr-input w-full text-sm min-h-[38px] flex items-center px-2 text-gray-400 cursor-pointer">
-                                            { t( 'itemForm.selectCategories' ) }
-                                        </div>
-                                        <div className="absolute left-0 right-0 top-full mt-1 z-20 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-3 text-xs text-gray-500 dark:text-gray-400 hidden group-hover:block">
-                                            { t( 'itemForm.noCategoryWarning' ) }{ ' ' }
-                                            <NavLink page="jetreader-constants" className="text-blue-500 underline whitespace-nowrap">
-                                                { t( 'itemForm.goToCategories' ) }
-                                            </NavLink>
-                                        </div>
+                                <input
+                                    type="text"
+                                    value={ formCategoriesText }
+                                    onChange={ ( e ) => setFormCategoriesText( e.target.value ) }
+                                    placeholder={ t( 'itemForm.categoryPlaceholder' ) || 'e.g. Felsefe, Mantık' }
+                                    className="jr-input w-full text-sm"
+                                />
+                                { formCategories.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-1.5 max-h-24 overflow-y-auto p-1.5 bg-gray-50 dark:bg-gray-900/20 border border-gray-100 dark:border-gray-700/50 rounded-lg">
+                                        { formCategories.map( ( cat ) => {
+                                            const isSelected = formCategoriesText.split( ',' ).map( s => s.trim().toLowerCase() ).includes( cat.name.toLowerCase() );
+                                            return (
+                                                <button
+                                                    key={ cat.id }
+                                                    type="button"
+                                                    onClick={ () => {
+                                                        const currentNames = formCategoriesText.split( ',' ).map( s => s.trim() ).filter( Boolean );
+                                                        const exists = currentNames.map( s => s.toLowerCase() ).indexOf( cat.name.toLowerCase() );
+                                                        if ( exists >= 0 ) {
+                                                            currentNames.splice( exists, 1 );
+                                                        } else {
+                                                            currentNames.push( cat.name );
+                                                        }
+                                                        setFormCategoriesText( currentNames.join( ', ' ) );
+                                                    } }
+                                                    className={ `px-2 py-0.5 text-xs rounded-full border transition-colors ${
+                                                        isSelected
+                                                            ? 'bg-blue-100 dark:bg-blue-900/40 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 font-semibold'
+                                                            : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                                    }` }
+                                                >
+                                                    { cat.name }
+                                                </button>
+                                            );
+                                        } ) }
                                     </div>
                                 ) }
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ t( 'itemForm.authorLabel' ) }</label>
-                                { formAuthors.length > 0 ? (
-                                    <select
-                                        disabled={ form.type === 'qa' }
-                                        value={ form.author }
-                                        onChange={ ( e ) => updateField( 'author', e.target.value ) }
-                                        className="jr-input w-full text-sm disabled:opacity-50"
-                                    >
-                                        <option value="">{ t( 'itemForm.selectAuthor' ) }</option>
-                                        { formAuthors.map( ( a ) => (
-                                            <option key={ a.id } value={ a.name }>{ a.name }</option>
-                                        ) ) }
-                                    </select>
-                                ) : (
-                                    <div className="jr-input w-full text-sm text-gray-400 flex items-center gap-1">
-                                        { t( 'itemForm.noAuthorWarning' ) }{ ' ' }
-                                        <NavLink page="jetreader-constants" className="text-blue-500 underline whitespace-nowrap">
-                                            { t( 'itemForm.goToConstants' ) }
-                                        </NavLink>
-                                    </div>
-                                ) }
+                                <input
+                                    type="text"
+                                    disabled={ form.type === 'qa' }
+                                    value={ form.author }
+                                    onChange={ ( e ) => updateField( 'author', e.target.value ) }
+                                    list="form-authors-list"
+                                    className="jr-input w-full text-sm disabled:opacity-50"
+                                    placeholder={ t( 'itemForm.authorPlaceholder' ) || 'Enter author name' }
+                                />
+                                <datalist id="form-authors-list">
+                                    { formAuthors.map( ( a ) => (
+                                        <option key={ a.id } value={ a.name } />
+                                    ) ) }
+                                </datalist>
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ t( 'itemForm.publisherLabel' ) }</label>
-                                { formPublishers.length > 0 ? (
-                                    <select
-                                        disabled={ form.type === 'qa' }
-                                        value={ form.publisher }
-                                        onChange={ ( e ) => updateField( 'publisher', e.target.value ) }
-                                        className="jr-input w-full text-sm disabled:opacity-50"
-                                    >
-                                        <option value="">{ t( 'itemForm.selectPublisher' ) }</option>
-                                        { formPublishers.map( ( p ) => (
-                                            <option key={ p.id } value={ p.name }>{ p.name }</option>
-                                        ) ) }
-                                    </select>
-                                ) : (
-                                    <div className="jr-input w-full text-sm text-gray-400 flex items-center gap-1">
-                                        { t( 'itemForm.noPublisherWarning' ) }{ ' ' }
-                                        <NavLink page="jetreader-constants" className="text-blue-500 underline whitespace-nowrap">
-                                            { t( 'itemForm.goToConstants' ) }
-                                        </NavLink>
-                                    </div>
-                                ) }
+                                <input
+                                    type="text"
+                                    disabled={ form.type === 'qa' }
+                                    value={ form.publisher }
+                                    onChange={ ( e ) => updateField( 'publisher', e.target.value ) }
+                                    list="form-publishers-list"
+                                    className="jr-input w-full text-sm disabled:opacity-50"
+                                    placeholder={ t( 'itemForm.publisherPlaceholder' ) || 'Enter publisher name' }
+                                />
+                                <datalist id="form-publishers-list">
+                                    { formPublishers.map( ( p ) => (
+                                        <option key={ p.id } value={ p.name } />
+                                    ) ) }
+                                </datalist>
                             </div>
                         </div>
                         {/* Row 3 */}
@@ -4315,6 +5019,7 @@ const SettingsPage: React.FC = () => {
                             { key: 'show_card_year',        label: t( 'settings.cardYear' ),        desc: t( 'settings.cardYearDesc' ),        def: true,  isPremium: true },
                             { key: 'show_card_type',        label: t( 'settings.cardType' ),        desc: t( 'settings.cardTypeDesc' ),        def: true,  isPremium: true },
                             { key: 'show_card_language',    label: t( 'settings.cardLanguage' ),    desc: t( 'settings.cardLanguageDesc' ),    def: false, isPremium: true },
+                            { key: 'show_card_page_count',  label: t( 'settings.cardPageCount' ),    desc: t( 'settings.cardPageCountDesc' ),    def: true,  isPremium: true },
                         ].filter( ( f ) => ! isLite || LITE_CARD_FIELDS.includes( f.key ) ).map( ( f ) => (
                             <div key={ f.key } className="flex items-center justify-between py-2.5 border-t border-gray-100 dark:border-gray-700">
                                 <div className="min-w-0 mr-3">
@@ -4380,6 +5085,7 @@ const SettingsPage: React.FC = () => {
                             { key: 'show_detail_year',        label: t( 'settings.detailYear' ),        desc: t( 'settings.detailYearDesc' ),        def: true,  isPremium: true },
                             { key: 'show_detail_type',        label: t( 'settings.detailType' ),        desc: t( 'settings.detailTypeDesc' ),        def: true,  isPremium: true },
                             { key: 'show_detail_language',    label: t( 'settings.detailLanguage' ),    desc: t( 'settings.detailLanguageDesc' ),    def: true,  isPremium: true },
+                            { key: 'show_detail_page_count',  label: t( 'settings.detailPageCount' ),  desc: t( 'settings.detailPageCountDesc' ),  def: true,  isPremium: true },
                         ].filter( ( f ) => ! isLite || LITE_DETAIL_FIELDS.includes( f.key ) ).map( ( f ) => (
                             <div key={ f.key } className="flex items-center justify-between py-2.5 border-t border-gray-100 dark:border-gray-700">
                                 <div className="min-w-0 mr-3">
@@ -4605,7 +5311,7 @@ const REBUILD_BATCH_SIZE = 3; // items per request — small enough to stay unde
 
 const AboutPage: React.FC = () => {
     const { t } = useTranslation();
-    const isPro = ( window as any ).jetreaderSettings?.isPro ?? false;
+    const isPro = false;
     const info = ( window as unknown as { jetreaderSettings?: typeof jetreaderSettings } ).jetreaderSettings?.systemInfo;
 
     type RebuildPhase = 'idle' | 'preparing' | 'indexing' | 'cleanup' | 'done' | 'error';
@@ -4889,9 +5595,933 @@ const AboutPage: React.FC = () => {
 };
 
 /* ------------------------------------------------------------------ */
+/*  DisplaysPage — Visual shortcode builder                           */
+/* ------------------------------------------------------------------ */
+
+interface DisplayPreset {
+    id: string;
+    label: string;
+    mode: 'grid' | 'slider';
+    type: string;
+    category: string;
+    author: string;
+    columns: number;
+    columnsTablet: number;
+    columnsMobile: number;
+    visible: number;
+    visibleTablet: number;
+    visibleMobile: number;
+    rows: number;
+    limit: number;
+    orderby: string;
+    items: string;
+    showFilter: boolean;
+    showImage: boolean;
+    showDescription: boolean;
+    showType: boolean;
+    showAuthor: boolean;
+    showTranslator: boolean;
+    showPublisher: boolean;
+    showYear: boolean;
+    showLanguage: boolean;
+    showPageCount: boolean;
+    showReadButton: boolean;
+    showInfoButton: boolean;
+    showArrows: boolean;
+    showDots: boolean;
+    drag: boolean;
+    autoplay: boolean;
+    autoplaySpeed: number;
+    cardWidth: string;
+    imageSize: 'small' | 'medium' | 'large' | 'xlarge' | 'xxlarge';
+    imageFit:  'cover' | 'contain' | 'fill';
+    cardMinWidth: number;
+    width: string;
+    height: string;
+    title: string;
+    cardRadius: 'none' | 'small' | 'medium' | 'large' | 'xlarge';
+    cardBorder: 'none' | 'subtle' | 'thick';
+    cardShadow: 'none' | 'subtle' | 'medium' | 'large';
+    cardHover: 'none' | 'lift' | 'zoom' | 'glow' | 'shadow';
+    cardAlign: 'left' | 'center';
+    cardLayout: 'vertical' | 'horizontal';
+}
+
+const PRESET_DEFAULTS: DisplayPreset = {
+    id: '',
+    label: 'My Display',
+    mode: 'grid',
+    type: '',
+    category: '',
+    author: '',
+    columns: 4,
+    columnsTablet: 2,
+    columnsMobile: 1,
+    visible: 4,
+    visibleTablet: 2,
+    visibleMobile: 1,
+    rows: 1,
+    limit: 12,
+    orderby: 'newest',
+    items: '',
+    showFilter: true,
+    showImage: true,
+    showDescription: false,
+    showType: true,
+    showAuthor: true,
+    showReadButton: true,
+    showInfoButton: true,
+    showTranslator: false,
+    showPublisher: false,
+    showYear: true,
+    showLanguage: true,
+    showPageCount: true,
+    showArrows: true,
+    showDots: true,
+    drag: true,
+    autoplay: false,
+    autoplaySpeed: 3000,
+    cardWidth: '',
+    imageSize: 'medium',
+    imageFit:  'cover',
+    cardMinWidth: 180,
+    width: '100%',
+    height: 'auto',
+    title: '',
+    cardRadius: 'medium',
+    cardBorder: 'subtle',
+    cardShadow: 'subtle',
+    cardHover: 'zoom',
+    cardAlign: 'left',
+    cardLayout: 'vertical',
+};
+
+function buildShortcode( p: DisplayPreset ): string {
+    const tag = p.mode === 'grid' ? 'jetreader_grid' : 'jetreader_slider';
+    const parts: string[] = [];
+
+    const add = ( key: string, val: string | number | boolean, def: string | number | boolean ) => {
+        if ( String( val ) !== String( def ) ) parts.push( `${ key }="${ val }"` );
+    };
+
+    if ( p.type )     parts.push( `type="${ p.type }"` );
+    if ( p.category ) parts.push( `category="${ p.category }"` );
+    if ( p.author )   parts.push( `author="${ p.author }"` );
+    if ( p.items )    parts.push( `items="${ p.items }"` );
+    if ( p.title )    parts.push( `title="${ p.title }"` );
+
+    add( 'orderby', p.orderby, 'newest' );
+    add( 'limit',   p.limit,   p.mode === 'grid' ? 12 : 10 );
+
+    if ( p.mode === 'grid' ) {
+        add( 'columns',        p.columns,       4 );
+        add( 'columns_tablet', p.columnsTablet, 2 );
+        add( 'columns_mobile', p.columnsMobile, 1 );
+        add( 'show_filter',    p.showFilter,    true );
+    } else {
+        add( 'visible',        p.visible,       4 );
+        add( 'visible_tablet', p.visibleTablet, 2 );
+        add( 'visible_mobile', p.visibleMobile, 1 );
+        add( 'rows',           p.rows,          1 );
+        add( 'show_arrows',    p.showArrows,    true );
+        add( 'show_dots',      p.showDots,      true );
+        add( 'drag',           p.drag,          true );
+        add( 'autoplay',       p.autoplay,      false );
+        if ( p.autoplay ) add( 'autoplay_speed', p.autoplaySpeed, 3000 );
+        if ( p.cardWidth ) parts.push( `card_width="${ p.cardWidth }"` );
+    }
+
+    add( 'show_image',        p.showImage,        true );
+    add( 'show_description',  p.showDescription,  false );
+    add( 'show_type',         p.showType,         true );
+    add( 'show_author',       p.showAuthor,       true );
+    add( 'show_read_button',  p.showReadButton,   true );
+    add( 'show_info_button',  p.showInfoButton,   true );
+    add( 'show_translator',   p.showTranslator,   false );
+    add( 'show_publisher',    p.showPublisher,    false );
+    add( 'show_year',         p.showYear,         true );
+    add( 'show_language',     p.showLanguage,     true );
+    add( 'show_page_count',   p.showPageCount,   true );
+    add( 'image_size',        p.imageSize,        'medium' );
+    add( 'image_fit',        p.imageFit,        'cover' );
+    add( 'card_min_width',   p.cardMinWidth,    p.mode === 'grid' ? 180 : 160 );
+    add( 'card_radius',      p.cardRadius,      'medium' );
+    add( 'card_border',      p.cardBorder,      'subtle' );
+    add( 'card_shadow',      p.cardShadow,      'subtle' );
+    add( 'card_hover',       p.cardHover,       'zoom' );
+    add( 'card_align',       p.cardAlign,       'left' );
+    add( 'card_layout',      p.cardLayout,      'vertical' );
+    add( 'width',            p.width,           '100%' );
+    add( 'height',           p.height,          'auto' );
+
+    return `[${ tag }${ parts.length ? ' ' + parts.join( ' ' ) : '' }]`;
+}
+
+const STORAGE_KEY = 'jetreader_display_presets';
+function loadPresets(): DisplayPreset[] {
+    try { const raw = localStorage.getItem( STORAGE_KEY ); return raw ? JSON.parse( raw ) : []; } catch { return []; }
+}
+function savePresets( list: DisplayPreset[] ) { localStorage.setItem( STORAGE_KEY, JSON.stringify( list ) ); }
+
+/* Shared UI primitives (scoped to Displays page) */
+const DSection: React.FC<{ title: string; children: React.ReactNode }> = ( { title, children } ) => (
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+        <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-4">{ title }</p>
+        <div className="space-y-3">{ children }</div>
+    </div>
+);
+const DRow: React.FC<{ label: string; children: React.ReactNode }> = ( { label, children } ) => (
+    <div className="flex items-center justify-between gap-4">
+        <span className="text-sm text-gray-700 dark:text-gray-300 shrink-0 w-44">{ label }</span>
+        <div className="flex-1">{ children }</div>
+    </div>
+);
+const DSel: React.FC<{ value: string; onChange: ( v: string ) => void; options: { value: string; label: string }[] }> = ( { value, onChange, options } ) => (
+    <select value={ value } onChange={ e => onChange( e.target.value ) }
+        className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+        { options.map( o => <option key={ o.value } value={ o.value }>{ o.label }</option> ) }
+    </select>
+);
+const DNum: React.FC<{ value: number; min: number; max: number; onChange: ( v: number ) => void }> = ( { value, min, max, onChange } ) => {
+    const [ draft, setDraft ] = React.useState( String( value ) );
+    const committed = React.useRef( value );
+    if ( committed.current !== value ) {
+        committed.current = value;
+        setDraft( String( value ) );
+    }
+    const commit = () => {
+        const n = Math.max( min, Math.min( max, parseInt( draft, 10 ) || min ) );
+        setDraft( String( n ) );
+        if ( n !== value ) onChange( n );
+    };
+    return (
+        <input type="number" value={ draft } min={ min } max={ max }
+            onChange={ e => setDraft( e.target.value ) }
+            onBlur={ commit }
+            className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
+    );
+};
+const DTxt: React.FC<{ value: string; placeholder?: string; onChange: ( v: string ) => void }> = ( { value, placeholder, onChange } ) => (
+    <input type="text" value={ value } placeholder={ placeholder } onChange={ e => onChange( e.target.value ) }
+        className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
+);
+const DToggle = ToggleSwitch;
+
 
 const DisplaysPage: React.FC = () => null;
 const ImportExportPage: React.FC = () => null;
+
+const FilesPage: React.FC = () => {
+    const { t } = useTranslation();
+    const queryClient = useQueryClient();
+    const apiBase  = ( window as any ).jetreaderSettings?.apiUrl?.replace( /\/$/, '' ) ?? '/wp-json/jetreader/v1';
+    const nonce    = ( window as any ).jetreaderSettings?.nonce ?? '';
+    const authHeader = { 'X-WP-Nonce': nonce, 'Content-Type': 'application/json' };
+
+    // Search and tab filter states
+    const [ searchTerm, setSearchTerm ] = React.useState( '' );
+    const [ activeTab, setActiveTab ] = React.useState< 'pdf' | 'epub' | 'docx' | 'txt' | 'images' >( 'pdf' );
+    const [ ghostOnly, setGhostOnly ] = React.useState( false );
+
+    // Rename state
+    const [ renamingFile, setRenamingFile ] = React.useState<string | null>( null );
+    const [ newName, setNewName ] = React.useState( '' );
+    const [ renameError, setRenameError ] = React.useState( '' );
+    const [ renameProcessing, setRenameProcessing ] = React.useState( false );
+
+    // Delete state
+    const [ deletingFile, setDeletingFile ] = React.useState<any | null>( null );
+    const [ deleteProcessing, setDeleteProcessing ] = React.useState( false );
+
+    // Bulk selection state
+    const [ selectedFiles, setSelectedFiles ] = React.useState<string[]>( [] );
+    const [ bulkDeleteConfirm, setBulkDeleteConfirm ] = React.useState( false );
+
+    // Upload state
+    const [ isDragging, setIsDragging ] = React.useState( false );
+    const [ uploadProgress, setUploadProgress ] = React.useState<{ [key: string]: number }>({});
+    const [ uploadErrors, setUploadErrors ] = React.useState<string[]>([]);
+    const dragCounterRef = React.useRef( 0 );
+
+    // Copy notice state
+    const [ copyNotice, setCopyNotice ] = React.useState( '' );
+
+    // Query for files list
+    const { data: files = [], isLoading } = useQuery<any[]>({
+        queryKey: [ 'files' ],
+        queryFn: async () => {
+            const res = await fetch( `${ apiBase }/files`, { headers: { 'X-WP-Nonce': nonce } } );
+            const json = await res.json();
+            return Array.isArray( json ) ? json : [];
+        }
+    });
+
+
+
+    // Filtered files logic
+    const filteredFiles = files.filter( f => {
+        // Search term check
+        if ( searchTerm.trim() && ! f.name.toLowerCase().includes( searchTerm.toLowerCase() ) ) {
+            return false;
+        }
+
+        // Tab category check
+        const ext = f.extension;
+        const isImage = [ 'png', 'jpg', 'jpeg', 'webp', 'gif', 'svg' ].includes( ext );
+        
+        if ( activeTab === 'images' && ! isImage ) return false;
+        if ( activeTab !== 'images' && ext !== activeTab ) return false;
+
+        // Ghost files toggle check
+        if ( ghostOnly && f.linked_items.length > 0 ) return false;
+
+        return true;
+    } );
+
+    // Tabs item counts
+    const getTabCount = ( tab: string ) => {
+        return files.filter( f => {
+            const ext = f.extension;
+            const isImage = [ 'png', 'jpg', 'jpeg', 'webp', 'gif', 'svg' ].includes( ext );
+            if ( tab === 'images' ) return isImage;
+            return ext === tab;
+        } ).length;
+    };
+
+    // Copy to clipboard
+    const copyUrlToClipboard = ( url: string ) => {
+        navigator.clipboard.writeText( url );
+        setCopyNotice( t( 'files.urlCopied' ) );
+        setTimeout( () => setCopyNotice( '' ), 2000 );
+    };
+
+    // Handle single delete
+    const handleDelete = async () => {
+        if ( ! deletingFile ) return;
+        setDeleteProcessing( true );
+        try {
+            const res = await fetch( `${ apiBase }/files?filename=${ encodeURIComponent( deletingFile.name ) }`, {
+                method: 'DELETE',
+                headers: { 'X-WP-Nonce': nonce }
+            } );
+            if ( res.ok ) {
+                queryClient.invalidateQueries( { queryKey: [ 'files' ] } );
+                setDeletingFile( null );
+            }
+        } catch ( e ) {
+            console.error( e );
+        } finally {
+            setDeleteProcessing( false );
+        }
+    };
+
+    // Handle bulk delete
+    const handleBulkDelete = async () => {
+        if ( selectedFiles.length === 0 ) return;
+        setDeleteProcessing( true );
+        try {
+            const res = await fetch( `${ apiBase }/files`, {
+                method: 'DELETE',
+                headers: authHeader,
+                body: JSON.stringify( { filenames: selectedFiles } )
+            } );
+            if ( res.ok ) {
+                queryClient.invalidateQueries( { queryKey: [ 'files' ] } );
+                setSelectedFiles( [] );
+                setBulkDeleteConfirm( false );
+            }
+        } catch ( e ) {
+            console.error( e );
+        } finally {
+            setDeleteProcessing( false );
+        }
+    };
+
+    // Handle rename file
+    const handleRename = async () => {
+        if ( ! renamingFile || ! newName.trim() ) return;
+        setRenameProcessing( true );
+        setRenameError( '' );
+        try {
+            const ext = renamingFile.split('.').pop() || '';
+            let finalNewName = newName.trim();
+            if ( ! finalNewName.endsWith( `.${ ext }` ) ) {
+                finalNewName = `${ finalNewName }.${ ext }`;
+            }
+
+            const res = await fetch( `${ apiBase }/files/rename`, {
+                method: 'PUT',
+                headers: authHeader,
+                body: JSON.stringify( { old_name: renamingFile, new_name: finalNewName } )
+            } );
+            const data = await res.json();
+            if ( res.ok && data.success ) {
+                queryClient.invalidateQueries( { queryKey: [ 'files' ] } );
+                setRenamingFile( null );
+                setNewName( '' );
+            } else {
+                setRenameError( data.message || 'Rename failed' );
+            }
+        } catch ( e ) {
+            setRenameError( 'Network error.' );
+        } finally {
+            setRenameProcessing( false );
+        }
+    };
+
+    // File upload logic
+    const handleUploadFiles = async ( filesToUpload: FileList | File[] ) => {
+        setUploadErrors( [] );
+        for ( let i = 0; i < filesToUpload.length; i++ ) {
+            const file = filesToUpload[i];
+            const key = `${ file.name }-${ Date.now() }`;
+            setUploadProgress( prev => ( { ...prev, [ key ]: 10 } ) );
+
+            const formData = new FormData();
+            formData.append( 'file', file );
+
+            try {
+                const xhr = new XMLHttpRequest();
+                xhr.open( 'POST', `${ apiBase }/upload` );
+                xhr.setRequestHeader( 'X-WP-Nonce', nonce );
+
+                xhr.upload.onprogress = ( event ) => {
+                    if ( event.lengthComputable ) {
+                        const pct = Math.round( ( event.loaded / event.total ) * 90 ) + 10;
+                        setUploadProgress( prev => ( { ...prev, [ key ]: pct } ) );
+                    }
+                };
+
+                xhr.onload = () => {
+                    if ( xhr.status === 200 ) {
+                        setUploadProgress( prev => {
+                            const copy = { ...prev };
+                            delete copy[ key ];
+                            return copy;
+                        } );
+                        queryClient.invalidateQueries( { queryKey: [ 'files' ] } );
+                    } else {
+                        try {
+                            const err = JSON.parse( xhr.responseText );
+                            setUploadErrors( prev => [ ...prev, `${ file.name }: ${ err.message || 'Upload failed' }` ] );
+                        } catch {
+                            setUploadErrors( prev => [ ...prev, `${ file.name }: Upload failed` ] );
+                        }
+                        setUploadProgress( prev => {
+                            const copy = { ...prev };
+                            delete copy[ key ];
+                            return copy;
+                        } );
+                    }
+                };
+
+                xhr.onerror = () => {
+                    setUploadErrors( prev => [ ...prev, `${ file.name }: Network error.` ] );
+                    setUploadProgress( prev => {
+                        const copy = { ...prev };
+                        delete copy[ key ];
+                        return copy;
+                    } );
+                };
+
+                xhr.send( formData );
+            } catch ( e ) {
+                setUploadErrors( prev => [ ...prev, `${ file.name }: Upload error.` ] );
+            }
+        }
+    };
+
+    const onDragOver = ( e: React.DragEvent ) => {
+        e.preventDefault();
+        e.stopPropagation();
+    };
+
+    const onDragEnter = ( e: React.DragEvent ) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounterRef.current++;
+        if ( dragCounterRef.current === 1 ) {
+            setIsDragging( true );
+        }
+    };
+
+    const onDragLeave = ( e: React.DragEvent ) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounterRef.current--;
+        if ( dragCounterRef.current === 0 ) {
+            setIsDragging( false );
+        }
+    };
+
+    const onDrop = ( e: React.DragEvent ) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging( false);
+        dragCounterRef.current = 0;
+        if ( e.dataTransfer.files && e.dataTransfer.files.length > 0 ) {
+            handleUploadFiles( e.dataTransfer.files );
+        }
+    };
+
+    const handleFileSelect = ( e: React.ChangeEvent<HTMLInputElement> ) => {
+        if ( e.target.files && e.target.files.length > 0 ) {
+            handleUploadFiles( e.target.files );
+        }
+    };
+
+    const toggleSelectFile = ( name: string ) => {
+        setSelectedFiles( prev => {
+            if ( prev.includes( name ) ) {
+                return prev.filter( n => n !== name );
+            } else {
+                return [ ...prev, name ];
+            }
+        } );
+    };
+
+    const toggleSelectAll = () => {
+        const pageFileNames = filteredFiles.map( f => f.name );
+        const allSelected = pageFileNames.every( name => selectedFiles.includes( name ) );
+        if ( allSelected ) {
+            setSelectedFiles( prev => prev.filter( name => ! pageFileNames.includes( name ) ) );
+        } else {
+            setSelectedFiles( prev => [ ...Array.from( new Set( [ ...prev, ...pageFileNames ] ) ) ] as string[] );
+        }
+    };
+
+    const isAllSelected = filteredFiles.length > 0 && filteredFiles.map( f => f.name ).every( name => selectedFiles.includes( name ) );
+
+    return (
+        <div className="p-6 max-w-7xl mx-auto">
+            <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                        { t( 'files.title' ) }
+                    </h1>
+                    <p className="mt-1 text-gray-500 dark:text-gray-400 text-sm">
+                        { t( 'files.subtitle' ) }
+                    </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                    <input
+                        type="text"
+                        placeholder={ t( 'files.searchPlaceholder' ) }
+                        value={ searchTerm }
+                        onChange={ e => setSearchTerm( e.target.value ) }
+                        className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 w-64"
+                    />
+
+                    <label className="flex items-center gap-2 cursor-pointer bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-700 dark:text-gray-250 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                        <input
+                            type="checkbox"
+                            checked={ ghostOnly }
+                            onChange={ e => setGhostOnly( e.target.checked ) }
+                            className="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
+                        />
+                        <span>{ t( 'files.ghostFilesOnly' ) }</span>
+                    </label>
+                </div>
+            </div>
+
+            <div
+                onDragOver={ onDragOver }
+                onDragEnter={ onDragEnter }
+                onDragLeave={ onDragLeave }
+                onDrop={ onDrop }
+                onClick={ () => document.getElementById( 'file-manager-upload-input' )?.click() }
+                className={ `border-2 border-dashed rounded-xl p-8 mb-6 text-center cursor-pointer transition-all ${
+                    isDragging
+                        ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-950/20 scale-[1.01] shadow-md'
+                        : 'border-gray-300 dark:border-gray-700 hover:border-primary-400 bg-white dark:bg-gray-800 hover:bg-gray-50/50 dark:hover:bg-gray-750/30'
+                }` }
+            >
+                <input
+                    type="file"
+                    id="file-manager-upload-input"
+                    multiple
+                    onChange={ handleFileSelect }
+                    className="hidden"
+                />
+                <div className="flex flex-col items-center justify-center">
+                    <div className="w-12 h-12 bg-primary-50 dark:bg-primary-950/40 rounded-full flex items-center justify-center mb-3 text-primary-500">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                    </div>
+                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-250">
+                        { t( 'files.uploadFiles' ) }
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        { t( 'files.dropToUpload' ) }
+                    </p>
+                </div>
+            </div>
+
+            { copyNotice && (
+                <div className="mb-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 text-emerald-850 dark:text-emerald-300 rounded-lg px-4 py-2 text-xs font-semibold animate-pulse">
+                    ✅ { copyNotice }
+                </div>
+            ) }
+
+            { uploadErrors.length > 0 && (
+                <div className="mb-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/40 text-red-850 dark:text-red-300 rounded-lg p-3 text-xs">
+                    <div className="font-bold mb-1">Upload errors occurred:</div>
+                    <ul className="list-disc list-inside space-y-1">
+                        { uploadErrors.map( ( err, idx ) => <li key={ idx }>{ err }</li> ) }
+                    </ul>
+                </div>
+            ) }
+
+            { Object.keys( uploadProgress ).length > 0 && (
+                <div className="mb-6 space-y-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 rounded-xl shadow-sm">
+                    <div className="text-xs font-semibold text-gray-500 dark:text-gray-450">Uploading files...</div>
+                    { Object.entries( uploadProgress ).map( ([ name, pct ]) => (
+                        <div key={ name } className="space-y-1">
+                            <div className="flex justify-between text-[11px] text-gray-700 dark:text-gray-300">
+                                <span className="truncate max-w-[80%] font-mono">{ name.substring( 0, name.lastIndexOf( '-' ) ) }</span>
+                                <span>{ pct }%</span>
+                            </div>
+                            <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden">
+                                <div className="bg-primary-500 h-1.5 rounded-full transition-all duration-300" style={ { width: `${ pct }%` } } />
+                            </div>
+                        </div>
+                    ) ) }
+                </div>
+            ) }
+
+            <div className="flex border-b border-gray-200 dark:border-gray-700 mb-6 overflow-x-auto gap-2">
+                {( [ 'pdf', 'epub', 'docx', 'txt', 'images' ] as const ).map( tab => {
+                    const isActive = activeTab === tab;
+                    const count = getTabCount( tab );
+                    return (
+                        <button
+                            key={ tab }
+                            onClick={ () => { setActiveTab( tab ); setSelectedFiles( [] ); } }
+                            className={ `py-3 px-4 text-sm font-medium border-b-2 transition-all whitespace-nowrap flex items-center gap-2 ${
+                                isActive
+                                    ? 'border-primary-600 text-primary-650 dark:text-primary-400 border-b-primary-600 dark:border-b-primary-400'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                            }` }
+                        >
+                            <span>
+                                { tab === 'pdf' && 'PDF' }
+                                { tab === 'epub' && 'EPUB' }
+                                { tab === 'docx' && 'DOCX' }
+                                { tab === 'txt' && 'TXT' }
+                                { tab === 'images' && t( 'files.tabImages' ) }
+                            </span>
+                            <span className={ `text-xs px-2 py-0.5 rounded-full ${
+                                isActive ? 'bg-primary-100 text-primary-800 dark:bg-primary-950/40 dark:text-primary-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+                            }` }>
+                                { count }
+                            </span>
+                        </button>
+                    );
+                } ) }
+            </div>
+
+            { selectedFiles.length > 0 && (
+                <div className="bg-primary-50 dark:bg-primary-950/20 border border-primary-100 dark:border-primary-900/40 p-4 rounded-xl mb-4 flex items-center justify-between shadow-sm">
+                    <span className="text-sm text-primary-800 dark:text-primary-300 font-medium">
+                        📎 { selectedFiles.length } { t( 'common.selected' ) }
+                    </span>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={ () => setSelectedFiles([]) }
+                            className="bg-white dark:bg-gray-800 hover:bg-gray-50 text-gray-700 dark:text-gray-250 border border-gray-200 dark:border-gray-750 text-xs px-3 py-1.5 rounded-lg transition-colors font-semibold"
+                        >
+                            { t( 'items.deselect' ) }
+                        </button>
+                        <button
+                            onClick={ () => setBulkDeleteConfirm( true ) }
+                            className="bg-red-650 hover:bg-red-750 text-white text-xs px-3 py-1.5 rounded-lg transition-colors font-semibold shadow-sm hover:shadow"
+                        >
+                            { t( 'files.bulkDelete' ) }
+                        </button>
+                    </div>
+                </div>
+            ) }
+
+            { isLoading ? (
+                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow p-12 text-center border border-gray-200 dark:border-gray-700 flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500" />
+                </div>
+            ) : filteredFiles.length === 0 ? (
+                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow p-12 text-center border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400">
+                    <div className="text-3xl mb-2">📁</div>
+                    <p className="text-sm font-semibold">{ t( 'files.noFilesFound' ) }</p>
+                </div>
+            ) : (
+                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-sm">
+                            <thead>
+                                <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-750 text-gray-500 dark:text-gray-400 font-semibold text-xs uppercase select-none">
+                                    <th className="p-4 w-12 text-center">
+                                        <input
+                                            type="checkbox"
+                                            checked={ isAllSelected }
+                                            onChange={ toggleSelectAll }
+                                            className="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
+                                        />
+                                    </th>
+                                    <th className="p-4">{ t( 'files.fileName' ) }</th>
+                                    <th className="p-4 w-28">{ t( 'files.fileSize' ) }</th>
+                                    <th className="p-4 w-44">{ t( 'files.uploadDate' ) }</th>
+                                    <th className="p-4">{ t( 'files.linkedItem' ) }</th>
+                                    <th className="p-4 w-36 text-right">{ t( 'files.actions' ) }</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                                { filteredFiles.map( file => {
+                                    const isSelected = selectedFiles.includes( file.name );
+                                    const isLinked = file.linked_items.length > 0;
+                                    return (
+                                        <tr
+                                            key={ file.name }
+                                            className={ `hover:bg-gray-50/50 dark:hover:bg-gray-750/30 transition-colors ${
+                                                isSelected ? 'bg-primary-50/20 dark:bg-primary-950/5' : ''
+                                            }` }
+                                        >
+                                            <td className="p-4 text-center">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={ isSelected }
+                                                    onChange={ () => toggleSelectFile( file.name ) }
+                                                    className="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
+                                                />
+                                            </td>
+                                            <td className="p-4 font-mono text-xs max-w-sm truncate text-gray-900 dark:text-white flex items-center gap-2">
+                                                { activeTab === 'images' ? (
+                                                    <img src={ file.url } alt="" className="w-8 h-8 rounded border border-gray-250 dark:border-gray-700 object-cover bg-gray-50 p-0.5 shadow-sm shrink-0" />
+                                                ) : (
+                                                    <span className="text-lg shrink-0 select-none">
+                                                        { file.extension === 'pdf' && '📕' }
+                                                        { file.extension === 'epub' && '📘' }
+                                                        { file.extension === 'docx' && '📄' }
+                                                        { file.extension === 'txt' && '📝' }
+                                                    </span>
+                                                ) }
+                                                <span className="truncate select-all cursor-text" title={ file.name }>{ file.name }</span>
+                                            </td>
+                                            <td className="p-4 text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                                                { formatBytes( file.size ) }
+                                            </td>
+                                            <td className="p-4 text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                                                { formatDate( file.modified ) }
+                                            </td>
+                                            <td className="p-4">
+                                                { isLinked ? (
+                                                    <div className="flex flex-col gap-1.5 max-w-xs">
+                                                        { file.linked_items.map( ( item: any ) => (
+                                                            <div key={ item.id } className="flex items-center gap-1.5 text-xs text-gray-700 dark:text-gray-300">
+                                                                <span className="shrink-0 select-none">
+                                                                    { item.type === 'book' && '📚' }
+                                                                    { item.type === 'article' && '📰' }
+                                                                    { item.type === 'magazine' && '📔' }
+                                                                    { item.type === 'qa' && '❓' }
+                                                                </span>
+                                                                <span className="font-semibold truncate" title={ item.title }>
+                                                                    { item.title }
+                                                                </span>
+                                                            </div>
+                                                        ) ) }
+                                                    </div>
+                                                ) : (
+                                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 border border-amber-200/40 dark:border-amber-800/20 px-2 py-0.5 rounded-full select-none">
+                                                        ⚠️ { t( 'files.ghostFile' ) }
+                                                    </span>
+                                                ) }
+                                            </td>
+                                            <td className="p-4 text-right space-x-1.5 whitespace-nowrap">
+                                                <button
+                                                    title={ t( 'files.copyUrl' ) }
+                                                    onClick={ () => copyUrlToClipboard( file.url ) }
+                                                    className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors inline-block"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                                                    </svg>
+                                                </button>
+                                                <button
+                                                    title={ t( 'files.rename' ) }
+                                                    onClick={ () => { setRenamingFile( file.name ); setNewName( file.name.substring( 0, file.name.lastIndexOf('.') ) || file.name ); setRenameError( '' ); } }
+                                                    className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors inline-block"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                    </svg>
+                                                </button>
+                                                <button
+                                                    title={ t( 'files.delete' ) }
+                                                    onClick={ () => setDeletingFile( file ) }
+                                                    className="p-1.5 text-gray-400 hover:text-red-650 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors inline-block"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                    </svg>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                } ) }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            ) }
+
+            { renamingFile && (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-2xl rounded-2xl w-full max-w-md overflow-hidden">
+                        <div className="p-6 border-b border-gray-150 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800">
+                            <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                📝 { t( 'files.renameTitle' ) }
+                            </h3>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider block">
+                                    { t( 'files.renameLabel' ) }
+                                </label>
+                                <input
+                                    type="text"
+                                    value={ newName }
+                                    onChange={ e => setNewName( e.target.value ) }
+                                    className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                                />
+                            </div>
+                            { renameError && (
+                                <div className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 border border-red-200/40 p-2.5 rounded-lg animate-pulse">
+                                    ❌ { renameError }
+                                </div>
+                            ) }
+                        </div>
+                        <div className="p-6 bg-gray-50/50 dark:bg-gray-850 border-t border-gray-150 dark:border-gray-700 flex justify-end gap-2.5">
+                            <button
+                                disabled={ renameProcessing }
+                                onClick={ () => setRenamingFile( null ) }
+                                className="bg-white dark:bg-gray-850 hover:bg-gray-50 text-gray-700 dark:text-gray-250 border border-gray-300 text-xs px-4 py-2 rounded-lg transition-colors font-semibold disabled:opacity-50"
+                            >
+                                { t( 'common.cancel' ) }
+                            </button>
+                            <button
+                                disabled={ renameProcessing || ! newName.trim() || newName.trim() === renamingFile.substring( 0, renamingFile.lastIndexOf('.') ) }
+                                onClick={ handleRename }
+                                className="bg-primary-600 hover:bg-primary-750 disabled:bg-primary-300 disabled:dark:bg-primary-900/45 text-white text-xs px-4 py-2 rounded-lg transition-colors font-semibold flex items-center gap-1.5 shadow-sm hover:shadow"
+                            >
+                                { renameProcessing ? 'Processing...' : t( 'common.save' ) }
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ) }
+
+            { deletingFile && (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-2xl rounded-2xl w-full max-w-md overflow-hidden">
+                        <div className="p-6 border-b border-gray-150 dark:border-gray-700 bg-red-50/10 dark:bg-gray-800">
+                            <h3 className="font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
+                                ⚠️ { t( 'files.deleteConfirmTitle' ) }
+                            </h3>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <p className="text-sm text-gray-600 dark:text-gray-300">
+                                { t( 'files.deleteConfirmMsg' ) }
+                            </p>
+                            <p className="font-mono text-xs p-2 rounded bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-700 truncate max-w-full text-gray-900 dark:text-white">
+                                { deletingFile.name }
+                            </p>
+                            { deletingFile.linked_items.length > 0 && (
+                                <div className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 border border-amber-200/40 p-3 rounded-lg space-y-2">
+                                    <div className="font-bold">⚠️ Linked Items Warning:</div>
+                                    <ul className="list-disc list-inside space-y-1">
+                                        { deletingFile.linked_items.map( ( item: any ) => (
+                                            <li key={ item.id } className="truncate">
+                                                { t( 'files.deleteLinkedWarning' ).replace( '{title}', item.title ) }
+                                            </li>
+                                        ) ) }
+                                    </ul>
+                                </div>
+                            ) }
+                        </div>
+                        <div className="p-6 bg-gray-50/50 dark:bg-gray-850 border-t border-gray-150 dark:border-gray-700 flex justify-end gap-2.5">
+                            <button
+                                disabled={ deleteProcessing }
+                                onClick={ () => setDeletingFile( null ) }
+                                className="bg-white dark:bg-gray-850 hover:bg-gray-50 text-gray-700 dark:text-gray-250 border border-gray-300 text-xs px-4 py-2 rounded-lg transition-colors font-semibold disabled:opacity-50"
+                            >
+                                { t( 'common.cancel' ) }
+                            </button>
+                            <button
+                                disabled={ deleteProcessing }
+                                onClick={ handleDelete }
+                                className="bg-red-600 hover:bg-red-750 text-white text-xs px-4 py-2 rounded-lg transition-colors font-semibold flex items-center gap-1.5 shadow-sm hover:shadow"
+                            >
+                                { deleteProcessing ? 'Deleting...' : t( 'common.delete' ) }
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ) }
+
+            { bulkDeleteConfirm && (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-2xl rounded-2xl w-full max-w-md overflow-hidden">
+                        <div className="p-6 border-b border-gray-150 dark:border-gray-700 bg-red-50/10 dark:bg-gray-800">
+                            <h3 className="font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
+                                ⚠️ { t( 'files.deleteConfirmTitle' ) }
+                            </h3>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <p className="text-sm text-gray-600 dark:text-gray-300">
+                                Are you sure you want to delete the { selectedFiles.length } selected files from disk? This action cannot be undone.
+                            </p>
+                        </div>
+                        <div className="p-6 bg-gray-50/50 dark:bg-gray-850 border-t border-gray-150 dark:border-gray-700 flex justify-end gap-2.5">
+                            <button
+                                disabled={ deleteProcessing }
+                                onClick={ () => setBulkDeleteConfirm( false ) }
+                                className="bg-white dark:bg-gray-850 hover:bg-gray-550 text-gray-700 dark:text-gray-250 border border-gray-300 text-xs px-4 py-2 rounded-lg transition-colors font-semibold disabled:opacity-50"
+                            >
+                                { t( 'common.cancel' ) }
+                            </button>
+                            <button
+                                disabled={ deleteProcessing }
+                                onClick={ handleBulkDelete }
+                                className="bg-red-600 hover:bg-red-750 text-white text-xs px-4 py-2 rounded-lg transition-colors font-semibold flex items-center gap-1.5 shadow-sm hover:shadow"
+                            >
+                                { deleteProcessing ? 'Deleting...' : t( 'common.delete' ) }
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ) }
+        </div>
+    );
+};
+
+/* ------------------------------------------------------------------ */
+/*  Main App with routing                                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Sync the WP admin sidebar active state with the current SPA page.
+ * Called after every pushState navigation so the left menu stays in sync.
+ */
+function updateWpMenuActive( page: string ) {
+    // Remove "current" from every JetReader submenu item.
+    document.querySelectorAll( '#adminmenu .wp-submenu li' ).forEach( ( el ) => {
+        el.classList.remove( 'current' );
+    } );
+    // Mark the matching submenu item as active.
+    const link = document.querySelector(
+        `#adminmenu a[href*="page=${ page }"]`
+    ) as HTMLElement | null;
+    if ( link ) link.closest( 'li' )?.classList.add( 'current' );
+}
 
 const App: React.FC = () => {
     // Initialise from the URL so direct links and page refreshes work.
@@ -4946,7 +6576,7 @@ const App: React.FC = () => {
 
     const renderPage = () => {
         const isLite = true;
-        const isPro  = ( window as any ).jetreaderSettings?.isPro ?? false;
+        const isPro  = false;
         const locale = ( window as any ).jetreaderSettings?.locale || 'en';
         const txt = ( en: string, tr: string ) => locale === 'tr' ? tr : en;
 
@@ -4971,6 +6601,20 @@ const App: React.FC = () => {
                     />
                 );
             case 'jetreader-about':      return <AboutPage />;
+            case 'jetreader-files':
+                // Lite: feature doesn't exist in this build — send back to dashboard.
+                if ( isLite ) { return <LectorDashboard />; }
+                return isPro ? (
+                    <FilesPage />
+                ) : (
+                    <ProFeatureOverlay
+                        featureName={ txt( 'File Manager', 'Dosya Yöneticisi' ) }
+                        desc={ txt(
+                            'Manage raw documents (PDF, EPUB, DOCX, TXT) and cover images directly in your repository. Easily rename files and auto-update references, copy URLs, and clean up unused files.',
+                            'Belge (PDF, EPUB, DOCX, TXT) ve kapak resmi havuzunuzu doğrudan yönetin. Dosyaları kolayca yeniden adlandırın ve referansları otomatik güncelleyin, URL\'leri kopyalayın ve kullanılmayan dosyaları temizleyin.'
+                        ) }
+                    />
+                );
             case 'jetreader-import':
                 // Lite: feature doesn't exist in this build — send back to dashboard.
                 if ( isLite ) { return <LectorDashboard />; }

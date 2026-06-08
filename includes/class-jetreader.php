@@ -66,21 +66,21 @@ class JetReader {
             require_once JETREADER_PLUGIN_DIR . 'includes/class-display-engine.php';
         }
         require_once JETREADER_PLUGIN_DIR . 'includes/class-color-engine.php';
-        $load_elementor_widgets = function () {
-            if ( ! class_exists( '\Elementor\Widget_Base' ) ) {
-                return;
-            }
+
+        // Register Elementor category and widgets on their respective hooks.
+        add_action( 'elementor/elements/categories_registered', function ( $elements_manager ) {
             if ( file_exists( JETREADER_PLUGIN_DIR . 'includes/class-elementor-widgets.php' ) ) {
                 require_once JETREADER_PLUGIN_DIR . 'includes/class-elementor-widgets.php';
-                JetReader_Elementor_Widgets::init();
+                JetReader_Elementor_Widgets::register_category( $elements_manager );
             }
-        };
+        } );
 
-        if ( did_action( 'elementor/loaded' ) ) {
-            $load_elementor_widgets();
-        } else {
-            add_action( 'elementor/loaded', $load_elementor_widgets );
-        }
+        add_action( 'elementor/widgets/register', function ( $widgets_manager ) {
+            if ( file_exists( JETREADER_PLUGIN_DIR . 'includes/class-elementor-widgets.php' ) ) {
+                require_once JETREADER_PLUGIN_DIR . 'includes/class-elementor-widgets.php';
+                JetReader_Elementor_Widgets::register_widgets( $widgets_manager );
+            }
+        } );
     }
 
     /**
@@ -313,14 +313,6 @@ class JetReader {
             array( $this, 'render_admin_app' )
         );
 
-        add_submenu_page(
-            'jetreader',
-            $tb( 'menuDisplays' ),
-            $tb( 'menuDisplays' ),
-            'manage_options',
-            'jetreader-displays',
-            array( $this, 'render_admin_app' )
-        );
 
         add_submenu_page(
             'jetreader',
@@ -331,14 +323,7 @@ class JetReader {
             array( $this, 'render_admin_app' )
         );
 
-        add_submenu_page(
-            'jetreader',
-            $tb( 'menuImport' ),
-            $tb( 'menuImport' ),
-            'manage_options',
-            'jetreader-import',
-            array( $this, 'render_admin_app' )
-        );
+
     }
 
     /**

@@ -43,6 +43,11 @@ if ( file_exists( JETREADER_PLUGIN_DIR . 'vendor/autoload.php' ) ) {
     require_once JETREADER_PLUGIN_DIR . 'vendor/autoload.php';
 }
 
+// Load Action Scheduler.
+if ( file_exists( JETREADER_PLUGIN_DIR . 'vendor/woocommerce/action-scheduler/action-scheduler.php' ) ) {
+    require_once JETREADER_PLUGIN_DIR . 'vendor/woocommerce/action-scheduler/action-scheduler.php';
+}
+
 /**
  * Helper function to check if the plugin is in Pro mode.
  *
@@ -116,17 +121,6 @@ jetreader_run();
 function jetreader_get_translations( $locale ) {
     $locale = 'en';
 
-    $cache_key = 'jetreader_trans_' . $locale . '_' . JETREADER_VERSION;
-    if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-        delete_transient( $cache_key );
-        $cached = false;
-    } else {
-        $cached = get_transient( $cache_key );
-    }
-    if ( false !== $cached ) {
-        return $cached;
-    }
-
     $file = JETREADER_PLUGIN_DIR . 'lang/' . $locale . '.json';
 
     if ( ! file_exists( $file ) ) {
@@ -136,6 +130,18 @@ function jetreader_get_translations( $locale ) {
 
     if ( ! file_exists( $file ) ) {
         return array();
+    }
+
+    $file_mtime = filemtime( $file );
+    $cache_key = 'jetreader_trans_' . $locale . '_' . JETREADER_VERSION . '_' . $file_mtime;
+    if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+        delete_transient( $cache_key );
+        $cached = false;
+    } else {
+        $cached = get_transient( $cache_key );
+    }
+    if ( false !== $cached ) {
+        return $cached;
     }
 
     $content = file_get_contents( $file );

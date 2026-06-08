@@ -168,6 +168,15 @@ class JetReader_CPT {
         update_post_meta( $post_id, '_jetreader_author',    sanitize_text_field( $item->author ?? '' ) );
         update_post_meta( $post_id, '_jetreader_volumes',   $item->volumes ?? '' );
 
+        $encoding = 'utf-8';
+        if ( ! empty( $item->metadata ) ) {
+            $meta = json_decode( $item->metadata, true );
+            if ( is_array( $meta ) && isset( $meta['encoding'] ) ) {
+                $encoding = sanitize_text_field( $meta['encoding'] );
+            }
+        }
+        update_post_meta( $post_id, '_jetreader_encoding', $encoding );
+
         // Handle featured thumbnail via cover image URL.
         if ( ! empty( $item->cover_image ) && ! has_post_thumbnail( $post_id ) ) {
             self::maybe_set_thumbnail_from_url( $post_id, $item->cover_image );

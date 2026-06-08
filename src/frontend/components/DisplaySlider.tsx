@@ -118,13 +118,14 @@ const DisplaySliderInner: React.FC<SliderAttrs> = ( attrs ) => {
         if ( attrs.category )   p.category_id = attrs.category;
         if ( attrs.author )     p.author      = attrs.author;
         if ( attrs.items )      p.include_ids = attrs.items;
-        if ( ! attrs.showImage ) p.fields = 'id,type,title,slug,description,file_path,file_type,language,author,publisher,publication_year,reading_time,featured,view_count,volumes,category_ids,cpt_url,created_at,updated_at';
+        if ( ! attrs.showImage ) p.fields = 'id,type,title,slug,description,file_path,file_type,language,author,publisher,publication_year,reading_time,page_count,featured,view_count,volumes,category_ids,cpt_url,created_at,updated_at';
         return p;
     }, [ attrs ] );
 
     const { data, isLoading }      = useItems( apiParams );
     const { data: publicSettings } = usePublicSettings();
     const downloadEnabled = publicSettings?.download_enabled === true;
+    const showPageCount = ( publicSettings as any )?.show_card_page_count !== false && attrs.showPageCount !== false;
     const allItems = data?.items ?? [];
 
     // Group items into slide chunks for rows>1 mode.
@@ -282,6 +283,7 @@ const DisplaySliderInner: React.FC<SliderAttrs> = ( attrs ) => {
                                         showPublisher={ attrs.showPublisher }
                                         showYear={ attrs.showYear }
                                         showLanguage={ attrs.showLanguage }
+                                        showPageCount={ showPageCount }
                                         imageSize={ attrs.imageSize }
                                         imageFit={ attrs.imageFit }
                                         cardRadius={ attrs.cardRadius }
@@ -321,6 +323,7 @@ const DisplaySliderInner: React.FC<SliderAttrs> = ( attrs ) => {
                                                 showPublisher={ attrs.showPublisher }
                                                 showYear={ attrs.showYear }
                                                 showLanguage={ attrs.showLanguage }
+                                                showPageCount={ showPageCount }
                                                 imageSize={ attrs.imageSize }
                                                 imageFit={ attrs.imageFit }
                                                 cardRadius={ attrs.cardRadius }

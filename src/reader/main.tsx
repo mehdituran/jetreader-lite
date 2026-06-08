@@ -20,6 +20,7 @@ if ( pageContainer ) {
     const fileUrl  = pageContainer.dataset.fileUrl   ?? '';
     const title    = pageContainer.dataset.title     ?? '';
     const itemType = pageContainer.dataset.itemType  ?? '';
+    const encoding = pageContainer.dataset.encoding  ?? '';
 
     let volumes: VolumeEntry[] | undefined;
     try {
@@ -34,14 +35,18 @@ if ( pageContainer ) {
     let initialPage:   number | undefined = undefined;
     let initialVolume: number | undefined = undefined;
     let initialSearch: string | undefined = undefined;
+    let initialAnchor: string | undefined = undefined;
 
     const storedLink = sessionStorage.getItem( 'jetreader_deeplink' );
     if ( storedLink ) {
         try {
-            const data = JSON.parse( storedLink ) as { page?: number; volume?: number; search?: string };
-            if ( data.page   !== undefined ) initialPage   = parseInt( String( data.page ),   10 ) || 0;
-            if ( data.volume !== undefined ) initialVolume = parseInt( String( data.volume ),  10 ) || 0;
-            if ( data.search ) initialSearch = data.search;
+            const data = JSON.parse( storedLink ) as { itemId?: number; page?: number; volume?: number; search?: string; anchor?: string };
+            if ( data.itemId === undefined || data.itemId === itemId ) {
+                if ( data.page   !== undefined ) initialPage   = parseInt( String( data.page ),   10 ) || 0;
+                if ( data.volume !== undefined ) initialVolume = parseInt( String( data.volume ),  10 ) || 0;
+                if ( data.search ) initialSearch = data.search;
+                if ( data.anchor ) initialAnchor = data.anchor;
+            }
         } catch { /* ignore malformed entry */ }
         sessionStorage.removeItem( 'jetreader_deeplink' );
     }
@@ -53,7 +58,7 @@ if ( pageContainer ) {
         const p = hashParams.get( 'page' );
         const v = hashParams.get( 'volume' );
         if ( p ) initialPage   = parseInt( p, 10 ) || 0;
-        if ( v ) initialVolume = parseInt( v, 10 ) || 0;
+        if ( v ) initialVolume = ( parseInt( v, 10 ) || 1 ) - 1;
         if ( initialSearch === undefined ) initialSearch = hashParams.get( 'search' ) ?? undefined;
     }
 
@@ -72,10 +77,12 @@ if ( pageContainer ) {
                         title={ title }
                         itemType={ itemType }
                         volumes={ volumes }
+                        encoding={ encoding }
                         pageMode="page"
                         initialPage={ initialPage }
                         initialVolume={ initialVolume }
                         initialSearch={ initialSearch }
+                        initialAnchor={ initialAnchor }
                         onClose={ () => window.history.back() }
                     />
                 </I18nProvider>

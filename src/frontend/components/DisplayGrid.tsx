@@ -186,6 +186,7 @@ const DisplayGridInner: React.FC<GridAttrs> = ( attrs ) => {
     const { data: authors }        = useAuthors();
     const { data: publicSettings } = usePublicSettings();
     const downloadEnabled = publicSettings?.download_enabled === true;
+    const showPageCount = ( publicSettings as any )?.show_card_page_count !== false && attrs.showPageCount !== false;
 
     const visibleCats = ( categories ?? [] ).filter( c => ! attrs.type || c.type === attrs.type );
 
@@ -200,7 +201,7 @@ const DisplayGridInner: React.FC<GridAttrs> = ( attrs ) => {
         if ( activeAuthor )     p.author      = activeAuthor;
         if ( attrs.items )      p.include_ids = attrs.items;
         // When images are hidden, exclude cover_image from the response for zero wasted transfer.
-        if ( ! attrs.showImage ) p.fields = 'id,type,title,slug,description,file_path,file_type,language,author,publisher,publication_year,reading_time,featured,view_count,volumes,category_ids,cpt_url,created_at,updated_at';
+        if ( ! attrs.showImage ) p.fields = 'id,type,title,slug,description,file_path,file_type,language,author,publisher,publication_year,reading_time,page_count,featured,view_count,volumes,category_ids,cpt_url,created_at,updated_at';
         return p;
     }, [ attrs, page, activeCategory, activeAuthor ] );
 
@@ -259,6 +260,7 @@ const DisplayGridInner: React.FC<GridAttrs> = ( attrs ) => {
                                 showPublisher={ attrs.showPublisher }
                                 showYear={ attrs.showYear }
                                 showLanguage={ attrs.showLanguage }
+                                showPageCount={ showPageCount }
                                 imageSize={ attrs.imageSize }
                                 imageFit={ attrs.imageFit }
                                 cardRadius={ attrs.cardRadius }

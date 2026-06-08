@@ -177,12 +177,13 @@ if ( typeof window !== 'undefined' ) {
 export class ReaderEngine {
     private static memoryCache = new Map<string, ReaderLoadResult>();
 
-    public static prefetchBook( fileUrl: string, format: ReaderFormat ): void {
-        this.loadBook( fileUrl, format ).catch( () => {} );
+    public static prefetchBook( fileUrl: string, format: ReaderFormat, encoding?: string ): void {
+        if ( format === 'txt' ) return; // Avoid prefetching TXT files to prevent raw encoding cache pollution
+        this.loadBook( fileUrl, format, encoding ).catch( () => {} );
     }
 
-    public static async loadBook( fileUrl: string, format: ReaderFormat ): Promise<ReaderLoadResult> {
-        const cacheKey = `${fileUrl}_${format}`;
+    public static async loadBook( fileUrl: string, format: ReaderFormat, encoding?: string ): Promise<ReaderLoadResult> {
+        const cacheKey = `${fileUrl}_${format}_${encoding || 'utf-8'}`;
 
         // 1. Check in-memory cache first
         if ( this.memoryCache.has( cacheKey ) ) {
@@ -241,7 +242,7 @@ export class ReaderEngine {
         switch ( activeFormat ) {
             case 'pdf':  result = await this.loadPdf( uint8 ); break;
             case 'epub': result = this.loadEpub( uint8 ); break;
-            case 'txt':  result = this.loadTxt( uint8 ); break;
+            case 'txt':  result = this.loadTxt( uint8, encoding ); break;
             case 'docx': result = await this.loadDocx( uint8 ); break;
             case 'doc':  result = await this.loadDoc( uint8 ); break;
             default: throw new Error( `${re( 'unsupportedFormat' )}: ${activeFormat}` );
@@ -770,8 +771,8 @@ export class ReaderEngine {
     /*  TXT                                                                */
     /* ------------------------------------------------------------------ */
 
-    private static loadTxt( data: Uint8Array ): ReaderLoadResult {
-        const fullText = new TextDecoder( 'utf-8' ).decode( data );
+    private static loadTxt( data: Uint8Array, encoding?: string ): ReaderLoadResult {
+        const fullText = new TextDecoder( encoding || 'utf-8' ).decode( data );
         const pages = this.chunkText( fullText );
         return {
             pages,

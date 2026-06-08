@@ -299,6 +299,33 @@ class JetReader_REST_API {
         );
 
 
+        register_rest_route(
+            $this->namespace,
+            '/files',
+            array(
+                array(
+                    'methods'             => WP_REST_Server::READABLE,
+                    'callback'            => array( $this, 'get_files' ),
+                    'permission_callback' => array( $this, 'check_admin_permission' ),
+                ),
+                array(
+                    'methods'             => WP_REST_Server::DELETABLE,
+                    'callback'            => array( $this, 'delete_files' ),
+                    'permission_callback' => array( $this, 'check_admin_permission' ),
+                )
+            )
+        );
+
+        register_rest_route(
+            $this->namespace,
+            '/files/rename',
+            array(
+                'methods'             => WP_REST_Server::EDITABLE,
+                'callback'            => array( $this, 'rename_file' ),
+                'permission_callback' => array( $this, 'check_admin_permission' ),
+            )
+        );
+
         // Dashboard stats.
         register_rest_route(
             $this->namespace,
@@ -550,6 +577,16 @@ class JetReader_REST_API {
                 'permission_callback' => array( $this, 'check_admin_permission' ),
             )
         );
+
+        register_rest_route(
+            $this->namespace,
+            '/items/bulk-create',
+            array(
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => array( $this, 'bulk_create_items' ),
+                'permission_callback' => array( $this, 'check_admin_permission' ),
+            )
+        );
     }
 
     /**
@@ -675,11 +712,14 @@ class JetReader_REST_API {
             $where[] = "i.volumes IS NOT NULL AND i.volumes != '' AND JSON_LENGTH(i.volumes) > 1";
         }
 
-        // Visibility: admins can filter by any value or see all; public only sees published.
+        // Visibility: admins see all by default; public only sees published.
         $is_admin = current_user_can( 'manage_options' );
         $allowed_vis = array( 'publish', 'draft', 'private' );
-        if ( $is_admin && ! empty( $params['visibility'] ) && in_array( $params['visibility'], $allowed_vis, true ) ) {
-            $where[] = $wpdb->prepare( 'i.visibility = %s', sanitize_text_field( $params['visibility'] ) );
+        if ( $is_admin ) {
+            if ( ! empty( $params['visibility'] ) && in_array( $params['visibility'], $allowed_vis, true ) ) {
+                $where[] = $wpdb->prepare( 'i.visibility = %s', sanitize_text_field( $params['visibility'] ) );
+            }
+            // No filter → admin sees all visibilities.
         } else {
             $where[] = $wpdb->prepare( 'i.visibility = %s', 'publish' );
         }
@@ -744,7 +784,7 @@ class JetReader_REST_API {
 
         // Field filtering: strip unrequested fields for performance.
         $fields_param   = isset( $params['fields'] ) ? sanitize_text_field( $params['fields'] ) : '';
-        $allowed_fields = array( 'id', 'type', 'title', 'slug', 'description', 'cover_image', 'file_path', 'file_type', 'language', 'author', 'translator', 'publisher', 'isbn', 'publication_year', 'reading_time', 'visibility', 'featured', 'view_count', 'read_count', 'volumes', 'category_ids', 'cpt_url', 'created_at', 'updated_at' );
+        $allowed_fields = array( 'id', 'type', 'title', 'slug', 'description', 'cover_image', 'file_path', 'file_type', 'language', 'author', 'translator', 'publisher', 'isbn', 'publication_year', 'reading_time', 'page_count', 'visibility', 'featured', 'view_count', 'read_count', 'volumes', 'category_ids', 'cpt_url', 'created_at', 'updated_at' );
         $requested_fields = array();
         if ( ! empty( $fields_param ) ) {
             foreach ( explode( ',', $fields_param ) as $f ) {
@@ -945,6 +985,16 @@ class JetReader_REST_API {
 
         $item_id = intval( $request['id'] );
 
+        // Transient-based rate limit: IP + Item ID + View
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+        if ( ! empty( $ip ) ) {
+            $transient_key = 'jr_rate_limit_' . md5( $ip . '_' . $item_id . '_view' );
+            if ( get_transient( $transient_key ) ) {
+                return rest_ensure_response( array( 'ok' => true, 'rate_limited' => true ) );
+            }
+            set_transient( $transient_key, 1, 15 * MINUTE_IN_SECONDS );
+        }
+
         // Atomic single-row UPDATE — no prior SELECT, no transaction needed.
         $wpdb->query(
             $wpdb->prepare(
@@ -968,6 +1018,16 @@ class JetReader_REST_API {
         global $wpdb;
 
         $item_id = intval( $request['id'] );
+
+        // Transient-based rate limit: IP + Item ID + Read
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+        if ( ! empty( $ip ) ) {
+            $transient_key = 'jr_rate_limit_' . md5( $ip . '_' . $item_id . '_read' );
+            if ( get_transient( $transient_key ) ) {
+                return rest_ensure_response( array( 'ok' => true, 'rate_limited' => true ) );
+            }
+            set_transient( $transient_key, 1, 15 * MINUTE_IN_SECONDS );
+        }
 
         $wpdb->query(
             $wpdb->prepare(
@@ -1019,6 +1079,26 @@ class JetReader_REST_API {
             $slug .= '-' . time();
         }
 
+        // Ensure author / publisher records exist if provided as text strings.
+        $author    = sanitize_text_field( $params['author'] ?? '' );
+        $publisher = sanitize_text_field( $params['publisher'] ?? '' );
+        if ( ! empty( $author ) ) {
+            $author_names = array_filter( array_map( 'trim', explode( ',', $author ) ) );
+            foreach ( $author_names as $auth_name ) {
+                if ( '' !== $auth_name ) {
+                    $this->import_ensure_author( $auth_name );
+                }
+            }
+        }
+        if ( ! empty( $publisher ) ) {
+            $publisher_names = array_filter( array_map( 'trim', explode( ',', $publisher ) ) );
+            foreach ( $publisher_names as $pub_name ) {
+                if ( '' !== $pub_name ) {
+                    $this->import_ensure_publisher( $pub_name );
+                }
+            }
+        }
+
         $data = array(
             'type'             => $type,
             'title'            => sanitize_text_field( $params['title'] ),
@@ -1028,26 +1108,54 @@ class JetReader_REST_API {
             'file_path'        => sanitize_text_field( $params['file_path'] ?? '' ),
             'file_type'        => sanitize_text_field( $params['file_type'] ?? '' ),
             'language'         => sanitize_text_field( $params['language'] ?? 'en' ),
-            'author'           => sanitize_text_field( $params['author'] ?? '' ),
+            'author'           => $author,
             'translator'       => sanitize_text_field( $params['translator'] ?? '' ),
-            'publisher'        => sanitize_text_field( $params['publisher'] ?? '' ),
+            'publisher'        => $publisher,
             'isbn'             => sanitize_text_field( $params['isbn'] ?? '' ),
             'publication_year' => ! empty( $params['publication_year'] ) ? intval( $params['publication_year'] ) : null,
             'visibility'       => $visibility,
             'featured'         => ! empty( $params['featured'] ) ? 1 : 0,
+            'page_count'       => ! empty( $params['page_count'] ) ? intval( $params['page_count'] ) : 0,
             'volumes'          => null,
         );
+
+        if ( ! $this->validate_file_reference( $data['file_path'] ) ) {
+            return new WP_Error( 'jetreader_invalid_file_path', __( 'Invalid file path/URL or domain not allowed.', 'jetreader' ), array( 'status' => 400 ) );
+        }
 
         // Handle multi-volume/issue data (books and magazines).
         if ( ! empty( $params['volumes'] ) && is_array( $params['volumes'] ) ) {
             $clean_vols = array();
             foreach ( array_values( $params['volumes'] ) as $idx => $vol ) {
                 if ( ! is_array( $vol ) ) continue;
+                $vol_path = sanitize_text_field( $vol['file_path'] ?? '' );
+                if ( ! $this->validate_file_reference( $vol_path ) ) {
+                    return new WP_Error( 'jetreader_invalid_file_path', __( 'Invalid volume file path/URL or domain not allowed.', 'jetreader' ), array( 'status' => 400 ) );
+                }
+
+                // Auto detect encoding for volume if text file.
+                $vol_type = sanitize_text_field( $vol['file_type'] ?? '' );
+                $vol_encoding = isset( $vol['encoding'] ) ? sanitize_text_field( $vol['encoding'] ) : 'utf-8';
+                if ( 'txt' === $vol_type && empty( $vol['encoding'] ) && ! empty( $vol_path ) ) {
+                    $local_path = JetReader_Upload_Handler::url_to_local_path( $vol_path );
+                    if ( file_exists( $local_path ) ) {
+                        $content_sample = file_get_contents( $local_path, false, null, 0, 10000 );
+                        if ( function_exists( 'mb_detect_encoding' ) && $content_sample ) {
+                            $enc = mb_detect_encoding( $content_sample, array( 'UTF-8', 'ISO-8859-9', 'Windows-1254', 'Windows-1251', 'ISO-8859-1', 'ASCII', 'UTF-16', 'UTF-16LE', 'UTF-16BE', 'BIG5', 'GBK', 'EUC-JP', 'SJIS' ), true );
+                            if ( $enc ) {
+                                $vol_encoding = strtolower( $enc );
+                            }
+                        }
+                    }
+                }
+
                 $clean_vols[] = array(
                     'vol'         => $idx + 1,
-                    'file_path'   => sanitize_text_field( $vol['file_path'] ?? '' ),
-                    'file_type'   => sanitize_text_field( $vol['file_type'] ?? '' ),
+                    'file_path'   => $vol_path,
+                    'file_type'   => $vol_type,
                     'cover_image' => esc_url_raw( $vol['cover_image'] ?? '' ),
+                    'page_count'  => isset( $vol['page_count'] ) ? intval( $vol['page_count'] ) : 0,
+                    'encoding'    => $vol_encoding,
                 );
             }
             if ( ! empty( $clean_vols ) ) {
@@ -1057,6 +1165,22 @@ class JetReader_REST_API {
                 $data['cover_image'] = $clean_vols[0]['cover_image'];
             }
         }
+
+        // Detect encoding for single file TXT.
+        $item_metadata = array();
+        if ( ! empty( $data['file_path'] ) && 'txt' === $data['file_type'] ) {
+            $local_path = JetReader_Upload_Handler::url_to_local_path( $data['file_path'] );
+            if ( file_exists( $local_path ) ) {
+                $content_sample = file_get_contents( $local_path, false, null, 0, 10000 );
+                if ( function_exists( 'mb_detect_encoding' ) && $content_sample ) {
+                    $enc = mb_detect_encoding( $content_sample, array( 'UTF-8', 'ISO-8859-9', 'Windows-1254', 'Windows-1251', 'ISO-8859-1', 'ASCII', 'UTF-16', 'UTF-16LE', 'UTF-16BE', 'BIG5', 'GBK', 'EUC-JP', 'SJIS' ), true );
+                    if ( $enc ) {
+                        $item_metadata['encoding'] = strtolower( $enc );
+                    }
+                }
+            }
+        }
+        $data['metadata'] = ! empty( $item_metadata ) ? wp_json_encode( $item_metadata ) : null;
 
         // Build format array dynamically so NULL values are handled correctly
         // regardless of WordPress version behavior.
@@ -1091,9 +1215,15 @@ class JetReader_REST_API {
         $item_id = $wpdb->insert_id;
 
         // Sync item-category associations (assigns "Diğer" if none selected).
-        $category_ids = isset( $params['category_ids'] ) && is_array( $params['category_ids'] )
-            ? $params['category_ids']
-            : array();
+        // Sync item-category associations (assigns "Diğer" if none selected, handles category_names parameter).
+        $category_names = isset( $params['category_names'] ) ? sanitize_text_field( $params['category_names'] ) : '';
+        if ( ! empty( $category_names ) ) {
+            $category_ids = $this->import_resolve_categories( $category_names, $type );
+        } else {
+            $category_ids = isset( $params['category_ids'] ) && is_array( $params['category_ids'] )
+                ? $params['category_ids']
+                : array();
+        }
         try {
             $this->sync_item_categories( $item_id, $category_ids, $type );
         } catch ( \Throwable $e ) {
@@ -1176,9 +1306,27 @@ class JetReader_REST_API {
             }
         }
 
-        $has_categories = isset( $params['category_ids'] ) && is_array( $params['category_ids'] );
+        if ( ! empty( $data['author'] ) && '__none__' !== $data['author'] ) {
+            $author_names = array_filter( array_map( 'trim', explode( ',', $data['author'] ) ) );
+            foreach ( $author_names as $auth_name ) {
+                if ( '' !== $auth_name && '__none__' !== $auth_name ) {
+                    $this->import_ensure_author( $auth_name );
+                }
+            }
+        }
+        if ( ! empty( $data['publisher'] ) && '__none__' !== $data['publisher'] ) {
+            $publisher_names = array_filter( array_map( 'trim', explode( ',', $data['publisher'] ) ) );
+            foreach ( $publisher_names as $pub_name ) {
+                if ( '' !== $pub_name && '__none__' !== $pub_name ) {
+                    $this->import_ensure_publisher( $pub_name );
+                }
+            }
+        }
 
-        if ( empty( $data ) && ! $has_categories ) {
+        $has_categories = isset( $params['category_ids'] ) && is_array( $params['category_ids'] );
+        $has_category_names = isset( $params['category_names'] );
+
+        if ( empty( $data ) && ! $has_categories && ! $has_category_names ) {
             return new WP_Error( 'jetreader_no_data', __( 'No data to update.', 'jetreader' ), array( 'status' => 400 ) );
         }
 
@@ -1193,15 +1341,20 @@ class JetReader_REST_API {
             }
         }
 
-        if ( $has_categories ) {
+        if ( $has_category_names || $has_categories ) {
             $current_type = isset( $data['type'] ) ? $data['type'] : null;
             foreach ( $ids as $id ) {
                 $type = $current_type ?? $wpdb->get_var( $wpdb->prepare(
                     "SELECT type FROM {$wpdb->prefix}jetreader_items WHERE id = %d",
                     $id
                 ) );
+                if ( $has_category_names ) {
+                    $category_ids = $this->import_resolve_categories( sanitize_text_field( $params['category_names'] ), $type ?? 'book' );
+                } else {
+                    $category_ids = $params['category_ids'];
+                }
                 try {
-                    $this->sync_item_categories( $id, $params['category_ids'], $type ?? 'book' );
+                    $this->sync_item_categories( $id, $category_ids, $type ?? 'book' );
                 } catch ( \Throwable $e ) {
                     // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
                     error_log( 'JetReader bulk sync_item_categories failed for id ' . $id . ': ' . $e->getMessage() );
@@ -1256,7 +1409,7 @@ class JetReader_REST_API {
         $allowed_types = array( 'book', 'article', 'magazine', 'qa' );
         $allowed_visibility = array( 'publish', 'draft', 'private' );
 
-        $updatable = array( 'type', 'title', 'description', 'cover_image', 'file_path', 'file_type', 'language', 'author', 'translator', 'publisher', 'isbn', 'publication_year', 'visibility', 'featured' );
+        $updatable = array( 'type', 'title', 'description', 'cover_image', 'file_path', 'file_type', 'language', 'author', 'translator', 'publisher', 'isbn', 'publication_year', 'visibility', 'featured', 'page_count' );
         foreach ( $updatable as $field ) {
             if ( ! isset( $params[ $field ] ) ) {
                 continue;
@@ -1265,6 +1418,9 @@ class JetReader_REST_API {
                 case 'type':
                     $val = sanitize_text_field( $params[ $field ] );
                     $data[ $field ] = in_array( $val, $allowed_types, true ) ? $val : 'book';
+                    break;
+                case 'page_count':
+                    $data[ $field ] = ! empty( $params[ $field ] ) ? intval( $params[ $field ] ) : 0;
                     break;
                 case 'featured':
                     $data[ $field ] = ! empty( $params[ $field ] ) ? 1 : 0;
@@ -1276,7 +1432,11 @@ class JetReader_REST_API {
                     $data[ $field ] = esc_url_raw( $params[ $field ] );
                     break;
                 case 'file_path':
-                    $data[ $field ] = sanitize_text_field( $params[ $field ] );
+                    $val = sanitize_text_field( $params[ $field ] );
+                    if ( ! $this->validate_file_reference( $val ) ) {
+                        return new WP_Error( 'jetreader_invalid_file_path', __( 'Invalid file path/URL or domain not allowed.', 'jetreader' ), array( 'status' => 400 ) );
+                    }
+                    $data[ $field ] = $val;
                     break;
                 case 'publication_year':
                     $data[ $field ] = ! empty( $params[ $field ] ) ? intval( $params[ $field ] ) : null;
@@ -1296,11 +1456,34 @@ class JetReader_REST_API {
                 $clean_vols = array();
                 foreach ( array_values( $params['volumes'] ) as $idx => $vol ) {
                     if ( ! is_array( $vol ) ) continue;
+                    $vol_path = sanitize_text_field( $vol['file_path'] ?? '' );
+                    if ( ! $this->validate_file_reference( $vol_path ) ) {
+                        return new WP_Error( 'jetreader_invalid_file_path', __( 'Invalid volume file path/URL or domain not allowed.', 'jetreader' ), array( 'status' => 400 ) );
+                    }
+
+                    // Auto detect encoding for volume if text file.
+                    $vol_type = sanitize_text_field( $vol['file_type'] ?? '' );
+                    $vol_encoding = isset( $vol['encoding'] ) ? sanitize_text_field( $vol['encoding'] ) : 'utf-8';
+                    if ( 'txt' === $vol_type && empty( $vol['encoding'] ) && ! empty( $vol_path ) ) {
+                        $local_path = JetReader_Upload_Handler::url_to_local_path( $vol_path );
+                        if ( file_exists( $local_path ) ) {
+                            $content_sample = file_get_contents( $local_path, false, null, 0, 10000 );
+                            if ( function_exists( 'mb_detect_encoding' ) && $content_sample ) {
+                                $enc = mb_detect_encoding( $content_sample, array( 'UTF-8', 'ISO-8859-9', 'Windows-1254', 'Windows-1251', 'ISO-8859-1', 'ASCII', 'UTF-16', 'UTF-16LE', 'UTF-16BE', 'BIG5', 'GBK', 'EUC-JP', 'SJIS' ), true );
+                                if ( $enc ) {
+                                    $vol_encoding = strtolower( $enc );
+                                }
+                            }
+                        }
+                    }
+
                     $clean_vols[] = array(
                         'vol'         => $idx + 1,
-                        'file_path'   => sanitize_text_field( $vol['file_path'] ?? '' ),
-                        'file_type'   => sanitize_text_field( $vol['file_type'] ?? '' ),
+                        'file_path'   => $vol_path,
+                        'file_type'   => $vol_type,
                         'cover_image' => esc_url_raw( $vol['cover_image'] ?? '' ),
+                        'page_count'  => isset( $vol['page_count'] ) ? intval( $vol['page_count'] ) : 0,
+                        'encoding'    => $vol_encoding,
                     );
                 }
                 if ( ! empty( $clean_vols ) ) {
@@ -1314,9 +1497,48 @@ class JetReader_REST_API {
             }
         }
 
-        $has_categories = isset( $params['category_ids'] ) && is_array( $params['category_ids'] );
+        // If file_path or file_type changes and results in a single text file, detect encoding.
+        $final_path = $data['file_path'] ?? $item->file_path;
+        $final_type = $data['file_type'] ?? $item->file_type;
+        if ( ! empty( $final_path ) && 'txt' === $final_type ) {
+            $local_path = JetReader_Upload_Handler::url_to_local_path( $final_path );
+            if ( file_exists( $local_path ) ) {
+                $content_sample = file_get_contents( $local_path, false, null, 0, 10000 );
+                if ( function_exists( 'mb_detect_encoding' ) && $content_sample ) {
+                    $enc = mb_detect_encoding( $content_sample, array( 'UTF-8', 'ISO-8859-9', 'Windows-1254', 'Windows-1251', 'ISO-8859-1', 'ASCII', 'UTF-16', 'UTF-16LE', 'UTF-16BE', 'BIG5', 'GBK', 'EUC-JP', 'SJIS' ), true );
+                    if ( $enc ) {
+                        $existing_metadata = $item->metadata ? json_decode( $item->metadata, true ) : array();
+                        if ( ! is_array( $existing_metadata ) ) {
+                            $existing_metadata = array();
+                        }
+                        $existing_metadata['encoding'] = strtolower( $enc );
+                        $data['metadata'] = wp_json_encode( $existing_metadata );
+                    }
+                }
+            }
+        }
 
-        if ( empty( $data ) && ! $has_categories ) {
+        if ( ! empty( $data['author'] ) ) {
+            $author_names = array_filter( array_map( 'trim', explode( ',', $data['author'] ) ) );
+            foreach ( $author_names as $auth_name ) {
+                if ( '' !== $auth_name ) {
+                    $this->import_ensure_author( $auth_name );
+                }
+            }
+        }
+        if ( ! empty( $data['publisher'] ) ) {
+            $publisher_names = array_filter( array_map( 'trim', explode( ',', $data['publisher'] ) ) );
+            foreach ( $publisher_names as $pub_name ) {
+                if ( '' !== $pub_name ) {
+                    $this->import_ensure_publisher( $pub_name );
+                }
+            }
+        }
+
+        $has_categories = isset( $params['category_ids'] ) && is_array( $params['category_ids'] );
+        $has_category_names = isset( $params['category_names'] );
+
+        if ( empty( $data ) && ! $has_categories && ! $has_category_names ) {
             return new WP_Error(
                 'jetreader_no_data',
                 __( 'No data to update.', 'jetreader' ),
@@ -1347,10 +1569,15 @@ class JetReader_REST_API {
         }
 
         // Sync item-category associations (assigns "Diğer" if none selected).
-        if ( $has_categories ) {
+        if ( $has_category_names || $has_categories ) {
             try {
                 $current_type = isset( $data['type'] ) ? $data['type'] : $item->type;
-                $this->sync_item_categories( $item_id, $params['category_ids'], $current_type );
+                if ( $has_category_names ) {
+                    $category_ids = $this->import_resolve_categories( sanitize_text_field( $params['category_names'] ), $current_type );
+                } else {
+                    $category_ids = $params['category_ids'];
+                }
+                $this->sync_item_categories( $item_id, $category_ids, $current_type );
             } catch ( \Throwable $e ) {
                 // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
                 error_log( 'JetReader sync_item_categories failed on update: ' . $e->getMessage() );
@@ -1851,6 +2078,8 @@ class JetReader_REST_API {
 
         if ( empty( $settings['reader_logo_url'] ) ) {
             $settings['reader_logo_url'] = JETREADER_PLUGIN_URL . 'assets/logo/jetreader.svg';
+        } elseif ( strpos( $settings['reader_logo_url'], 'assets/logo/' ) !== false && strpos( $settings['reader_logo_url'], 'jetreader' ) === false ) {
+            $settings['reader_logo_url'] = JETREADER_PLUGIN_URL . 'assets/logo/jetreader.svg';
         }
 
         $settings = $this->enforce_free_limits( $settings );
@@ -2002,6 +2231,7 @@ class JetReader_REST_API {
         $settings['show_card_year']           = false;
         $settings['show_card_type']           = false;
         $settings['show_card_language']       = false;
+        $settings['show_card_page_count']     = false;
 
         // Detail fields visibility (Free plan shows title, description, and author only)
         $settings['show_detail_image']        = false;
@@ -2010,6 +2240,7 @@ class JetReader_REST_API {
         $settings['show_detail_year']         = false;
         $settings['show_detail_type']         = false;
         $settings['show_detail_language']     = false;
+        $settings['show_detail_page_count']   = false;
 
         // Color Palettes
         $settings['library_palette']          = 'green';
@@ -2087,6 +2318,7 @@ class JetReader_REST_API {
             'show_card_year'        => false,
             'show_card_type'        => false,
             'show_card_language'    => false,
+            'show_card_page_count'  => false,
             'show_detail_image'       => false,
             'show_detail_title'       => true,
             'show_detail_author'      => $bool( 'show_detail_author',      true ),
@@ -2095,6 +2327,7 @@ class JetReader_REST_API {
             'show_detail_year'        => false,
             'show_detail_type'        => false,
             'show_detail_language'    => false,
+            'show_detail_page_count'  => false,
             'library_palette'         => 'green',
             'grid_palette'            => 'green',
             'slider_palette'          => 'green',
@@ -2110,27 +2343,37 @@ class JetReader_REST_API {
     public function get_dashboard_stats( $request ) {
         global $wpdb;
 
-        $cache_key = 'jetreader_dashboard_stats';
-        $stats     = get_transient( $cache_key );
+        $force = isset( $request ) && $request instanceof WP_REST_Request && '1' === $request->get_param( 'force' );
 
-        if ( false !== $stats ) {
-            return rest_ensure_response( $stats );
+        $cache_key = 'jetreader_dashboard_stats';
+
+        if ( ! $force ) {
+            $stats = get_transient( $cache_key );
+            if ( false !== $stats && is_array( $stats ) ) {
+                return rest_ensure_response( $stats );
+            }
         }
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $rows = $wpdb->get_results(
-            "SELECT type, COUNT(*) AS cnt FROM {$wpdb->prefix}jetreader_items GROUP BY type"
+            "SELECT `type`, COUNT(*) AS cnt FROM {$wpdb->prefix}jetreader_items GROUP BY `type`"
         );
 
         $counts = array( 'book' => 0, 'article' => 0, 'magazine' => 0, 'qa' => 0 );
-        foreach ( $rows as $row ) {
-            if ( isset( $counts[ $row->type ] ) ) {
-                $counts[ $row->type ] = intval( $row->cnt );
+        if ( is_array( $rows ) ) {
+            foreach ( $rows as $row ) {
+                if ( isset( $counts[ $row->type ] ) ) {
+                    $counts[ $row->type ] = intval( $row->cnt );
+                }
             }
         }
+
+        $total_direct = intval( $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}jetreader_items" ) );
 
         $totals = $wpdb->get_row(
             "SELECT SUM(view_count) AS views, SUM(read_count) AS reads FROM {$wpdb->prefix}jetreader_items"
         );
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         $total_views = ( $totals && isset( $totals->views ) ) ? intval( $totals->views ) : 0;
         $total_reads = ( $totals && isset( $totals->reads ) ) ? intval( $totals->reads ) : 0;
@@ -2140,7 +2383,7 @@ class JetReader_REST_API {
             'total_articles'  => $counts['article'],
             'total_magazines' => $counts['magazine'],
             'total_qa'        => $counts['qa'],
-            'total_items'     => array_sum( $counts ),
+            'total_items'     => $total_direct,
             'total_views'     => $total_views,
             'total_reads'     => $total_reads,
         );
@@ -2878,6 +3121,7 @@ class JetReader_REST_API {
             'isbn'             => $item->isbn,
             'publication_year' => intval( $item->publication_year ),
             'reading_time'     => intval( $item->reading_time ),
+            'page_count'       => intval( $item->page_count ),
             'visibility'       => $item->visibility,
             'featured'         => boolval( $item->featured ),
             'view_count'       => intval( $item->view_count ),
@@ -2885,6 +3129,7 @@ class JetReader_REST_API {
             'volumes'          => $volumes,
             'category_ids'     => $category_ids,
             'cpt_url'          => $cpt_url,
+            'metadata'         => $item->metadata,
             'created_at'       => $item->created_at,
             'updated_at'       => $item->updated_at,
         );
@@ -3082,9 +3327,33 @@ class JetReader_REST_API {
         // Block private/reserved IP ranges (SSRF prevention).
         $host = wp_parse_url( $url, PHP_URL_HOST );
         if ( $host ) {
-            $resolved_ip = gethostbyname( $host );
-            if ( $this->is_private_ip( $resolved_ip ) ) {
-                return new WP_Error( 'jetreader_proxy_forbidden', __( 'Access to internal resources is not allowed.', 'jetreader' ), array( 'status' => 403 ) );
+            $hosts_to_check = array();
+            if ( filter_var( $host, FILTER_VALIDATE_IP ) ) {
+                $hosts_to_check[] = $host;
+            } else {
+                $records = dns_get_record( $host, DNS_A | DNS_AAAA );
+                if ( is_array( $records ) ) {
+                    foreach ( $records as $record ) {
+                        if ( isset( $record['ip'] ) ) {
+                            $hosts_to_check[] = $record['ip'];
+                        } elseif ( isset( $record['ipv6'] ) ) {
+                            $hosts_to_check[] = $record['ipv6'];
+                        }
+                    }
+                }
+            }
+
+            if ( empty( $hosts_to_check ) ) {
+                $resolved = gethostbyname( $host );
+                if ( $resolved !== $host ) {
+                    $hosts_to_check[] = $resolved;
+                }
+            }
+
+            foreach ( $hosts_to_check as $resolved_ip ) {
+                if ( $this->is_private_ip( $resolved_ip ) ) {
+                    return new WP_Error( 'jetreader_proxy_forbidden', __( 'Access to internal resources is not allowed.', 'jetreader' ), array( 'status' => 403 ) );
+                }
             }
         }
 
@@ -3106,6 +3375,7 @@ class JetReader_REST_API {
             'user-agent'           => 'Mozilla/5.0 (compatible; JetReader/' . JETREADER_VERSION . ')',
             'sslverify'            => true,
             'limit_response_size'  => 50 * 1024 * 1024, // 50 MB cap.
+            'redirection'          => 0, // SSRF bypass mitigation.
         ) );
 
         if ( is_wp_error( $response ) ) {
@@ -3115,6 +3385,10 @@ class JetReader_REST_API {
         $code         = (int) wp_remote_retrieve_response_code( $response );
         $content_type = wp_remote_retrieve_header( $response, 'content-type' ) ?: 'application/octet-stream';
         $body         = wp_remote_retrieve_body( $response );
+
+        if ( $code >= 300 && $code < 400 ) {
+            return new WP_Error( 'jetreader_proxy_redirect', __( 'Redirects are not allowed.', 'jetreader' ), array( 'status' => 400 ) );
+        }
 
         if ( 200 !== $code ) {
             return new WP_Error( 'jetreader_proxy_upstream', __( 'Remote resource unavailable.', 'jetreader' ), array( 'status' => 502 ) );
@@ -3299,8 +3573,22 @@ class JetReader_REST_API {
             // Ensure author / publisher records exist.
             $author    = sanitize_text_field( $row['author']    ?? '' );
             $publisher = sanitize_text_field( $row['publisher'] ?? '' );
-            if ( ! empty( $author ) )    { $this->import_ensure_author( $author ); }
-            if ( ! empty( $publisher ) ) { $this->import_ensure_publisher( $publisher ); }
+            if ( ! empty( $author ) ) {
+                $author_names = array_filter( array_map( 'trim', explode( ',', $author ) ) );
+                foreach ( $author_names as $auth_name ) {
+                    if ( '' !== $auth_name ) {
+                        $this->import_ensure_author( $auth_name );
+                    }
+                }
+            }
+            if ( ! empty( $publisher ) ) {
+                $publisher_names = array_filter( array_map( 'trim', explode( ',', $publisher ) ) );
+                foreach ( $publisher_names as $pub_name ) {
+                    if ( '' !== $pub_name ) {
+                        $this->import_ensure_publisher( $pub_name );
+                    }
+                }
+            }
 
             // Resolve category names → IDs (auto-create missing).
             $cat_raw      = $row['category_names'] ?? '';
@@ -3338,18 +3626,63 @@ class JetReader_REST_API {
                 'volumes'          => null,
             );
 
+            // Validate file path
+            if ( ! empty( $data['file_path'] ) && ! $this->validate_file_reference( $data['file_path'] ) ) {
+                $failed++;
+                $errors[] = array(
+                    'row'     => $idx + 1,
+                    'title'   => $title,
+                    'message' => 'Invalid file path/URL or domain not allowed.',
+                );
+                continue;
+            }
+
             // Handle volumes array (books/magazines).
             if ( ! empty( $row['volumes'] ) && is_array( $row['volumes'] ) ) {
                 $clean_vols = array();
+                $vols_valid = true;
                 foreach ( array_values( $row['volumes'] ) as $vi => $vol ) {
                     $vol = (array) $vol;
                     if ( empty( $vol['file_path'] ) ) continue;
+                    $vol_path = sanitize_text_field( $vol['file_path'] );
+                    if ( ! $this->validate_file_reference( $vol_path ) ) {
+                        $vols_valid = false;
+                        $failed++;
+                        $errors[] = array(
+                            'row'     => $idx + 1,
+                            'title'   => $title,
+                            'message' => 'Invalid volume file path/URL or domain not allowed.',
+                        );
+                        break;
+                    }
+
+                    // Auto detect encoding for volume if text file.
+                    $vol_type = sanitize_text_field( $vol['file_type'] ?? '' );
+                    $vol_encoding = isset( $vol['encoding'] ) ? sanitize_text_field( $vol['encoding'] ) : 'utf-8';
+                    if ( 'txt' === $vol_type && empty( $vol['encoding'] ) ) {
+                        $local_path = JetReader_Upload_Handler::url_to_local_path( $vol_path );
+                        if ( file_exists( $local_path ) ) {
+                            $content_sample = file_get_contents( $local_path, false, null, 0, 10000 );
+                            if ( function_exists( 'mb_detect_encoding' ) && $content_sample ) {
+                                $enc = mb_detect_encoding( $content_sample, array( 'UTF-8', 'ISO-8859-9', 'Windows-1254', 'Windows-1251', 'ISO-8859-1', 'ASCII', 'UTF-16', 'UTF-16LE', 'UTF-16BE', 'BIG5', 'GBK', 'EUC-JP', 'SJIS' ), true );
+                                if ( $enc ) {
+                                    $vol_encoding = strtolower( $enc );
+                                }
+                            }
+                        }
+                    }
+
                     $clean_vols[] = array(
                         'vol'         => $vi + 1,
-                        'file_path'   => sanitize_text_field( $vol['file_path'] ),
-                        'file_type'   => sanitize_text_field( $vol['file_type'] ?? '' ),
+                        'file_path'   => $vol_path,
+                        'file_type'   => $vol_type,
                         'cover_image' => esc_url_raw( $vol['cover_image'] ?? '' ),
+                        'page_count'  => isset( $vol['page_count'] ) ? intval( $vol['page_count'] ) : 0,
+                        'encoding'    => $vol_encoding,
                     );
+                }
+                if ( ! $vols_valid ) {
+                    continue;
                 }
                 if ( ! empty( $clean_vols ) ) {
                     $data['volumes']     = wp_json_encode( $clean_vols );
@@ -3358,6 +3691,22 @@ class JetReader_REST_API {
                     $data['cover_image'] = $clean_vols[0]['cover_image'];
                 }
             }
+
+            // Detect encoding for single file TXT during import.
+            $item_metadata = array();
+            if ( ! empty( $data['file_path'] ) && 'txt' === $data['file_type'] ) {
+                $local_path = JetReader_Upload_Handler::url_to_local_path( $data['file_path'] );
+                if ( file_exists( $local_path ) ) {
+                    $content_sample = file_get_contents( $local_path, false, null, 0, 10000 );
+                    if ( function_exists( 'mb_detect_encoding' ) && $content_sample ) {
+                        $enc = mb_detect_encoding( $content_sample, array( 'UTF-8', 'ISO-8859-9', 'Windows-1254', 'Windows-1251', 'ISO-8859-1', 'ASCII', 'UTF-16', 'UTF-16LE', 'UTF-16BE', 'BIG5', 'GBK', 'EUC-JP', 'SJIS' ), true );
+                        if ( $enc ) {
+                            $item_metadata['encoding'] = strtolower( $enc );
+                        }
+                    }
+                }
+            }
+            $data['metadata'] = ! empty( $item_metadata ) ? wp_json_encode( $item_metadata ) : null;
 
             // Dynamic format array.
             $formats = array();
@@ -3490,4 +3839,596 @@ class JetReader_REST_API {
         return $ids;
     }
 
+    /**
+     * Bulk create items.
+     */
+    public function bulk_create_items( $request ) {
+        global $wpdb;
+
+        $items = $request->get_param( 'items' );
+
+        if ( ! is_array( $items ) || empty( $items ) ) {
+            return new WP_Error( 'jetreader_no_items', __( 'No items provided.', 'jetreader' ), array( 'status' => 400 ) );
+        }
+
+        $success = 0;
+        $failed  = 0;
+        $errors  = array();
+
+        $allowed_types = array( 'book', 'article', 'magazine', 'qa' );
+
+        foreach ( $items as $idx => $raw ) {
+            $item_data = (array) $raw;
+            $title = sanitize_text_field( $item_data['title'] ?? '' );
+
+            if ( '' === trim( $title ) ) {
+                $failed++;
+                $errors[] = array(
+                    'row'     => $idx + 1,
+                    'title'   => '',
+                    'message' => 'Title is required.',
+                );
+                continue;
+            }
+
+            $type = sanitize_text_field( $item_data['type'] ?? 'book' );
+            if ( ! in_array( $type, $allowed_types, true ) ) {
+                $type = 'book';
+            }
+
+            $slug = sanitize_title( $title );
+            $existing_slug = $wpdb->get_var( $wpdb->prepare(
+                "SELECT id FROM {$wpdb->prefix}jetreader_items WHERE slug = %s",
+                $slug
+            ) );
+            if ( $existing_slug ) {
+                $slug .= '-' . time() . '-' . $idx;
+            }
+
+            $visibility = sanitize_text_field( $item_data['visibility'] ?? 'publish' );
+            $featured = ! empty( $item_data['featured'] ) ? 1 : 0;
+
+            // Ensure authors / publishers exist if passed as text strings.
+            $author = sanitize_text_field( $item_data['author'] ?? '' );
+            $publisher = sanitize_text_field( $item_data['publisher'] ?? '' );
+            if ( ! empty( $author ) ) {
+                $author_names = array_filter( array_map( 'trim', explode( ',', $author ) ) );
+                foreach ( $author_names as $auth_name ) {
+                    if ( '' !== $auth_name ) {
+                        $this->import_ensure_author( $auth_name );
+                    }
+                }
+            }
+            if ( ! empty( $publisher ) ) {
+                $publisher_names = array_filter( array_map( 'trim', explode( ',', $publisher ) ) );
+                foreach ( $publisher_names as $pub_name ) {
+                    if ( '' !== $pub_name ) {
+                        $this->import_ensure_publisher( $pub_name );
+                    }
+                }
+            }
+
+            $data = array(
+                'type'             => $type,
+                'title'            => $title,
+                'slug'             => $slug,
+                'description'      => wp_kses_post( $item_data['description'] ?? '' ),
+                'cover_image'      => esc_url_raw( $item_data['cover_image'] ?? '' ),
+                'file_path'        => sanitize_text_field( $item_data['file_path'] ?? '' ),
+                'file_type'        => sanitize_text_field( $item_data['file_type'] ?? '' ),
+                'language'         => sanitize_text_field( $item_data['language'] ?? 'en' ),
+                'author'           => $author,
+                'translator'       => sanitize_text_field( $item_data['translator'] ?? '' ),
+                'publisher'        => $publisher,
+                'isbn'             => sanitize_text_field( $item_data['isbn'] ?? '' ),
+                'publication_year' => ! empty( $item_data['publication_year'] ) ? intval( $item_data['publication_year'] ) : null,
+                'visibility'       => $visibility,
+                'featured'         => $featured,
+                'volumes'          => null,
+            );
+
+            // Validate file path
+            if ( ! $this->validate_file_reference( $data['file_path'] ) ) {
+                $failed++;
+                $errors[] = array(
+                    'row'     => $idx + 1,
+                    'title'   => $title,
+                    'message' => 'Invalid file path/URL or domain not allowed.',
+                );
+                continue;
+            }
+
+            // Handle volumes
+            if ( ! empty( $item_data['volumes'] ) && is_array( $item_data['volumes'] ) ) {
+                $clean_vols = array();
+                $vols_valid = true;
+                foreach ( array_values( $item_data['volumes'] ) as $vi => $vol ) {
+                    $vol = (array) $vol;
+                    if ( empty( $vol['file_path'] ) ) continue;
+                    $vol_path = sanitize_text_field( $vol['file_path'] );
+                    if ( ! $this->validate_file_reference( $vol_path ) ) {
+                        $vols_valid = false;
+                        $failed++;
+                        $errors[] = array(
+                            'row'     => $idx + 1,
+                            'title'   => $title,
+                            'message' => 'Invalid volume file path/URL or domain not allowed.',
+                        );
+                        break;
+                    }
+
+                    // Auto detect encoding for volume if text file.
+                    $vol_type = sanitize_text_field( $vol['file_type'] ?? '' );
+                    $vol_encoding = isset( $vol['encoding'] ) ? sanitize_text_field( $vol['encoding'] ) : 'utf-8';
+                    if ( 'txt' === $vol_type && empty( $vol['encoding'] ) ) {
+                        $local_path = JetReader_Upload_Handler::url_to_local_path( $vol_path );
+                        if ( file_exists( $local_path ) ) {
+                            $content_sample = file_get_contents( $local_path, false, null, 0, 10000 );
+                            if ( function_exists( 'mb_detect_encoding' ) && $content_sample ) {
+                                $enc = mb_detect_encoding( $content_sample, array( 'UTF-8', 'ISO-8859-9', 'Windows-1254', 'Windows-1251', 'ISO-8859-1', 'ASCII', 'UTF-16', 'UTF-16LE', 'UTF-16BE', 'BIG5', 'GBK', 'EUC-JP', 'SJIS' ), true );
+                                if ( $enc ) {
+                                    $vol_encoding = strtolower( $enc );
+                                }
+                            }
+                        }
+                    }
+
+                    $clean_vols[] = array(
+                        'vol'         => $vi + 1,
+                        'file_path'   => $vol_path,
+                        'file_type'   => $vol_type,
+                        'cover_image' => esc_url_raw( $vol['cover_image'] ?? '' ),
+                        'page_count'  => isset( $vol['page_count'] ) ? intval( $vol['page_count'] ) : 0,
+                        'encoding'    => $vol_encoding,
+                    );
+                }
+                if ( ! $vols_valid ) {
+                    continue;
+                }
+                if ( ! empty( $clean_vols ) ) {
+                    $data['volumes']     = wp_json_encode( $clean_vols );
+                    $data['file_path']   = $clean_vols[0]['file_path'];
+                    $data['file_type']   = $clean_vols[0]['file_type'];
+                    $data['cover_image'] = $clean_vols[0]['cover_image'];
+                }
+            }
+
+            // Detect encoding for single file TXT during bulk create
+            $item_metadata = array();
+            if ( ! empty( $data['file_path'] ) && 'txt' === $data['file_type'] ) {
+                $local_path = JetReader_Upload_Handler::url_to_local_path( $data['file_path'] );
+                if ( file_exists( $local_path ) ) {
+                    $content_sample = file_get_contents( $local_path, false, null, 0, 10000 );
+                    if ( function_exists( 'mb_detect_encoding' ) && $content_sample ) {
+                        $enc = mb_detect_encoding( $content_sample, array( 'UTF-8', 'ISO-8859-9', 'Windows-1254', 'Windows-1251', 'ISO-8859-1', 'ASCII', 'UTF-16', 'UTF-16LE', 'UTF-16BE', 'BIG5', 'GBK', 'EUC-JP', 'SJIS' ), true );
+                        if ( $enc ) {
+                            $item_metadata['encoding'] = strtolower( $enc );
+                        }
+                    }
+                }
+            }
+            $data['metadata'] = ! empty( $item_metadata ) ? wp_json_encode( $item_metadata ) : null;
+
+            // Formats array for insert
+            $formats = array();
+            foreach ( $data as $value ) {
+                $formats[] = is_null( $value ) ? '%s' : ( is_int( $value ) ? '%d' : '%s' );
+            }
+
+            $result = $wpdb->insert( "{$wpdb->prefix}jetreader_items", $data, $formats );
+
+            if ( false === $result ) {
+                $failed++;
+                $errors[] = array(
+                    'row'     => $idx + 1,
+                    'title'   => $title,
+                    'message' => $wpdb->last_error ?: 'DB insert failed.',
+                );
+                continue;
+            }
+
+            $item_id = $wpdb->insert_id;
+            $success++;
+
+            // Sync category IDs (support category_names mapping)
+            $category_names = isset( $item_data['category_names'] ) ? sanitize_text_field( $item_data['category_names'] ) : '';
+            if ( ! empty( $category_names ) ) {
+                $category_ids = $this->import_resolve_categories( $category_names, $type );
+            } else {
+                $category_ids = isset( $item_data['category_ids'] ) && is_array( $item_data['category_ids'] )
+                    ? array_map( 'intval', $item_data['category_ids'] )
+                    : array();
+            }
+            try {
+                $this->sync_item_categories( $item_id, $category_ids, $type );
+            } catch ( \Throwable $e ) {}
+
+            // Sync CPT & index
+            try {
+                if ( class_exists( 'JetReader_CPT' ) ) {
+                    JetReader_CPT::sync_from_item( $item_id );
+                }
+            } catch ( \Throwable $e ) {}
+            try {
+                JetReader_Upload_Handler::schedule_index( $item_id );
+            } catch ( \Throwable $e ) {}
+        }
+
+        $this->invalidate_dashboard_cache();
+        $this->invalidate_authors_cache();
+        $this->invalidate_publishers_cache();
+        $this->invalidate_categories_cache();
+        $this->invalidate_permalink_cache();
+
+        return new WP_REST_Response( array(
+            'success' => $success,
+            'failed'  => $failed,
+            'errors'  => $errors,
+        ), 200 );
+    }
+
+    /**
+     * Validate file path or URL references.
+     */
+    private function validate_file_reference( $file_path ) {
+        if ( empty( $file_path ) ) {
+            return true; // Empty path is valid (e.g. Article CPT without attachment).
+        }
+
+        // 1. Enforce allowed extension.
+        $ext = strtolower( pathinfo( $file_path, PATHINFO_EXTENSION ) );
+        if ( str_contains( $ext, '?' ) ) {
+            $parsed_url_path = wp_parse_url( $file_path, PHP_URL_PATH );
+            $ext = strtolower( pathinfo( $parsed_url_path, PATHINFO_EXTENSION ) );
+        }
+        if ( ! in_array( $ext, array( 'pdf', 'epub', 'txt', 'docx', 'doc' ), true ) ) {
+            return false;
+        }
+
+        // 2. Local path check.
+        if ( str_starts_with( $file_path, '/' ) || ! str_contains( $file_path, '://' ) ) {
+            $upload_dir = wp_upload_dir();
+            $base_dir   = realpath( $upload_dir['basedir'] );
+            $real_path  = realpath( $file_path );
+            if ( $real_path ) {
+                if ( ! str_starts_with( $real_path, $base_dir ) ) {
+                    return false; // Traversal / out of uploads folder.
+                }
+            } else {
+                $base_dir_clean = str_replace( '\\', '/', $upload_dir['basedir'] );
+                $file_path_clean = str_replace( '\\', '/', $file_path );
+                if ( ! str_starts_with( $file_path_clean, $base_dir_clean ) ) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        // 3. Remote URL check.
+        $scheme = wp_parse_url( $file_path, PHP_URL_SCHEME );
+        if ( ! in_array( $scheme, array( 'http', 'https' ), true ) ) {
+            return false;
+        }
+
+        $host = wp_parse_url( $file_path, PHP_URL_HOST );
+        if ( $host ) {
+            // Allow files hosted on the current WordPress site (including localhost during dev).
+            $site_host = wp_parse_url( site_url(), PHP_URL_HOST );
+            if ( strcasecmp( $host, $site_host ) === 0 ) {
+                return true;
+            }
+
+            $hosts_to_check = array();
+            if ( filter_var( $host, FILTER_VALIDATE_IP ) ) {
+                $hosts_to_check[] = $host;
+            } else {
+                $records = dns_get_record( $host, DNS_A | DNS_AAAA );
+                if ( is_array( $records ) ) {
+                    foreach ( $records as $record ) {
+                        if ( isset( $record['ip'] ) ) {
+                            $hosts_to_check[] = $record['ip'];
+                        } elseif ( isset( $record['ipv6'] ) ) {
+                            $hosts_to_check[] = $record['ipv6'];
+                        }
+                    }
+                }
+            }
+
+            foreach ( $hosts_to_check as $resolved_ip ) {
+                if ( $this->is_private_ip( $resolved_ip ) ) {
+                    return false; // SSRF protection: block private/local hostnames.
+                }
+            }
+        }
+
+        return true;
+    }
+
+
+    /**
+     * GET /files
+     * List all files inside the jetreader uploads directory with their metadata and linked item statuses.
+     */
+    public function get_files( WP_REST_Request $request ): WP_REST_Response {
+        $upload_dir    = wp_upload_dir();
+        $jetreader_dir = $upload_dir['basedir'] . '/jetreader';
+
+        if ( ! is_dir( $jetreader_dir ) ) {
+            return new WP_REST_Response( array(), 200 );
+        }
+
+        // Search directory for all files
+        $files = glob( $jetreader_dir . '/*' );
+        if ( ! is_array( $files ) ) {
+            return new WP_REST_Response( array(), 200 );
+        }
+
+        // Fetch all items from the database to map linkages
+        global $wpdb;
+        $items = $wpdb->get_results(
+            "SELECT id, title, type, file_path, cover_image, volumes FROM {$wpdb->prefix}jetreader_items",
+            ARRAY_A
+        );
+
+        $result = array();
+
+        foreach ( $files as $file_path ) {
+            if ( ! is_file( $file_path ) ) {
+                continue;
+            }
+
+            $filename  = basename( $file_path );
+            $extension = strtolower( pathinfo( $file_path, PATHINFO_EXTENSION ) );
+            $file_size = filesize( $file_path );
+            $mod_time  = filemtime( $file_path );
+            $file_url  = $upload_dir['baseurl'] . '/jetreader/' . $filename;
+
+            // Check linked items
+            $linked_items = array();
+            foreach ( $items as $item ) {
+                $is_linked = false;
+
+                // Check standard file_path or cover_image fields
+                if ( ! empty( $item['file_path'] ) && ( $item['file_path'] === $file_url || basename( $item['file_path'] ) === $filename ) ) {
+                    $is_linked = true;
+                }
+                if ( ! empty( $item['cover_image'] ) && ( $item['cover_image'] === $file_url || basename( $item['cover_image'] ) === $filename ) ) {
+                    $is_linked = true;
+                }
+
+                // Check volumes list JSON field
+                if ( ! empty( $item['volumes'] ) ) {
+                    $volumes = json_decode( $item['volumes'], true );
+                    if ( is_array( $volumes ) ) {
+                        foreach ( $volumes as $vol ) {
+                            if ( ! empty( $vol['file_path'] ) && ( $vol['file_path'] === $file_url || basename( $vol['file_path'] ) === $filename ) ) {
+                                $is_linked = true;
+                                break;
+                            }
+                            if ( ! empty( $vol['cover_image'] ) && ( $vol['cover_image'] === $file_url || basename( $vol['cover_image'] ) === $filename ) ) {
+                                $is_linked = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if ( $is_linked ) {
+                    $linked_items[] = array(
+                        'id'    => intval( $item['id'] ),
+                        'title' => $item['title'],
+                        'type'  => $item['type']
+                    );
+                }
+            }
+
+            $result[] = array(
+                'name'         => $filename,
+                'url'          => $file_url,
+                'path'         => $file_path,
+                'extension'    => $extension,
+                'size'         => $file_size,
+                'modified'     => $mod_time,
+                'linked_items' => $linked_items
+            );
+        }
+
+        // Sort files by modified time descending (newest first)
+        usort( $result, function( $a, $b ) {
+            return $b['modified'] <=> $a['modified'];
+        } );
+
+        return new WP_REST_Response( $result, 200 );
+    }
+
+    /**
+     * DELETE /files
+     * Delete one or more selected files from disk.
+     */
+    public function delete_files( WP_REST_Request $request ): WP_REST_Response {
+        $filenames = $request->get_param( 'filenames' );
+        if ( empty( $filenames ) ) {
+            $single = $request->get_param( 'filename' );
+            if ( ! empty( $single ) ) {
+                $filenames = array( $single );
+            }
+        }
+
+        if ( empty( $filenames ) || ! is_array( $filenames ) ) {
+            return new WP_REST_Response(
+                array( 'success' => false, 'message' => __( 'No filenames provided for deletion.', 'jetreader' ) ),
+                400
+            );
+        }
+
+        $upload_dir    = wp_upload_dir();
+        $jetreader_dir = $upload_dir['basedir'] . '/jetreader';
+        $success_count = 0;
+        $failed_files  = array();
+
+        foreach ( $filenames as $filename ) {
+            $filename = sanitize_file_name( $filename );
+            $file_path = $jetreader_dir . '/' . $filename;
+
+            if ( file_exists( $file_path ) && is_file( $file_path ) ) {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink
+                if ( @unlink( $file_path ) ) {
+                    $success_count++;
+                } else {
+                    $failed_files[] = $filename;
+                }
+            } else {
+                $failed_files[] = $filename;
+            }
+        }
+
+        if ( $success_count > 0 ) {
+            // Invalidate CPT permalinks cache just in case we deleted files that were linked
+            delete_transient( 'jetreader_cpt_permalink_map' );
+        }
+
+        if ( count( $failed_files ) === 0 ) {
+            return new WP_REST_Response(
+                array( 'success' => true, 'message' => __( 'Selected files deleted successfully.', 'jetreader' ) ),
+                200
+            );
+        } else {
+            return new WP_REST_Response(
+                array(
+                    'success' => $success_count > 0,
+                    'message' => sprintf( __( 'Deleted %d files, failed to delete %d files.', 'jetreader' ), $success_count, count( $failed_files ) ),
+                    'failed'  => $failed_files
+                ),
+                207 // Multi-Status
+            );
+        }
+    }
+
+    /**
+     * PUT /files/rename
+     * Rename a file on disk and update all database and metadata references.
+     */
+    public function rename_file( WP_REST_Request $request ): WP_REST_Response {
+        $old_name = sanitize_file_name( $request->get_param( 'old_name' ) ?? '' );
+        $new_name = sanitize_file_name( $request->get_param( 'new_name' ) ?? '' );
+
+        if ( empty( $old_name ) || empty( $new_name ) ) {
+            return new WP_REST_Response(
+                array( 'success' => false, 'message' => __( 'Both old and new file names are required.', 'jetreader' ) ),
+                400
+            );
+        }
+
+        if ( $old_name === $new_name ) {
+            return new WP_REST_Response(
+                array( 'success' => false, 'message' => __( 'New file name must be different.', 'jetreader' ) ),
+                400
+            );
+        }
+
+        $upload_dir    = wp_upload_dir();
+        $jetreader_dir = $upload_dir['basedir'] . '/jetreader';
+
+        $old_path = $jetreader_dir . '/' . $old_name;
+        $new_path = $jetreader_dir . '/' . $new_name;
+
+        if ( ! file_exists( $old_path ) || ! is_file( $old_path ) ) {
+            return new WP_REST_Response(
+                array( 'success' => false, 'message' => __( 'Source file does not exist.', 'jetreader' ) ),
+                404
+            );
+        }
+
+        if ( file_exists( $new_path ) ) {
+            return new WP_REST_Response(
+                array( 'success' => false, 'message' => __( 'A file with the new name already exists.', 'jetreader' ) ),
+                409
+            );
+        }
+
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
+        $renamed = @rename( $old_path, $new_path );
+
+        if ( ! $renamed ) {
+            return new WP_REST_Response(
+                array( 'success' => false, 'message' => __( 'Failed to rename file on disk.', 'jetreader' ) ),
+                500
+            );
+        }
+
+        // Update database references
+        global $wpdb;
+        $old_url = $upload_dir['baseurl'] . '/jetreader/' . $old_name;
+        $new_url = $upload_dir['baseurl'] . '/jetreader/' . $new_name;
+
+        // 1. Update items table file_path and cover_image
+        $wpdb->query( $wpdb->prepare(
+            "UPDATE {$wpdb->prefix}jetreader_items SET file_path = %s WHERE file_path = %s",
+            $new_url,
+            $old_url
+        ) );
+        $wpdb->query( $wpdb->prepare(
+            "UPDATE {$wpdb->prefix}jetreader_items SET cover_image = %s WHERE cover_image = %s",
+            $new_url,
+            $old_url
+        ) );
+
+        // 2. Fetch all items with volumes to check inside JSON fields
+        $items_with_vols = $wpdb->get_results(
+            "SELECT id, volumes FROM {$wpdb->prefix}jetreader_items WHERE volumes IS NOT NULL AND volumes != ''",
+            ARRAY_A
+        );
+
+        foreach ( $items_with_vols as $item ) {
+            $volumes = json_decode( $item['volumes'], true );
+            if ( ! is_array( $volumes ) ) {
+                continue;
+            }
+
+            $updated = false;
+            foreach ( $volumes as &$vol ) {
+                if ( ! empty( $vol['file_path'] ) && ( $vol['file_path'] === $old_url || basename( $vol['file_path'] ) === $old_name ) ) {
+                    $vol['file_path'] = $new_url;
+                    $updated = true;
+                }
+                if ( ! empty( $vol['cover_image'] ) && ( $vol['cover_image'] === $old_url || basename( $vol['cover_image'] ) === $old_name ) ) {
+                    $vol['cover_image'] = $new_url;
+                    $updated = true;
+                }
+            }
+
+            if ( $updated ) {
+                $wpdb->query( $wpdb->prepare(
+                    "UPDATE {$wpdb->prefix}jetreader_items SET volumes = %s WHERE id = %d",
+                    wp_json_encode( $volumes ),
+                    $item['id']
+                ) );
+            }
+        }
+
+        // 3. Update related CPT posts meta if any
+        $wpdb->query( $wpdb->prepare(
+            "UPDATE {$wpdb->postmeta} SET meta_value = %s WHERE meta_key = '_jetreader_file_url' AND meta_value = %s",
+            $new_url,
+            $old_url
+        ) );
+        $wpdb->query( $wpdb->prepare(
+            "UPDATE {$wpdb->postmeta} SET meta_value = %s WHERE meta_key = '_jetreader_cover_url' AND meta_value = %s",
+            $new_url,
+            $old_url
+        ) );
+
+        // Invalidate permalink cache
+        delete_transient( 'jetreader_cpt_permalink_map' );
+
+        return new WP_REST_Response(
+            array(
+                'success'   => true,
+                'message'   => __( 'File renamed and references updated successfully.', 'jetreader' ),
+                'new_name'  => $new_name,
+                'new_url'   => $new_url
+            ),
+            200
+        );
+    }
 }

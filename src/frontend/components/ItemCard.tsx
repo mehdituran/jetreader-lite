@@ -307,7 +307,7 @@ const InfoModalInner: React.FC<{
                                             </span>
                                         ) }
                                     </p>
-                                    <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '6px' } }>
+                                    <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '8px' } }>
                                         { item.volumes.map( ( vol ) => {
                                             const isSelected = selectedVol?.vol === vol.vol;
                                             return (
@@ -317,11 +317,11 @@ const InfoModalInner: React.FC<{
                                                     style={ {
                                                         background: isSelected ? 'var(--jr-p100, #e0e7ff)' : 'var(--jr-modal-badge-bg, #f1f5f9)',
                                                         border: isSelected ? '2px solid var(--jr-p400, #818cf8)' : '2px solid transparent',
-                                                        borderRadius: '8px',
-                                                        padding: '6px 10px',
+                                                        borderRadius: '10px',
+                                                        padding: '8px 12px',
                                                         display: 'flex',
                                                         alignItems: 'center',
-                                                        gap: '6px',
+                                                        gap: '8px',
                                                         fontSize: '12px',
                                                         fontWeight: 600,
                                                         color: isSelected ? 'var(--jr-p700, #4338ca)' : 'var(--jr-modal-text, #334155)',
@@ -329,9 +329,30 @@ const InfoModalInner: React.FC<{
                                                         transition: 'background 0.15s, border-color 0.15s',
                                                     } }
                                                 >
-                                                    <span style={ { fontSize: '12px' } }>{ item.type === 'magazine' ? '🗞️' : '📖' }</span>
-                                                    <span>{ item.type === 'magazine' ? `${ t( 'frontend.infoModalVolItemMagazine' ) } ${ vol.vol }` : `${ t( 'frontend.infoModalVolItemBook' ) } ${ vol.vol }` }</span>
-                                                    { vol.file_type && <span style={ { marginLeft: 'auto', fontSize: '10px', fontWeight: 700, color: isSelected ? 'var(--jr-p500, #6366f1)' : 'var(--jr-modal-meta, #94a3b8)', textTransform: 'uppercase', fontFamily: 'monospace' } }>{ vol.file_type }</span> }
+                                                    <span style={ { fontSize: '14px', flexShrink: 0 } }>{ item.type === 'magazine' ? '🗞️' : '📖' }</span>
+                                                    <div style={ { display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1, lineHeight: 1.25 } }>
+                                                        <span style={ { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }>
+                                                            { item.type === 'magazine' ? `${ t( 'frontend.infoModalVolItemMagazine' ) } ${ vol.vol }` : `${ t( 'frontend.infoModalVolItemBook' ) } ${ vol.vol }` }
+                                                        </span>
+                                                        { vol.page_count && vol.page_count > 0 ? (
+                                                            <span style={ { fontSize: '10px', fontWeight: 500, color: isSelected ? 'var(--jr-p600, #4f46e5)' : 'var(--jr-modal-meta, #94a3b8)', marginTop: '2px' } }>
+                                                                { vol.page_count } { t( 'reader.pages' ) }
+                                                            </span>
+                                                        ) : null }
+                                                    </div>
+                                                    { vol.file_type && (
+                                                        <span style={ {
+                                                            fontSize: '10px',
+                                                            fontWeight: 700,
+                                                            color: isSelected ? 'var(--jr-p500, #6366f1)' : 'var(--jr-modal-meta, #94a3b8)',
+                                                            textTransform: 'uppercase',
+                                                            fontFamily: 'monospace',
+                                                            flexShrink: 0,
+                                                            marginLeft: '4px'
+                                                        } }>
+                                                            { vol.file_type }
+                                                        </span>
+                                                    ) }
                                                 </div>
                                             );
                                         } ) }
@@ -478,6 +499,7 @@ export interface ItemCardProps {
     showPublisher?: boolean;
     showYear?: boolean;
     showLanguage?: boolean;
+    showPageCount?: boolean;
     compact?: boolean;
     imageSize?: 'small' | 'medium' | 'large' | 'xlarge' | 'xxlarge';
     imageFit?:  'cover' | 'contain' | 'fill';
@@ -501,6 +523,7 @@ const ItemCard: React.FC<ItemCardProps> = ( {
     item, showImage, showDescription, showType, showAuthor,
     showReadButton = true, showInfoButton = true, showDownloadButton = false,
     showTranslator = true, showPublisher = true, showYear = true, showLanguage = true,
+    showPageCount = true,
     compact = false, imageSize, imageFit = 'cover',
     cardRadius = 'medium', cardBorder = 'subtle', cardShadow = 'subtle',
     cardHover = 'zoom', cardAlign = 'left', cardLayout = 'vertical',
@@ -529,6 +552,9 @@ const ItemCard: React.FC<ItemCardProps> = ( {
     }
     if ( showLanguage && item.language ) {
         metaBadges.push( { label: getLangDisplayName( item.language, locale ), key: 'lang' } );
+    }
+    if ( showPageCount && item.page_count && item.page_count > 0 ) {
+        metaBadges.push( { label: `${ item.page_count } ${ t( 'reader.pages' ) }`, key: 'page_count' } );
     }
     if ( item.volumes && item.volumes.length > 1 ) {
         metaBadges.push( { label: `${ item.volumes.length } ${ item.type === 'magazine' ? t( 'frontend.volumeMagazine' ) : t( 'frontend.volumeBook' ) }`, key: 'volumes' } );

@@ -111,6 +111,7 @@ class JetReader_Activator {
             'show_detail_year'        => true,
             'show_detail_type'        => true,
             'show_detail_language'    => true,
+            'show_detail_page_count'  => true,
         );
 
         add_option( 'jetreader_settings', $defaults, '', 'no' );

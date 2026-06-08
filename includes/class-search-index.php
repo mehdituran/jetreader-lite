@@ -21,7 +21,7 @@ if ( ! defined( 'WPINC' ) ) {
 class JetReader_Search_Index {
 
     /** Max characters stored per page row. Keeps table size manageable. */
-    private const MAX_CONTENT_LEN = 2000;
+    private const MAX_CONTENT_LEN = 10000;
 
     /** Batch size for INSERT statements. */
     private const BATCH_SIZE = 500;
@@ -122,15 +122,15 @@ class JetReader_Search_Index {
             return self::search_like( $query, $limit, $per_item );
         }
 
-        // Eğer arama sorgusunda kesme/tırnak işareti bulunuyorsa, FULLTEXT yerine
-        // doğrudan search_like'a yönlendirerek tırnaksız halini de eşleştirebilmeyi sağlıyoruz.
-        if ( str_contains( $query, "'" ) || str_contains( $query, "’" ) ) {
+        // Apostrophe, double-quote, or dash variants → LIKE so get_query_variants can
+        // expand them to all typographic forms and find the content regardless of encoding.
+        if ( self::query_has_apostrophe( $query )
+            || self::query_has_chars( $query, self::DQUOTE_CHARS )
+            || self::query_has_chars( $query, self::DASH_CHARS ) ) {
             return self::search_like( $query, $limit, $per_item );
         }
 
         // FULLTEXT BOOLEAN MODE operatörlerini içeren sorgular LIKE'a yönlendir.
-        // Tire (-) NOT operatörü: "Croquet-Ground" → "Croquet" AND NOT "Ground" gibi yorumlanır.
-        // Bu durumda LOCATE literal ifadeyi bulamaz, excerpt sayfanın başından gösterilir.
         // Diğer özel karakterler: + > < ~ * " @ ( )
         if ( preg_match( '/[-+"~*><@()]/u', $query ) ) {
             return self::search_like( $query, $limit, $per_item );
@@ -141,12 +141,14 @@ class JetReader_Search_Index {
         // Q1: True total per item — no content column, very fast.
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         $totals_raw = $wpdb->get_results( $wpdb->prepare(
-            "SELECT item_id, COUNT(*) AS total
+            "SELECT item_id, SUM((CHAR_LENGTH(content) - CHAR_LENGTH(REPLACE(LOWER(content), LOWER(%s), ''))) / CHAR_LENGTH(%s)) AS total
              FROM `{$table}`
              WHERE MATCH(content) AGAINST (%s IN BOOLEAN MODE)
              GROUP BY item_id
              LIMIT %d",
-            $query . '*',
+            $query,
+            $query,
+            $query, // No wildcard '*' to enforce exact word boundary matching by MySQL FULLTEXT
             $limit
         ) );
 
@@ -163,31 +165,37 @@ class JetReader_Search_Index {
         $item_ids = array();
         foreach ( $totals_raw as $row ) {
             $id            = (int) $row->item_id;
-            $totals[ $id ] = (int) $row->total;
+            $totals[ $id ] = max( 1, (int) $row->total );
             $item_ids[]    = $id;
         }
 
         // Q2: Per-item queries — each item gets exactly $per_item earliest pages.
-        // A single global LIMIT would give all rows to the first item_id when many
-        // items match, leaving the rest with zero display rows.
         $all_rows = array();
         foreach ( $item_ids as $id ) {
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
             $item_rows = $wpdb->get_results( $wpdb->prepare(
-                "SELECT item_id, volume_idx, page_num,
-                        SUBSTRING(content, GREATEST(1, LOCATE(%s, content) - 80), 250) AS excerpt
+                "SELECT item_id, volume_idx, page_num, content
                  FROM `{$table}`
                  WHERE MATCH(content) AGAINST (%s IN BOOLEAN MODE)
                    AND item_id = %d
-                 ORDER BY page_num ASC
-                 LIMIT %d",
-                $query,
-                $query . '*',
-                $id,
-                $per_item
+                 ORDER BY page_num ASC",
+                $query, // No wildcard '*'
+                $id
             ) );
+
+            $count = 0;
             foreach ( (array) $item_rows as $r ) {
-                $all_rows[] = $r;
+                if ( self::has_word_match( $r->content, $query ) ) {
+                    $pos = mb_strpos( mb_strtolower( $r->content ), mb_strtolower( $query ) );
+                    $start_pos = max( 0, $pos - 80 );
+                    $r->excerpt = mb_substr( $r->content, $start_pos, 250 );
+                    unset( $r->content );
+                    $all_rows[] = $r;
+                    $count++;
+                    if ( $count >= $per_item ) {
+                        break;
+                    }
+                }
             }
         }
 
@@ -219,14 +227,25 @@ class JetReader_Search_Index {
         $sql_cond = implode( ' OR ', $conditions );
         $params[] = $limit;
 
+        $sum_parts = array();
+        $sum_params = array();
+        foreach ( $variants as $var ) {
+            $sum_parts[] = "(CHAR_LENGTH(content) - CHAR_LENGTH(REPLACE(LOWER(content), LOWER(%s), ''))) / CHAR_LENGTH(%s)";
+            $sum_params[] = $var;
+            $sum_params[] = $var;
+        }
+        $sql_sum = "SUM(" . implode( ' + ', $sum_parts ) . ")";
+
+        $prep_params = array_merge( $sum_params, $params );
+
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         $totals_raw = $wpdb->get_results( $wpdb->prepare(
-            "SELECT item_id, COUNT(*) AS total
+            "SELECT item_id, {$sql_sum} AS total
              FROM `{$table}`
              WHERE {$sql_cond}
              GROUP BY item_id
              LIMIT %d",
-            ...$params
+            ...$prep_params
         ) );
 
         if ( empty( $totals_raw ) ) {
@@ -237,7 +256,7 @@ class JetReader_Search_Index {
         $item_ids = array();
         foreach ( $totals_raw as $row ) {
             $id            = (int) $row->item_id;
-            $totals[ $id ] = (int) $row->total;
+            $totals[ $id ] = max( 1, (int) $row->total );
             $item_ids[]    = $id;
         }
 
@@ -246,31 +265,46 @@ class JetReader_Search_Index {
         foreach ( $item_ids as $id ) {
             $item_conditions = array();
             $item_params     = array();
-            $locate_parts    = array();
 
             foreach ( $variants as $var ) {
                 $item_conditions[] = "content LIKE %s";
                 $item_params[]     = '%' . $wpdb->esc_like( $var ) . '%';
-                $locate_parts[]    = $wpdb->prepare( "NULLIF(LOCATE(%s, content), 0)", $var );
             }
 
             $sql_item_cond = implode( ' OR ', $item_conditions );
-            $sql_coalesce  = "COALESCE(" . implode( ', ', $locate_parts ) . ", 1)";
-            $query_params  = array_merge( $item_params, array( $id, $per_item ) );
+            $query_params  = array_merge( $item_params, array( $id ) );
 
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
             $item_rows = $wpdb->get_results( $wpdb->prepare(
-                "SELECT item_id, volume_idx, page_num,
-                        SUBSTRING(content, GREATEST(1, {$sql_coalesce} - 80), 250) AS excerpt
+                "SELECT item_id, volume_idx, page_num, content
                  FROM `{$table}`
                  WHERE ({$sql_item_cond})
                    AND item_id = %d
-                 ORDER BY page_num ASC
-                 LIMIT %d",
+                 ORDER BY page_num ASC",
                 ...$query_params
             ) );
+
+            $count = 0;
             foreach ( (array) $item_rows as $r ) {
-                $all_rows[] = $r;
+                $matched_var = null;
+                foreach ( $variants as $var ) {
+                    if ( self::has_word_match( $r->content, $var ) ) {
+                        $matched_var = $var;
+                        break;
+                    }
+                }
+
+                if ( $matched_var !== null ) {
+                    $pos = mb_strpos( mb_strtolower( $r->content ), mb_strtolower( $matched_var ) );
+                    $start_pos = max( 0, $pos - 80 );
+                    $r->excerpt = mb_substr( $r->content, $start_pos, 250 );
+                    unset( $r->content );
+                    $all_rows[] = $r;
+                    $count++;
+                    if ( $count >= $per_item ) {
+                        break;
+                    }
+                }
             }
         }
 
@@ -278,21 +312,147 @@ class JetReader_Search_Index {
     }
 
     /**
-     * Expand search query to include Turkish apostrophe variants if apostrophes are present.
+     * Single-quote / apostrophe variants (keyboard straight ↔ typographic ↔ modifier letters).
+     * U+02BE = RIGHT HALF RING used in Arabic romanization for hamza (ʾ).
+     * U+02BF = LEFT HALF RING used in Arabic romanization for ʿain (ʿ).
+     */
+    private const APOS_CHARS = [
+        "\u{0027}", // APOSTROPHE (straight/keyboard)
+        "\u{2018}", // LEFT SINGLE QUOTATION MARK
+        "\u{2019}", // RIGHT SINGLE QUOTATION MARK (Word/PDF smart quote)
+        "\u{201A}", // SINGLE LOW-9 QUOTATION MARK
+        "\u{201B}", // SINGLE HIGH-REVERSED-9 QUOTATION MARK
+        "\u{02BC}", // MODIFIER LETTER APOSTROPHE (transliteration)
+        "\u{02BB}", // MODIFIER LETTER TURNED COMMA (Hawaiian/romanization)
+        "\u{FF07}", // FULLWIDTH APOSTROPHE (CJK documents)
+        "\u{02BE}", // MODIFIER LETTER RIGHT HALF RING (Arabic romanization)
+        "\u{02BF}", // MODIFIER LETTER LEFT HALF RING (Arabic ʿain romanization)
+        "\u{0060}", // GRAVE ACCENT / BACKTICK (sometimes used as apostrophe)
+    ];
+
+    /** Curly/guillemet double-quote variants → keyboard " (U+0022). */
+    private const DQUOTE_CHARS = [
+        '"',        // QUOTATION MARK (straight/keyboard) — literal to avoid \u{0022} closing the string
+        "\u{201C}", // LEFT DOUBLE QUOTATION MARK
+        "\u{201D}", // RIGHT DOUBLE QUOTATION MARK
+        "\u{201E}", // DOUBLE LOW-9 QUOTATION MARK (German)
+        "\u{201F}", // DOUBLE HIGH-REVERSED-9 QUOTATION MARK
+        "\u{00AB}", // LEFT-POINTING DOUBLE ANGLE QUOTATION MARK (guillemet)
+        "\u{00BB}", // RIGHT-POINTING DOUBLE ANGLE QUOTATION MARK
+        "\u{FF02}", // FULLWIDTH QUOTATION MARK
+    ];
+
+    /** Dash/hyphen variants → keyboard - (U+002D). */
+    private const DASH_CHARS = [
+        "\u{002D}", // HYPHEN-MINUS (keyboard)
+        "\u{2010}", // HYPHEN
+        "\u{2011}", // NON-BREAKING HYPHEN
+        "\u{2012}", // FIGURE DASH
+        "\u{2013}", // EN DASH
+        "\u{2014}", // EM DASH
+        "\u{2015}", // HORIZONTAL BAR
+        "\u{2212}", // MINUS SIGN
+        "\u{FF0D}", // FULLWIDTH HYPHEN-MINUS
+    ];
+
+    /** Returns true if the query contains any character from the given set. */
+    private static function query_has_chars( string $query, array $chars ): bool {
+        foreach ( $chars as $ch ) {
+            if ( str_contains( $query, $ch ) ) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Returns true if the query contains any apostrophe/quote-like character.
+     */
+    private static function query_has_apostrophe( string $query ): bool {
+        return self::query_has_chars( $query, self::APOS_CHARS );
+    }
+
+    /**
+     * Helper to perform Unicode-safe whole-word matching.
+     */
+    private static function has_word_match( string $content, string $query ): bool {
+        $q = mb_strtolower( $query );
+        $text = mb_strtolower( $content );
+        $q_len = mb_strlen( $q );
+        if ( $q_len === 0 ) {
+            return false;
+        }
+
+        $pos = mb_strpos( $text, $q );
+        if ( false === $pos ) {
+            return false;
+        }
+
+        $is_word_char = function( string $char ): bool {
+            return (bool) preg_match( '/[\p{L}\p{N}]/u', $char );
+        };
+
+        $q_starts_word = $is_word_char( mb_substr( $q, 0, 1 ) );
+        $q_ends_word = $is_word_char( mb_substr( $q, $q_len - 1, 1 ) );
+
+        while ( false !== $pos ) {
+            $valid = true;
+            if ( $q_starts_word && $pos > 0 ) {
+                $prev_char = mb_substr( $text, $pos - 1, 1 );
+                if ( $is_word_char( $prev_char ) ) {
+                    $valid = false;
+                }
+            }
+            if ( $q_ends_word && ( $pos + $q_len ) < mb_strlen( $text ) ) {
+                $next_char = mb_substr( $text, $pos + $q_len, 1 );
+                if ( $is_word_char( $next_char ) ) {
+                    $valid = false;
+                }
+            }
+            if ( $valid ) {
+                return true;
+            }
+            $pos = mb_strpos( $text, $q, $pos + 1 );
+        }
+
+        return false;
+    }
+
+    /**
+     * Expand search query to include all typographic-character variants.
+     * Handles single quotes (apostrophes), double quotes, and dashes so that
+     * a user typing the keyboard character matches any variant in the document.
      *
      * @param string $query Original search query.
      * @return string[] Unique variants of the query to search.
      */
     private static function get_query_variants( string $query ): array {
-        $variants = array( $query );
+        $variants = [ $query ];
 
-        if ( str_contains( $query, "'" ) || str_contains( $query, "’" ) ) {
-            $stripped = str_replace( array( "'", "’" ), '', $query );
-            if ( $stripped !== $query && mb_strlen( $stripped ) >= 2 ) {
-                $variants[] = $stripped;
+        // --- Single-quote / apostrophe variants ---
+        if ( self::query_has_chars( $query, self::APOS_CHARS ) ) {
+            foreach ( self::APOS_CHARS as $replacement ) {
+                $variants[] = str_replace( self::APOS_CHARS, $replacement, $query );
             }
-            $variants[] = str_replace( "'", "’", $query );
-            $variants[] = str_replace( "’", "'", $query );
+        }
+
+        // --- Double-quote variants ---
+        if ( self::query_has_chars( $query, self::DQUOTE_CHARS ) ) {
+            foreach ( self::DQUOTE_CHARS as $replacement ) {
+                $variants[] = str_replace( self::DQUOTE_CHARS, $replacement, $query );
+            }
+        }
+
+        // --- Dash variants ---
+        if ( self::query_has_chars( $query, self::DASH_CHARS ) ) {
+            // Variant: no dash (compounds sometimes written without)
+            $stripped_dash = str_replace( self::DASH_CHARS, '', $query );
+            if ( $stripped_dash !== $query && mb_strlen( $stripped_dash ) >= 2 ) {
+                $variants[] = $stripped_dash;
+            }
+            foreach ( self::DASH_CHARS as $replacement ) {
+                $variants[] = str_replace( self::DASH_CHARS, $replacement, $query );
+            }
         }
 
         return array_values( array_unique( $variants ) );
@@ -334,14 +494,15 @@ class JetReader_Search_Index {
             $counts[ $id ]++;
         }
 
-        // Items that had a COUNT entry but zero fetched rows still appear with total.
-        foreach ( $totals as $id => $total ) {
-            if ( ! isset( $grouped[ $id ] ) ) {
-                $grouped[ $id ] = array( 'matches' => array(), 'total' => $total );
+        // Filter out any items that ended up with 0 actual word matches after post-filtering
+        $filtered = array();
+        foreach ( $grouped as $id => $data ) {
+            if ( ! empty( $data['matches'] ) ) {
+                $filtered[ $id ] = $data;
             }
         }
 
-        return $grouped;
+        return $filtered;
     }
 
     // -------------------------------------------------------------------------
@@ -376,9 +537,11 @@ class JetReader_Search_Index {
 
         $files     = self::resolve_files( $item );
         $all_pages = array();
+        $vol_counts = array();
 
         foreach ( $files as $vol_idx => $file_info ) {
             $pages = JetReader_Parser_Engine::extract_all_pages( $file_info['path'], $file_info['type'] );
+            $vol_counts[ $vol_idx ] = count( $pages );
             foreach ( $pages as &$p ) {
                 $p['volume_idx'] = $vol_idx;
             }
@@ -388,6 +551,28 @@ class JetReader_Search_Index {
 
         // populate() always deletes existing rows first — safe to call repeatedly.
         self::populate( $item_id, $all_pages );
+
+        // Update page_count and volumes (with individual page counts) in the items table.
+        $update_data = array( 'page_count' => count( $all_pages ) );
+        if ( ! empty( $item->volumes ) && ! empty( $vol_counts ) ) {
+            $decoded = json_decode( $item->volumes, true );
+            if ( is_array( $decoded ) ) {
+                foreach ( $decoded as $idx => &$vol ) {
+                    if ( isset( $vol_counts[ $idx ] ) ) {
+                        $vol['page_count'] = $vol_counts[ $idx ];
+                    }
+                }
+                unset( $vol );
+                $update_data['volumes'] = wp_json_encode( $decoded );
+            }
+        }
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+        $wpdb->update(
+            "{$wpdb->prefix}jetreader_items",
+            $update_data,
+            array( 'id' => $item_id )
+        );
 
         return true;
     }
@@ -479,11 +664,13 @@ class JetReader_Search_Index {
                 $files = self::resolve_files( $item );
 
                 $all_pages = array();
+                $vol_counts = array();
                 foreach ( $files as $vol_idx => $file_info ) {
                     $pages = JetReader_Parser_Engine::extract_all_pages(
                         $file_info['path'],
                         $file_info['type']
                     );
+                    $vol_counts[ $vol_idx ] = count( $pages );
                     foreach ( $pages as &$p ) {
                         $p['volume_idx'] = $vol_idx;
                     }
@@ -494,6 +681,29 @@ class JetReader_Search_Index {
                 if ( ! empty( $all_pages ) ) {
                     // Write into the shadow table instead of the live one.
                     self::populate_table( (int) $item->id, $all_pages, $tmp_table );
+
+                    // Update page_count and volumes (with individual page counts) in the items table.
+                    $update_data = array( 'page_count' => count( $all_pages ) );
+                    if ( ! empty( $item->volumes ) && ! empty( $vol_counts ) ) {
+                        $decoded = json_decode( $item->volumes, true );
+                        if ( is_array( $decoded ) ) {
+                            foreach ( $decoded as $idx => &$vol ) {
+                                if ( isset( $vol_counts[ $idx ] ) ) {
+                                    $vol['page_count'] = $vol_counts[ $idx ];
+                                }
+                            }
+                            unset( $vol );
+                            $update_data['volumes'] = wp_json_encode( $decoded );
+                        }
+                    }
+
+                    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+                    $wpdb->update(
+                        "{$wpdb->prefix}jetreader_items",
+                        $update_data,
+                        array( 'id' => (int) $item->id )
+                    );
+
                     $count++;
                 }
             }
@@ -544,7 +754,7 @@ class JetReader_Search_Index {
             $placeholders = array();
 
             foreach ( $chunk as $page ) {
-                $content = substr( (string) ( $page['content'] ?? '' ), 0, 65000 );
+                $content = mb_substr( (string) ( $page['content'] ?? '' ), 0, self::MAX_CONTENT_LEN );
                 if ( '' === trim( $content ) ) {
                     continue;
                 }
@@ -559,10 +769,10 @@ class JetReader_Search_Index {
                 continue;
             }
 
-            // Escaping the table name and placeholders via esc_sql before query construction to ensure PluginCheck passes.
+            // Escaping the table name via esc_sql before query construction. Placeholders are safe and must not be escaped, otherwise prepare() fails to match format specifiers.
             $escaped_table = esc_sql( $table );
-            $escaped_placeholders = esc_sql( implode( ', ', $placeholders ) );
-            $sql = "INSERT INTO `{$escaped_table}` (item_id, volume_idx, page_num, content) VALUES {$escaped_placeholders}";
+            $placeholders_str = implode( ', ', $placeholders );
+            $sql = "INSERT INTO `{$escaped_table}` (item_id, volume_idx, page_num, content) VALUES {$placeholders_str}";
             // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.DirectQuery
             $wpdb->query( $wpdb->prepare( $sql, $values ) );
         }
@@ -583,18 +793,41 @@ class JetReader_Search_Index {
                     $url  = $vol['file_path'] ?? '';
                     $path = self::url_to_local_path( $url );
                     $type = self::detect_type( $url, $vol['file_type'] ?? '' );
+                    $is_temp = false;
+
+                    if ( $path && preg_match( '#^https?://#i', $path ) ) {
+                        $downloaded = self::download_remote_file_to_temp( $path );
+                        if ( ! is_wp_error( $downloaded ) && file_exists( $downloaded ) ) {
+                            $path = $downloaded;
+                            $is_temp = true;
+                        } else {
+                            continue;
+                        }
+                    }
+
                     if ( $path && file_exists( $path ) ) {
-                        $files[ $idx ] = array( 'path' => $path, 'type' => $type );
+                        $files[ $idx ] = array( 'path' => $path, 'type' => $type, 'is_temp' => $is_temp );
                     }
                 }
             }
         }
 
         if ( empty( $files ) && ! empty( $item->file_path ) ) {
-            $path = self::url_to_local_path( $item->file_path );
-            if ( file_exists( $path ) ) {
-                $type     = self::detect_type( $item->file_path, $item->file_type ?? '' );
-                $files[0] = array( 'path' => $path, 'type' => $type );
+            $url = $item->file_path;
+            $path = self::url_to_local_path( $url );
+            $type     = self::detect_type( $url, $item->file_type ?? '' );
+            $is_temp = false;
+
+            if ( $path && preg_match( '#^https?://#i', $path ) ) {
+                $downloaded = self::download_remote_file_to_temp( $path );
+                if ( ! is_wp_error( $downloaded ) && file_exists( $downloaded ) ) {
+                    $path = $downloaded;
+                    $is_temp = true;
+                }
+            }
+
+            if ( $path && file_exists( $path ) ) {
+                $files[0] = array( 'path' => $path, 'type' => $type, 'is_temp' => $is_temp );
             }
         }
 
@@ -637,5 +870,63 @@ class JetReader_Search_Index {
         }
 
         return $url_or_path;
+    }
+
+    /**
+     * Download a remote file to a temporary local path.
+     */
+    private static function download_remote_file_to_temp( string $url ) {
+        if ( ! function_exists( 'download_url' ) ) {
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+        }
+
+        $host = wp_parse_url( $url, PHP_URL_HOST );
+        if ( $host ) {
+            $hosts_to_check = array();
+            if ( filter_var( $host, FILTER_VALIDATE_IP ) ) {
+                $hosts_to_check[] = $host;
+            } else {
+                $records = dns_get_record( $host, DNS_A | DNS_AAAA );
+                if ( is_array( $records ) ) {
+                    foreach ( $records as $record ) {
+                        if ( isset( $record['ip'] ) ) {
+                            $hosts_to_check[] = $record['ip'];
+                        } elseif ( isset( $record['ipv6'] ) ) {
+                            $hosts_to_check[] = $record['ipv6'];
+                        }
+                    }
+                }
+            }
+
+            if ( empty( $hosts_to_check ) ) {
+                $resolved = gethostbyname( $host );
+                if ( $resolved !== $host ) {
+                    $hosts_to_check[] = $resolved;
+                }
+            }
+
+            foreach ( $hosts_to_check as $resolved_ip ) {
+                if ( self::is_private_ip( $resolved_ip ) ) {
+                    return new WP_Error( 'jetreader_private_ip', 'Internal resource download blocked.' );
+                }
+            }
+        }
+
+        $tmp_file = download_url( $url, 30 ); // 30 seconds timeout.
+        return $tmp_file;
+    }
+
+    /**
+     * Check if an IP address is in a private or reserved range.
+     */
+    private static function is_private_ip( string $ip ): bool {
+        if ( ! filter_var( $ip, FILTER_VALIDATE_IP ) ) {
+            return true;
+        }
+        return ! filter_var(
+            $ip,
+            FILTER_VALIDATE_IP,
+            FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
+        );
     }
 }

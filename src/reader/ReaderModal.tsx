@@ -69,6 +69,8 @@ interface VolumeEntry {
     file_path: string;
     file_type: string;
     cover_image: string;
+    page_count?: number;
+    encoding?: string;
 }
 
 interface ReaderModalProps {
@@ -87,20 +89,84 @@ interface ReaderModalProps {
     initialVolume?: number;
     /** Auto-open search with this term on first render */
     initialSearch?: string;
+    /** Raw excerpt anchor stored by the "Go" button as a fallback navigation hint */
+    initialAnchor?: string;
+    /** Custom character encoding for text files */
+    encoding?: string;
 }
 
 /**
- * Helper to normalize string for query matching (collapsing all whitespace sequences).
+ * Typographic → keyboard character maps for universal search normalisation.
+ * All replacements are 1:1 BMP code-unit swaps so indexMap in normalizeAndMap stays valid.
+ *
+ * Covers: straight ↔ curly quotes/apostrophes, Arabic romanization marks (ʾ/ʿ),
+ * en-/em-dash, all Unicode dash variants, curly/guillemet double quotes, and
+ * full-width ASCII variants (CJK documents).  User can type the plain keyboard
+ * character and find any typographic variant in PDF/DOCX/EPUB content.
+ */
+// Single quotes / apostrophes → ' (U+0027)
+// U+02BE = RIGHT HALF RING (Arabic romanization hamza), U+02BF = LEFT HALF RING (ʿain)
+const _READER_APOS_RE   = /[‘’‚‛ʼʻ＇`´ʾʿ]/g;
+// Double quotes → " (U+0022)
+const _READER_DQUOTE_RE = /[“”„‟«»]/g;
+// Dashes → - (U+002D): hyphen, en-dash, em-dash, minus sign, fullwidth variants
+const _READER_DASH_RE   = /[‐‑‒–—―−﹣－]/g;
+// Full-width ASCII punctuation → ASCII  (U+FFxx − 0xFEE0 = ASCII code)
+const _READER_FWIDTH_RE = /[！？．，；：（）]/g;
+
+/**
+ * Normalise a string for search-query matching (query text AND PDF page text).
+ * - NFC canonical form (handles combining diacritics for Greek, Arabic, etc.)
+ * - Turkish İ → i  before toLowerCase; ı → i  after
+ * - All apostrophe/quote/dash/full-width variants → ASCII equivalents
+ * - toLowerCase: Latin, Cyrillic, Greek, Armenian, Georgian, etc.
  */
 const normalizeQuery = (str: string): string => {
     return str
-        .replace(/[\r\n\t\u00A0]/g, ' ')
+        .normalize('NFC')
+        .replace(/[\r\n\t\u00A0\u2000-\u200A\u202F\u3000]/g, ' ')
         .replace(/\s+/g, ' ')
         .replace(/İ/g, 'i')
-        .replace(/I/g, 'ı')
+        .replace(_READER_APOS_RE,   "'")
+        .replace(_READER_DQUOTE_RE, '"' )
+        .replace(_READER_DASH_RE,   '-')
+        .replace(_READER_FWIDTH_RE, (m) => String.fromCodePoint(m.codePointAt(0)! - 0xFEE0))
         .toLowerCase()
+        .replace(/ı/g, 'i')
         .replace(/i̇/g, 'i')
         .trim();
+};
+
+/**
+ * Locate the exact reader page index containing the initialAnchor snippet.
+ */
+const findAnchorPage = (
+    anchor: string,
+    pages: ReaderPage[],
+    pdfTextCache: string[] | null,
+    format: string
+): { pageIndex: number; charOffset: number } | null => {
+    const normAnchor = normalizeQuery(anchor);
+    if (normAnchor.length < 5) return null; // too short to be unique
+
+    if (format === 'pdf' && pdfTextCache) {
+        for (let i = 0; i < pdfTextCache.length; i++) {
+            const normContent = normalizeQuery(pdfTextCache[i]);
+            const pos = normContent.indexOf(normAnchor);
+            if (pos !== -1) {
+                return { pageIndex: i, charOffset: pos };
+            }
+        }
+    } else {
+        for (let i = 0; i < pages.length; i++) {
+            const normContent = normalizeQuery(pages[i].content ?? '');
+            const pos = normContent.indexOf(normAnchor);
+            if (pos !== -1) {
+                return { pageIndex: i, charOffset: pos };
+            }
+        }
+    }
+    return null;
 };
 
 /**
@@ -126,8 +192,12 @@ const normalizeAndMap = (virt: string) => {
         } else {
             const normChar = char
                 .replace(/İ/g, 'i')
-                .replace(/I/g, 'ı')
+                .replace(_READER_APOS_RE,   "'")
+                .replace(_READER_DQUOTE_RE, '"' )
+                .replace(_READER_DASH_RE,   '-')
+                .replace(_READER_FWIDTH_RE, (m) => String.fromCodePoint(m.codePointAt(0)! - 0xFEE0))
                 .toLowerCase()
+                .replace(/ı/g, 'i')
                 .replace(/i̇/g, 'i');
             
             normalized += normChar;
@@ -139,6 +209,36 @@ const normalizeAndMap = (virt: string) => {
     }
 
     return { normalized, indexMap };
+};
+
+/**
+ * Helper to perform Unicode-safe whole-word matching.
+ */
+const findMatchPositions = (text: string, query: string): number[] => {
+    const q = query;
+    const qLen = q.length;
+    if (qLen < 2) return [];
+
+    const isWordChar = (char: string) => /[\p{L}\p{N}]/u.test(char);
+    const qStartsWord = isWordChar(q.charAt(0));
+    const qEndsWord = isWordChar(q.charAt(qLen - 1));
+
+    const positions: number[] = [];
+    let pos = text.indexOf(q);
+    while (pos !== -1) {
+        let isValid = true;
+        if (qStartsWord && pos > 0 && isWordChar(text.charAt(pos - 1))) {
+            isValid = false;
+        }
+        if (qEndsWord && pos + qLen < text.length && isWordChar(text.charAt(pos + qLen))) {
+            isValid = false;
+        }
+        if (isValid) {
+            positions.push(pos);
+        }
+        pos = text.indexOf(q, pos + qLen);
+    }
+    return positions;
 };
 
 /**
@@ -175,13 +275,12 @@ function highlightHtml(html: string, query: string, activeMatchIndex?: number | 
         const { normalized: virtNorm, indexMap } = normalizeAndMap(virt);
         const ranges: { start: number; end: number; active: boolean }[] = [];
         let counter = 0;
-        let p = virtNorm.indexOf(q);
-        while (p !== -1) {
+        const matchedPositions = findMatchPositions(virtNorm, q);
+        for (const p of matchedPositions) {
             const origStart = indexMap[p];
             const origEnd = indexMap[p + q.length - 1] + 1;
             ranges.push({ start: origStart, end: origEnd, active: counter === activeMatchIndex });
             counter++;
-            p = virtNorm.indexOf(q, p + q.length);
         }
         if (ranges.length === 0) return html;
 
@@ -390,7 +489,7 @@ const PdfCanvas: React.FC<{
         const ctx = hlCanvas.getContext('2d')!;
         ctx.clearRect(0, 0, hlCanvas.width, hlCanvas.height);
 
-        const q = query.trim().toLowerCase();
+        const q = normalizeQuery(query);
         if (q.length < 2) return;
 
         const tc = await page.getTextContent();
@@ -399,16 +498,16 @@ const PdfCanvas: React.FC<{
         for (const item of tc.items as any[]) {
             if (typeof item.str !== 'string' || !item.str) continue;
 
-            const lowerStr = item.str.toLowerCase();
-            let pos = lowerStr.indexOf(q);
-            if (pos === -1) continue;
+            const lowerStr = normalizeQuery(item.str);
+            const matchedPositions = findMatchPositions(lowerStr, q);
+            if (matchedPositions.length === 0) continue;
 
             const [a, b, , , tx, ty] = item.transform as number[];
             const w = item.width as number;
             const h = (item.height as number) > 0 ? item.height : Math.hypot(a, b);
             const charWidth = w / item.str.length;
 
-            while (pos !== -1) {
+            for (const pos of matchedPositions) {
                 const startX = tx + charWidth * pos;
                 const matchW = charWidth * q.length;
 
@@ -422,8 +521,6 @@ const PdfCanvas: React.FC<{
                 const rw = Math.abs(x2 - x1) * dpr;
                 const rh = Math.abs(y2 - y1) * dpr;
                 if (rw > 0 && rh > 0) ctx.fillRect(rx, ry, rw, rh);
-
-                pos = lowerStr.indexOf(q, pos + q.length);
             }
         }
     }, []); // uses only refs — stable forever
@@ -673,7 +770,7 @@ const PdfSidebar: React.FC<{
             </div>
 
             {/* Content */}
-            <div className={`flex-1 overflow-y-auto overscroll-contain jr-scrollbar ${mode === 'thumbs' ? '' : `jr-sidebar-font-${fontStep}`}`}>
+            <div className={`flex-1 overflow-y-auto overflow-x-hidden overscroll-contain jr-scrollbar ${mode === 'thumbs' ? '' : `jr-sidebar-font-${fontStep}`}`}>
                 {mode === 'thumbs' ? (
                     <div className="py-2">
                         {Array.from({ length: totalPages }, (_, i) => (
@@ -824,14 +921,10 @@ const PdfScrollPage = React.memo<{
 
         const { page, viewport, dpr } = state;
         const normalize = (str: string): string => {
-            return str
-                .replace(/İ/g, 'i')
-                .replace(/I/g, 'ı')
-                .toLowerCase()
-                .replace(/i̇/g, 'i');
+            return normalizeQuery(str);
         };
 
-        const q = normalize(query.trim());
+        const q = normalize(query);
         const activeMatchIndexValue = activeMatchIndexRef.current;
 
         // Do ALL async work before touching the canvas to avoid partial-clear flicker.
@@ -857,7 +950,7 @@ const PdfScrollPage = React.memo<{
                     charIdx += itemStr.length;
                 }
                 normFullText = normalize(fullText);
-                hasMatches = normFullText.includes(q);
+                hasMatches = findMatchPositions(normFullText, q).length > 0;
             } catch { return; }
         }
 
@@ -878,10 +971,11 @@ const PdfScrollPage = React.memo<{
             return;
         }
 
+        const matchedPositions = findMatchPositions(normFullText, q);
+
         // Loop 1: Draw all yellow (non-active) matches
-        let pos = 0;
         let occurrenceIdx = 0;
-        while ((pos = normFullText.indexOf(q, pos)) !== -1) {
+        for (const pos of matchedPositions) {
             const matchEnd = pos + q.length;
             const isActive = activeMatchIndexValue !== undefined && activeMatchIndexValue !== null && occurrenceIdx === activeMatchIndexValue;
 
@@ -913,15 +1007,13 @@ const PdfScrollPage = React.memo<{
                 }
             }
             occurrenceIdx++;
-            pos += q.length;
         }
 
         // Loop 2: Draw the active orange match if present
         let minY = Infinity;
         if (activeMatchIndexValue !== undefined && activeMatchIndexValue !== null) {
-            pos = 0;
             occurrenceIdx = 0;
-            while ((pos = normFullText.indexOf(q, pos)) !== -1) {
+            for (const pos of matchedPositions) {
                 const matchEnd = pos + q.length;
                 const isActive = occurrenceIdx === activeMatchIndexValue;
 
@@ -959,7 +1051,6 @@ const PdfScrollPage = React.memo<{
                     break;
                 }
                 occurrenceIdx++;
-                pos += q.length;
             }
         }
 
@@ -1367,7 +1458,7 @@ const TocSidebar: React.FC<{
             </div>
 
             {/* TOC List */}
-            <div className={`flex-1 overflow-y-auto overscroll-contain jr-scrollbar py-1.5 jr-sidebar-font-${fontStep}`}>
+            <div className={`flex-1 overflow-y-auto overflow-x-hidden overscroll-contain jr-scrollbar py-1.5 jr-sidebar-font-${fontStep}`}>
                 {toc.map((entry, i) => {
                     const depth = entry.depth ?? 0;
                     return (
@@ -1737,6 +1828,8 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
     initialPage,
     initialVolume,
     initialSearch,
+    initialAnchor,
+    encoding,
 }) => {
 
     const isPageMode = pageMode === 'page';
@@ -1744,11 +1837,26 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
     const { t } = useTranslation();
 
     /* ── Volume state ── */
-    const [currentVolume, setCurrentVolume] = useState(initialVolume ?? 0);
+    const [currentVolume, setCurrentVolume] = useState(() => {
+        if (initialVolume !== undefined) return initialVolume;
+        const urlParams = new URLSearchParams(window.location.search);
+        const qVol = urlParams.get('volume');
+        if (qVol !== null) {
+            return (parseInt(qVol, 10) || 1) - 1;
+        }
+        const hash = window.location.hash.slice(1);
+        const hashParams = new URLSearchParams(hash);
+        const hVol = hashParams.get('volume');
+        if (hVol !== null) {
+            return (parseInt(hVol, 10) || 1) - 1;
+        }
+        return 0;
+    });
     const activeFileUrl = volumes ? volumes[currentVolume]?.file_path ?? fileUrl : fileUrl;
     const _storedFormat = volumes ? (volumes[currentVolume]?.file_type as ReaderFormat) ?? format : format;
     // URL extension takes priority over stored file_type — mirrors ReaderEngine.loadBook() behaviour
     const activeFormat: ReaderFormat = detectFormatFromUrl(activeFileUrl) ?? _storedFormat;
+    const activeEncoding = volumes ? volumes[currentVolume]?.encoding ?? encoding : encoding;
 
     const volLabel = (idx: number) =>
         itemType === 'magazine' ? `${t('reader.volLabelMagazine')} ${idx + 1}` : `${t('reader.volLabelBook')} ${idx + 1}`;
@@ -1758,7 +1866,21 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
     const [error, setError] = useState<string | null>(null);
     const [pages, setPages] = useState<ReaderPage[]>([]);
     const [metadata, setMetadata] = useState<ReaderMetadata | null>(null);
-    const [currentPage, setCurrentPage] = useState(initialPage ?? 0);
+    const [currentPage, setCurrentPage] = useState(() => {
+        if (initialPage !== undefined) return initialPage;
+        const urlParams = new URLSearchParams(window.location.search);
+        const qPage = urlParams.get('page');
+        if (qPage !== null) {
+            return parseInt(qPage, 10) || 0;
+        }
+        const hash = window.location.hash.slice(1);
+        const hashParams = new URLSearchParams(hash);
+        const hPage = hashParams.get('page');
+        if (hPage !== null) {
+            return parseInt(hPage, 10) || 0;
+        }
+        return 0;
+    });
 
     /* ── TOC / Sidebar ── */
     const [toc, setToc] = useState<TocEntry[]>([]);
@@ -1940,7 +2062,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
             pdfDocRef.current = null;
 
             try {
-                const result = await ReaderEngine.loadBook(activeFileUrl, activeFormat);
+                const result = await ReaderEngine.loadBook(activeFileUrl, activeFormat, activeEncoding);
                 if (cancelled) return;
 
                 pdfDocRef.current = result.pdfDoc ?? null;
@@ -1995,7 +2117,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
 
         load();
         return () => { cancelled = true; };
-    }, [activeFileUrl, activeFormat]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [activeFileUrl, activeFormat, activeEncoding, currentVolume]); // eslint-disable-line react-hooks/exhaustive-deps
 
     /* ── Save reading position ── */
     useEffect(() => {
@@ -2280,53 +2402,59 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
         const q = normalizeQuery(searchQuery);
         if (q.length < 2) return;
 
-        let matches: { pageIndex: number; matchIndex: number }[] = [];
+        let matches: { pageIndex: number; matchIndex: number; charOffset?: number }[] = [];
 
         if (activeFormat === 'pdf') {
             if (!pdfTextCache) return; // still extracting
             for (let i = 0; i < pdfTextCache.length; i++) {
                 const text = normalizeQuery(pdfTextCache[i]);
-                let pos = text.indexOf(q);
+                const matchedPositions = findMatchPositions(text, q);
                 let matchIndex = 0;
-                while (pos !== -1) {
-                    matches.push({ pageIndex: i, matchIndex });
+                for (const pos of matchedPositions) {
+                    matches.push({ pageIndex: i, matchIndex, charOffset: pos });
                     matchIndex++;
-                    pos = text.indexOf(q, pos + q.length);
                 }
             }
         } else {
-            // Mirror highlightHtml()'s virtual-text approach: concatenate all text
-            // nodes (no separators) then search in the normalized result.
-            // This correctly counts cross-element matches like "they <em>are</em>"
-            // and keeps matchIndex values perfectly in sync with the marks
-            // that highlightHtml() will create.
+            // Lazy cached DOM Parsing & exact matching to keep search instant and avoid freezes.
             for (let i = 0; i < pages.length; i++) {
-                const htmlContent = pages[i].htmlContent ?? '';
-                try {
-                    const d = new DOMParser().parseFromString(`<div>${htmlContent}</div>`, 'text/html');
-                    let virt = '';
-                    const collect = (n: Node) => {
-                        if (n.nodeType === Node.TEXT_NODE) virt += n.textContent ?? '';
-                        else Array.from(n.childNodes).forEach(collect);
-                    };
-                    collect(d.body);
-                    const { normalized: virtNorm } = normalizeAndMap(virt);
-                    let pos = virtNorm.indexOf(q);
-                    let matchIndex = 0;
-                    while (pos !== -1) {
-                        matches.push({ pageIndex: i, matchIndex });
-                        matchIndex++;
-                        pos = virtNorm.indexOf(q, pos + q.length);
+                const page = pages[i] as any;
+                const plainText = page.content ?? '';
+                // Collapsed space normalization pre-check
+                if (normalizeQuery(plainText).indexOf(q) === -1) {
+                    continue;
+                }
+
+                let virt = page._virtualText;
+                let virtNorm = page._virtNorm;
+                if (virt === undefined) {
+                    const htmlContent = page.htmlContent ?? '';
+                    try {
+                        const d = new DOMParser().parseFromString(`<div>${htmlContent}</div>`, 'text/html');
+                        let v = '';
+                        const collect = (n: Node) => {
+                            if (n.nodeType === Node.TEXT_NODE) v += n.textContent ?? '';
+                            else Array.from(n.childNodes).forEach(collect);
+                        };
+                        collect(d.body);
+                        virt = v;
+                        const mapped = normalizeAndMap(v);
+                        virtNorm = mapped.normalized;
+                        page._indexMap = mapped.indexMap;
+                    } catch {
+                        virt = plainText;
+                        virtNorm = normalizeQuery(plainText);
+                        page._indexMap = Array.from({ length: plainText.length }, (_, k) => k);
                     }
-                } catch {
-                    const text = normalizeQuery(pages[i].content ?? '');
-                    let pos = text.indexOf(q);
-                    let matchIndex = 0;
-                    while (pos !== -1) {
-                        matches.push({ pageIndex: i, matchIndex });
-                        matchIndex++;
-                        pos = text.indexOf(q, pos + q.length);
-                    }
+                    page._virtualText = virt;
+                    page._virtNorm = virtNorm;
+                }
+
+                const matchedPositions = findMatchPositions(virtNorm, q);
+                let matchIndex = 0;
+                for (const pos of matchedPositions) {
+                    matches.push({ pageIndex: i, matchIndex, charOffset: pos });
+                    matchIndex++;
                 }
             }
         }
@@ -2336,7 +2464,16 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
 
         const actualTargetPage = typeof targetPage === 'number' ? targetPage : undefined;
         let exactTargetPage = actualTargetPage !== undefined ? actualTargetPage : (initialPage !== undefined ? initialPage : -1);
-        if (activeFormat === 'epub' && exactTargetPage !== -1 && pages.length > 0) {
+
+        let anchorLoc: { pageIndex: number; charOffset: number } | null = null;
+        if (initialAnchor) {
+            anchorLoc = findAnchorPage(initialAnchor, pages, pdfTextCache, activeFormat);
+            if (anchorLoc) {
+                exactTargetPage = anchorLoc.pageIndex;
+            }
+        }
+
+        if (activeFormat === 'epub' && exactTargetPage !== -1 && pages.length > 0 && !anchorLoc) {
             let targetCharOffset = exactTargetPage * 1500;
             let currentOffset = 0;
             let mappedPage = 0;
@@ -2351,33 +2488,84 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
             }
             exactTargetPage = mappedPage;
         }
-        const idxOfTarget = exactTargetPage !== -1 ? matches.findIndex(m => m.pageIndex === exactTargetPage) : -1;
 
-        if (idxOfTarget !== -1) {
-            setSearchMatchIdx(idxOfTarget);
+        // Target match index closest to anchor location if found
+        let bestMatchIdx = -1;
+        if (anchorLoc) {
+            const pageMatches = matches.filter(m => m.pageIndex === anchorLoc!.pageIndex);
+            if (pageMatches.length > 0) {
+                const normAnchor = normalizeQuery(initialAnchor!);
+                const qInAnchor = normAnchor.indexOf(q);
+                const targetCharOffset = anchorLoc.charOffset + (qInAnchor !== -1 ? qInAnchor : 0);
+
+                let closestMatch = pageMatches[0];
+                let minDiff = Math.abs((closestMatch.charOffset ?? 0) - targetCharOffset);
+                for (let i = 1; i < pageMatches.length; i++) {
+                    const diff = Math.abs((pageMatches[i].charOffset ?? 0) - targetCharOffset);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        closestMatch = pageMatches[i];
+                    }
+                }
+                bestMatchIdx = matches.findIndex(m => m.pageIndex === closestMatch.pageIndex && m.matchIndex === closestMatch.matchIndex);
+            }
+        }
+
+        if (bestMatchIdx !== -1) {
+            setSearchMatchIdx(bestMatchIdx);
             setCurrentPage(exactTargetPage);
             setSearchScrollKey(k => k + 1);
         } else {
-            setSearchMatchIdx(0);
-            if (matches.length > 0) {
-                if (exactTargetPage === -1) {
-                    setCurrentPage(matches[0].pageIndex);
-                }
+            const idxOfTarget = exactTargetPage !== -1 ? matches.findIndex(m => m.pageIndex === exactTargetPage) : -1;
+            if (idxOfTarget !== -1) {
+                setSearchMatchIdx(idxOfTarget);
+                setCurrentPage(exactTargetPage);
                 setSearchScrollKey(k => k + 1);
+            } else {
+                if (matches.length > 0) {
+                    // No match on the exact target page (common for DOCX where DB page_num
+                    // and reader page indices can differ).  Navigate to the match whose page
+                    // is closest to the target so the user lands near the right content
+                    // rather than always jumping to the very first match in the document.
+                    let nearestIdx = 0;
+                    if (exactTargetPage !== -1) {
+                        nearestIdx = matches.reduce((best, _m, i) => {
+                            const bestDist = Math.abs(matches[best].pageIndex - exactTargetPage);
+                            const curDist  = Math.abs(matches[i].pageIndex   - exactTargetPage);
+                            return curDist < bestDist ? i : best;
+                        }, 0);
+                    }
+                    setSearchMatchIdx(nearestIdx);
+                    setCurrentPage(matches[nearestIdx].pageIndex);
+                    setSearchScrollKey(k => k + 1);
+                } else if (actualTargetPage !== undefined && actualTargetPage >= 0) {
+                    // Zero matches (encoding/format mismatch): navigate to approximate page.
+                    setCurrentPage(actualTargetPage);
+                }
             }
         }
-    }, [searchQuery, pages, activeFormat, pdfTextCache, initialPage, setSearchScrollKey]);
+    }, [searchQuery, pages, activeFormat, pdfTextCache, initialPage, initialAnchor, setSearchScrollKey]);
 
-    // Auto-run search when reader opens with initialSearch set.
+    // Auto-run search when reader opens with initialSearch / initialAnchor set.
     // For PDFs: wait for pdfTextCache (background text extraction). For others: wait for pages.
     const didAutoSearch = useRef(false);
     useEffect(() => {
-        if (!initialSearch || didAutoSearch.current || loading) return;
+        const hasTarget = initialSearch || initialAnchor;
+        if (!hasTarget || didAutoSearch.current || loading) return;
         if (activeFormat === 'pdf' && pdfTextCache === null) return;
         if (activeFormat !== 'pdf' && pages.length === 0) return;
         didAutoSearch.current = true;
-        handleSearch(initialPage);
-    }, [loading, pages.length, pdfTextCache, activeFormat, initialSearch, initialPage, handleSearch]); // eslint-disable-line react-hooks/exhaustive-deps
+
+        if (initialSearch) {
+            // Primary: search with the user's original query term.
+            handleSearch(initialPage);
+        } else if (initialAnchor) {
+            // Anchor-only fallback: set the query to the anchor text and search.
+            // This fires when the deeplink came from a "Go" button but no searchTerm
+            // was set, or after the primary search found zero matches.
+            setSearchQuery(initialAnchor);
+        }
+    }, [loading, pages.length, pdfTextCache, activeFormat, initialSearch, initialAnchor, initialPage, handleSearch, setSearchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const searchNext = () => {
         if (searchMatches.length === 0) return;
@@ -2675,7 +2863,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                           strokeLinejoin="round"/>
                                     <path d="M18 19h6M18 23h4" stroke="#8A2BE2" strokeWidth="2.5" strokeLinecap="round" opacity="0.7"/>
                                     <text x="45" y="26" fontFamily="system-ui, -apple-system, sans-serif" fontSize="21" fontWeight="800" fill={isDark ? "#FFFFFF" : "#111827"} letterSpacing="-0.5">
-                                        Lec<tspan fontWeight="400" fill="#8A2BE2">tor</tspan>
+                                        Jet<tspan fontWeight="400" fill="#8A2BE2">Reader</tspan>
                                     </text>
                                 </svg>
                             ) : (
@@ -2711,7 +2899,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                               strokeLinejoin="round"/>
                                         <path d="M18 19h6M18 23h4" stroke="#8A2BE2" strokeWidth="2.5" strokeLinecap="round" opacity="0.7"/>
                                         <text x="45" y="26" fontFamily="system-ui, -apple-system, sans-serif" fontSize="21" fontWeight="800" fill={isDark ? "#FFFFFF" : "#111827"} letterSpacing="-0.5">
-                                            Lec<tspan fontWeight="400" fill="#8A2BE2">tor</tspan>
+                                            Jet<tspan fontWeight="400" fill="#8A2BE2">Reader</tspan>
                                         </text>
                                     </svg>
                                 ) : (
@@ -2745,7 +2933,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                         </button>
 
                         <h2 className={`jr-reader-title hidden sm:block text-sm font-semibold truncate shrink ${isDark ? 'text-gray-200' : isSepia ? 'text-amber-900' : 'text-gray-800'}`}>
-                            {metadata?.title ?? title}
+                            {title || metadata?.title}
                         </h2>
 
                         {/* Back button — icon only on mobile, icon + label on desktop */}

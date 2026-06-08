@@ -3,6 +3,7 @@ export interface VolumeEntry {
     file_path: string;
     file_type: string;
     cover_image: string;
+    page_count?: number;
 }
 
 export interface DisplayItem {
@@ -20,6 +21,7 @@ export interface DisplayItem {
     publisher: string;
     publication_year: number;
     reading_time: number;
+    page_count?: number;
     featured: boolean;
     view_count: number;
     volumes?: VolumeEntry[] | null;
@@ -48,6 +50,7 @@ export interface DisplayAttrs {
     showPublisher?: boolean;
     showYear?: boolean;
     showLanguage?: boolean;
+    showPageCount?: boolean;
     // dimensions
     width: string;
     height: string;
