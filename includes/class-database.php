@@ -181,20 +181,6 @@ class JetReader_Database {
             KEY user_item (user_id, item_id)
         ) ENGINE=InnoDB $charset_collate;";
 
-        // 10. Search index table.
-        $sql[] = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}jetreader_search_index (
-            id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-            item_id BIGINT(20) UNSIGNED NOT NULL,
-            volume_idx INT(10) UNSIGNED NOT NULL DEFAULT 0,
-            page_num INT(10) UNSIGNED NOT NULL DEFAULT 0,
-            content LONGTEXT NOT NULL,
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (id),
-            KEY item_id (item_id),
-            KEY item_page (item_id, volume_idx, page_num),
-            FULLTEXT KEY ft_content (content)
-        ) ENGINE=InnoDB $charset_collate;";
-
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
         foreach ( $sql as $query ) {
@@ -215,9 +201,6 @@ class JetReader_Database {
         // Ensure authors and publishers tables exist.
         self::maybe_add_authors_table();
         self::maybe_add_publishers_table();
-
-        // Upgrade search_index schema (volume_idx, page_num).
-        self::maybe_upgrade_search_index();
 
         // Add composite index for the common list query pattern.
         self::maybe_add_composite_index();
@@ -293,52 +276,6 @@ class JetReader_Database {
         if ( ! $exists ) {
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.DirectQuery
             $wpdb->query( "ALTER TABLE `{$table}` ADD COLUMN `volumes` TEXT DEFAULT NULL" );
-        }
-    }
-
-    /**
-     * Upgrade search_index table for existing installs: add volume_idx + page_num,
-     * drop old columns that no longer exist in the schema.
-     * Safe to call multiple times.
-     */
-    public static function maybe_upgrade_search_index() {
-        global $wpdb;
-        $table = $wpdb->prefix . 'jetreader_search_index';
-
-        // Add volume_idx if missing.
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-        if ( ! $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM `{$table}` LIKE %s", 'volume_idx' ) ) ) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.DirectQuery
-            $wpdb->query( "ALTER TABLE `{$table}` ADD COLUMN `volume_idx` INT(10) UNSIGNED NOT NULL DEFAULT 0 AFTER `item_id`" );
-        }
-
-        // Add page_num if missing (replaces old page_number).
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-        if ( ! $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM `{$table}` LIKE %s", 'page_num' ) ) ) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-            if ( $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM `{$table}` LIKE %s", 'page_number' ) ) ) {
-                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.DirectQuery
-                $wpdb->query( "ALTER TABLE `{$table}` CHANGE COLUMN `page_number` `page_num` INT(10) UNSIGNED NOT NULL DEFAULT 0" );
-            } else {
-                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.DirectQuery
-                $wpdb->query( "ALTER TABLE `{$table}` ADD COLUMN `page_num` INT(10) UNSIGNED NOT NULL DEFAULT 0" );
-            }
-        }
-
-        // Add composite index if missing.
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-        if ( ! $wpdb->get_var( $wpdb->prepare( "SHOW INDEX FROM `{$table}` WHERE Key_name = %s", 'item_page' ) ) ) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.DirectQuery
-            $wpdb->query( "ALTER TABLE `{$table}` ADD KEY `item_page` (`item_id`, `volume_idx`, `page_num`)" );
-        }
-
-        // Drop obsolete columns.
-        foreach ( array( 'chapter_id', 'content_type' ) as $old_col ) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-            if ( $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM `{$table}` LIKE %s", $old_col ) ) ) {
-                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.DirectQuery
-                $wpdb->query( "ALTER TABLE `{$table}` DROP COLUMN `{$old_col}`" );
-            }
         }
     }
 

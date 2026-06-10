@@ -77,41 +77,35 @@ class JetReader_Activator {
      */
     private static function set_default_options() {
         $defaults = array(
-            'enabled_modules'    => array( 'books', 'articles', 'magazines', 'qa' ),
-            'upload_max_size'    => 100, // MB
-            'allowed_file_types' => array( 'epub', 'pdf', 'txt', 'docx' ),
-            'reader_font_size'   => 'medium',
-            'reader_theme'       => 'auto',
-            'reader_layout'      => 'paginated',
-            'grid_columns'       => 4,
-            'items_per_page'     => 20,
-            'search_engine'      => 'mysql',
-            'cache_enabled'      => true,
-            'annotation_enabled' => true,
-            'copy_enabled'       => true,
-            'plugin_language'    => 'en',
-            // CPT URL slugs (customisable per language/site).
-            'cpt_slug_book'      => 'jetreader-books',
-            'cpt_slug_article'   => 'jetreader-articles',
-            'cpt_slug_magazine'  => 'jetreader-magazines',
-            'cpt_slug_qa'        => 'jetreader-qa',
-            // Library card appearance.
-            'library_card_radius' => 'medium',
-            'library_card_border' => 'subtle',
-            'library_card_shadow' => 'subtle',
-            'library_card_hover'  => 'zoom',
-            'library_card_align'  => 'left',
-            'library_card_layout' => 'vertical',
-            // Detail field visibility defaults.
-            'show_detail_image'       => true,
-            'show_detail_title'       => true,
-            'show_detail_author'      => true,
-            'show_detail_translator'  => true,
-            'show_detail_publisher'   => true,
-            'show_detail_year'        => true,
-            'show_detail_type'        => true,
-            'show_detail_language'    => true,
-            'show_detail_page_count'  => true,
+            'enabled_modules'      => array( 'books', 'articles', 'magazines', 'qa' ),
+            'upload_max_size'      => 100, // MB
+            'allowed_file_types'   => array( 'epub', 'pdf', 'txt', 'docx' ),
+            'reader_font_size'     => 'medium',
+            'reader_theme'         => 'auto',
+            'reader_layout'        => 'paginated',
+            'grid_columns'         => 4,
+            'items_per_page'       => 20,
+            'search_engine'        => 'mysql',
+            'cache_enabled'        => true,
+            'annotation_enabled'   => true,
+            'copy_enabled'         => true,
+            'plugin_language'      => 'en',
+            'primary_palette'      => 'green',
+            // CPT URL slugs
+            'cpt_slug_book'        => 'jetreader-books',
+            'cpt_slug_article'     => 'jetreader-articles',
+            'cpt_slug_magazine'    => 'jetreader-magazines',
+            'cpt_slug_qa'          => 'jetreader-qa',
+            // Settings configurable in Lite view
+            'show_sidebar'         => true,
+            'show_filter_category' => true,
+            'show_filter_language' => true,
+            'show_filter_year'     => true,
+            'show_card_image'      => true,
+            'show_card_title'      => true,
+            'show_detail_image'    => true,
+            'show_detail_title'    => true,
+            'show_detail_author'   => true,
         );
 
         add_option( 'jetreader_settings', $defaults, '', 'no' );

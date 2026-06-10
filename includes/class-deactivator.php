@@ -30,8 +30,5 @@ class JetReader_Deactivator {
     private static function clear_scheduled_tasks() {
         wp_clear_scheduled_hook( 'jetreader_process_queue' );
         wp_clear_scheduled_hook( 'jetreader_cleanup_temp' );
-        wp_clear_scheduled_hook( 'jetreader_index_item' );
-        wp_clear_scheduled_hook( 'jetreader_rebuild_index' );
-        wp_clear_scheduled_hook( 'jetreader_daily_license_check' );
     }
 }

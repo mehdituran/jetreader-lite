@@ -148,15 +148,9 @@ function jetreader_uninstall_site(): void {
     // Current jetreader_* events.
     wp_clear_scheduled_hook( 'jetreader_process_queue' );
     wp_clear_scheduled_hook( 'jetreader_cleanup_temp' );
-    wp_clear_scheduled_hook( 'jetreader_index_item' );
-    wp_clear_scheduled_hook( 'jetreader_rebuild_index' );
-    wp_clear_scheduled_hook( 'jetreader_daily_license_check' );
     // Legacy lector_* events from the pre-rename version.
     wp_clear_scheduled_hook( 'lector_process_queue' );
     wp_clear_scheduled_hook( 'lector_cleanup_temp' );
-    wp_clear_scheduled_hook( 'lector_index_item' );
-    wp_clear_scheduled_hook( 'lector_rebuild_index' );
-    wp_clear_scheduled_hook( 'lector_daily_license_check' );
 
     // ── 6. Delete uploaded files ────────────────────────────────────────────────
     $upload_dir    = wp_upload_dir();

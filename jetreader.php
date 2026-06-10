@@ -20,6 +20,9 @@
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       jetreader
  * Domain Path:       /lang
+ *
+ * Human-readable source code is in the src/ directory.
+ * GitHub: https://github.com/mehdituran/jetreader-lite
  */
 
 // If this file is called directly, abort.
@@ -49,24 +52,6 @@ if ( file_exists( JETREADER_PLUGIN_DIR . 'vendor/woocommerce/action-scheduler/ac
 }
 
 /**
- * Helper function to check if the plugin is in Pro mode.
- *
- * @return bool False in Lite version.
- */
-function jetreader_is_pro(): bool {
-    return false;
-}
-
-/**
- * Helper function to check if the plugin is in Lite mode.
- *
- * @return bool True in Lite version.
- */
-function jetreader_is_lite(): bool {
-    return true;
-}
-
-/**
  * The code that runs during plugin activation.
  */
 function jetreader_activate() {
@@ -85,10 +70,6 @@ function jetreader_deactivate() {
 register_activation_hook( __FILE__, 'jetreader_activate' );
 register_deactivation_hook( __FILE__, 'jetreader_deactivate' );
 
-/**
- * WP-Cron: günlük lisans doğrulaması.
- * Lisans iptal/süresi dolmuşsa Pro özellikleri otomatik kilitler.
- */
 
 /**
  * Declare compatibility with WooCommerce HPOS (High-Performance Order Storage).
@@ -126,11 +107,6 @@ function jetreader_get_translations( $locale ) {
     }
 
     $file = JETREADER_PLUGIN_DIR . 'lang/' . $locale . '.json';
-
-    if ( ! file_exists( $file ) ) {
-        // Fallback to English.
-        $file = JETREADER_PLUGIN_DIR . 'lang/en.json';
-    }
 
     if ( ! file_exists( $file ) ) {
         return array();

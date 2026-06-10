@@ -431,17 +431,6 @@ class JetReader_REST_API {
             )
         );
 
-        // Admin: rebuild the full-text search index for all items.
-        register_rest_route(
-            $this->namespace,
-            '/rebuild-index',
-            array(
-                'methods'             => WP_REST_Server::CREATABLE,
-                'callback'            => array( $this, 'rebuild_search_index' ),
-                'permission_callback' => array( $this, 'check_admin_permission' ),
-            )
-        );
-
         // Public settings (for frontend reader to read annotation/copy toggles).
         register_rest_route(
             $this->namespace,
@@ -541,7 +530,7 @@ class JetReader_REST_API {
             array(
                 'methods'             => WP_REST_Server::READABLE,
                 'callback'            => array( $this, 'proxy_file' ),
-                'permission_callback' => '__return_true',
+                'permission_callback' => array( $this, 'proxy_permissions_check' ),
                 'args'                => array(
                     'url' => array(
                         'required'          => true,
@@ -551,33 +540,7 @@ class JetReader_REST_API {
             )
         );
 
-        // Export / Import.
-        register_rest_route(
-            $this->namespace,
-            '/export',
-            array(
-                'methods'             => WP_REST_Server::READABLE,
-                'callback'            => array( $this, 'export_items' ),
-                'permission_callback' => array( $this, 'check_admin_permission' ),
-                'args'                => array(
-                    'type' => array(
-                        'sanitize_callback' => 'sanitize_text_field',
-                        'default'           => '',
-                    ),
-                ),
-            )
-        );
-
-        register_rest_route(
-            $this->namespace,
-            '/import',
-            array(
-                'methods'             => WP_REST_Server::CREATABLE,
-                'callback'            => array( $this, 'import_items' ),
-                'permission_callback' => array( $this, 'check_admin_permission' ),
-            )
-        );
-
+        // Bulk create items (admin — BulkAddModal).
         register_rest_route(
             $this->namespace,
             '/items/bulk-create',
@@ -587,6 +550,7 @@ class JetReader_REST_API {
                 'permission_callback' => array( $this, 'check_admin_permission' ),
             )
         );
+
     }
 
     /**
@@ -600,24 +564,6 @@ class JetReader_REST_API {
         $page     = isset( $params['page'] ) ? max( 1, intval( $params['page'] ) ) : 1;
         $per_page = isset( $params['per_page'] ) ? min( 100, max( 1, intval( $params['per_page'] ) ) ) : 20;
         $type     = isset( $params['type'] ) ? sanitize_text_field( $params['type'] ) : '';
-
-        if ( ! current_user_can( 'manage_options' ) ) {
-            $offset = ( $page - 1 ) * $per_page;
-            if ( $offset >= 20 ) {
-                return rest_ensure_response(
-                    array(
-                        'items'    => array(),
-                        'total'    => 20,
-                        'page'     => $page,
-                        'per_page' => $per_page,
-                        'pages'    => ceil( 20 / $per_page ),
-                    )
-                );
-            }
-            if ( $offset + $per_page > 20 ) {
-                $per_page = 20 - $offset;
-            }
-        }
 
         $offset   = ( $page - 1 ) * $per_page;
 
@@ -765,10 +711,6 @@ class JetReader_REST_API {
         $total = $wpdb->get_var(
             "SELECT COUNT(*) FROM {$wpdb->prefix}jetreader_items i{$join} WHERE {$where_clause}"
         );
-
-        if ( ! current_user_can( 'manage_options' ) ) {
-            $total = min( 20, intval( $total ) );
-        }
 
         $items = $wpdb->get_results(
             $wpdb->prepare(
@@ -1238,7 +1180,7 @@ class JetReader_REST_API {
         $this->invalidate_permalink_cache();
         $this->invalidate_files_cache();
 
-        // CPT sync + async search indexing.
+        // CPT sync.
         try {
             if ( class_exists( 'JetReader_CPT' ) ) {
                 JetReader_CPT::sync_from_item( $item_id );
@@ -1246,13 +1188,6 @@ class JetReader_REST_API {
         } catch ( \Throwable $e ) {
             // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
             error_log( 'JetReader CPT sync failed on create: ' . $e->getMessage() );
-        }
-
-        try {
-            JetReader_Upload_Handler::schedule_index( $item_id );
-        } catch ( \Throwable $e ) {
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-            error_log( 'JetReader schedule_index failed on create: ' . $e->getMessage() );
         }
 
         return new WP_REST_Response(
@@ -1593,7 +1528,7 @@ class JetReader_REST_API {
         $this->invalidate_permalink_cache();
         $this->invalidate_files_cache();
 
-        // CPT sync + async re-index if file changed.
+        // CPT sync.
         try {
             if ( class_exists( 'JetReader_CPT' ) ) {
                 JetReader_CPT::sync_from_item( $item_id );
@@ -1601,13 +1536,6 @@ class JetReader_REST_API {
         } catch ( \Throwable $e ) {
             // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
             error_log( 'JetReader CPT sync failed on update: ' . $e->getMessage() );
-        }
-
-        try {
-            JetReader_Upload_Handler::schedule_index( $item_id );
-        } catch ( \Throwable $e ) {
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-            error_log( 'JetReader schedule_index failed on update: ' . $e->getMessage() );
         }
 
         return rest_ensure_response(
@@ -1686,7 +1614,6 @@ class JetReader_REST_API {
         $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}jetreader_chapters WHERE item_id IN ({$placeholders})", $ids ) );
         $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}jetreader_item_categories WHERE item_id IN ({$placeholders})", $ids ) );
         $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}jetreader_item_tags WHERE item_id IN ({$placeholders})", $ids ) );
-        $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}jetreader_search_index WHERE item_id IN ({$placeholders})", $ids ) );
         $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}jetreader_bookmarks WHERE item_id IN ({$placeholders})", $ids ) );
         $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}jetreader_notes WHERE item_id IN ({$placeholders})", $ids ) );
         $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}jetreader_items WHERE id IN ({$placeholders})", $ids ) );
@@ -1773,7 +1700,6 @@ class JetReader_REST_API {
         $wpdb->delete( "{$wpdb->prefix}jetreader_chapters", array( 'item_id' => $item_id ) );
         $wpdb->delete( "{$wpdb->prefix}jetreader_item_categories", array( 'item_id' => $item_id ) );
         $wpdb->delete( "{$wpdb->prefix}jetreader_item_tags", array( 'item_id' => $item_id ) );
-        $wpdb->delete( "{$wpdb->prefix}jetreader_search_index", array( 'item_id' => $item_id ) );
         $wpdb->delete( "{$wpdb->prefix}jetreader_bookmarks", array( 'item_id' => $item_id ) );
         $wpdb->delete( "{$wpdb->prefix}jetreader_notes", array( 'item_id' => $item_id ) );
         $wpdb->delete( "{$wpdb->prefix}jetreader_items", array( 'id' => $item_id ) );
@@ -2175,8 +2101,6 @@ class JetReader_REST_API {
             $settings['reader_logo_url'] = JETREADER_PLUGIN_URL . 'assets/logo/jetreader.svg';
         }
 
-        $settings = $this->enforce_free_limits( $settings );
-
         return rest_ensure_response( $settings );
     }
 
@@ -2188,9 +2112,6 @@ class JetReader_REST_API {
         $settings = get_option( 'jetreader_settings', array() );
 
         foreach ( $params as $key => $value ) {
-            if ( in_array( $key, array( 'license_key', 'license_status', 'license_expires' ), true ) ) {
-                continue;
-            }
             $settings[ $key ] = $this->sanitize_setting_value( $value );
         }
 
@@ -2199,8 +2120,6 @@ class JetReader_REST_API {
         if ( isset( $settings['reader_logo_url'] ) && ( empty( $settings['reader_logo_url'] ) || $settings['reader_logo_url'] === $default_logo ) ) {
             $settings['reader_logo_url'] = '';
         }
-
-        $settings = $this->enforce_free_limits( $settings );
 
         update_option( 'jetreader_settings', $settings );
 
@@ -2217,11 +2136,6 @@ class JetReader_REST_API {
                 break;
             }
         }
-
-        // Add dynamically updated license details to return payload
-        $settings['license_key']     = get_option( 'jetreader_license_key', '' );
-        $settings['license_status']  = get_option( 'jetreader_license_status', '' );
-        $settings['license_expires'] = get_option( 'jetreader_license_expires', '' );
 
         return rest_ensure_response(
             array(
@@ -2275,15 +2189,7 @@ class JetReader_REST_API {
         return sanitize_text_field( strval( $value ) );
     }
 
-    /**
-     * Enforce Free plan limitations on settings values.
-     *
-     * @param array $settings Input settings.
-     * @return array Modified settings with enforced Free values.
-     */
-    private function enforce_free_limits( array $settings ): array {
-        return $settings;
-    }
+
 
     /**
      * Get public settings (for frontend: reader toggles + display config).
@@ -2302,56 +2208,23 @@ class JetReader_REST_API {
         };
 
         return rest_ensure_response( array(
-            'annotation_enabled'   => $bool( 'annotation_enabled', false ),
-            'copy_enabled'         => $bool( 'copy_enabled', false ),
-            'download_enabled'     => $bool( 'download_enabled', false ),
+            'annotation_enabled'   => true,
+            'copy_enabled'         => true,
             'items_per_page'       => $int( 'items_per_page', 24 ),
             'grid_columns'         => $int( 'grid_columns', 4 ),
             'show_sidebar'         => $bool( 'show_sidebar', true ),
             'show_filter_category' => $bool( 'show_filter_category', true ),
             'show_filter_language' => $bool( 'show_filter_language', true ),
             'show_filter_year'     => $bool( 'show_filter_year', true ),
-            'show_filter_author'      => $bool( 'show_filter_author', false ),
-            'show_filter_publisher'   => $bool( 'show_filter_publisher', false ),
-            'show_filter_translator'  => $bool( 'show_filter_translator', false ),
-            'show_filter_featured'    => $bool( 'show_filter_featured', false ),
-            'show_filter_type'        => $bool( 'show_filter_type', false ),
-            'library_image_size'        => $str( 'library_image_size', 'large' ),
-            'library_image_fit'         => $str( 'library_image_fit', 'cover' ),
-            'library_card_min_width'    => $int( 'library_card_min_width', 180 ),
-            'library_show_read_button'  => $bool( 'library_show_read_button', true ),
-            'library_show_info_button'  => $bool( 'library_show_info_button', true ),
-            'library_show_search'       => $bool( 'library_show_search', false ),
-            'library_card_radius'       => $str( 'library_card_radius', 'medium' ),
-            'library_card_border'       => $str( 'library_card_border', 'subtle' ),
-            'library_card_shadow'       => $str( 'library_card_shadow', 'subtle' ),
-            'library_card_hover'        => $str( 'library_card_hover', 'zoom' ),
-            'library_card_align'        => $str( 'library_card_align', 'left' ),
-            'library_card_layout'       => $str( 'library_card_layout', 'vertical' ),
-            'show_card_image'       => $bool( 'show_card_image', true ),
-            'show_card_title'       => true,
-            'show_card_author'      => $bool( 'show_card_author', false ),
-            'show_card_translator'  => $bool( 'show_card_translator', false ),
-            'show_card_publisher'   => $bool( 'show_card_publisher', false ),
-            'show_card_year'        => $bool( 'show_card_year', false ),
-            'show_card_type'        => $bool( 'show_card_type', false ),
-            'show_card_language'    => $bool( 'show_card_language', false ),
-            'show_card_page_count'  => $bool( 'show_card_page_count', false ),
-            'show_detail_image'       => $bool( 'show_detail_image', true ),
-            'show_detail_title'       => true,
-            'show_detail_author'      => $bool( 'show_detail_author',      true ),
-            'show_detail_translator'  => $bool( 'show_detail_translator', false ),
-            'show_detail_publisher'   => $bool( 'show_detail_publisher', false ),
-            'show_detail_year'        => $bool( 'show_detail_year', false ),
-            'show_detail_type'        => $bool( 'show_detail_type', false ),
-            'show_detail_language'    => $bool( 'show_detail_language', false ),
-            'show_detail_page_count'  => $bool( 'show_detail_page_count', false ),
-            'library_palette'         => 'gray',
-            'grid_palette'            => 'gray',
-            'slider_palette'          => 'gray',
+            'show_card_image'      => $bool( 'show_card_image', true ),
+            'show_card_title'      => true,
+            'show_detail_image'    => $bool( 'show_detail_image', true ),
+            'show_detail_title'    => true,
+            'show_detail_author'   => $bool( 'show_detail_author', true ),
             'reader_font_size'     => $str( 'reader_font_size', 'medium' ),
             'reader_theme'         => $str( 'reader_theme', 'auto' ),
             'plugin_language'      => $str( 'plugin_language', 'en' ),
+            'primary_palette'      => $str( 'primary_palette', 'green' ),
             'available_languages'  => jetreader_get_available_languages(),
             'reader_logo_url'      => JETREADER_PLUGIN_URL . 'assets/logo/jetreader.svg',
         ) );
@@ -3188,166 +3061,12 @@ class JetReader_REST_API {
     }
 
     /**
-     * POST /rebuild-index
-     *
-     * Supports three phases for frontend-driven batch rebuilds (large libraries)
-     * as well as legacy single-request mode.
-     *
-     * phase=prepare  → Returns all item IDs+titles so the frontend can drive
-     *                   batches. No DB writes. No lock acquired.
-     * phase=batch    → Indexes the item_ids[] supplied in the request body.
-     *                   Each call parses and re-indexes those items only.
-     * phase=cleanup  → Removes orphaned index rows (items deleted since last rebuild).
-     * (no phase)     → Legacy: rebuild everything in a single synchronous request.
-     *                   Kept for backward compatibility; may time out on large sites.
-     */
-    public function rebuild_search_index( WP_REST_Request $request ): WP_REST_Response {
-        global $wpdb;
-
-        if ( ! class_exists( 'JetReader_Search_Index' ) ) {
-            require_once JETREADER_PLUGIN_DIR . 'includes/class-search-index.php';
-        }
-        if ( ! class_exists( 'JetReader_Parser_Engine' ) ) {
-            require_once JETREADER_PLUGIN_DIR . 'includes/class-parser-engine.php';
-        }
-
-        // Allow long-running extraction; increase memory for large EPUB/PDF files.
-        // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged
-        @set_time_limit( 0 );
-        // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged, WordPress.PHP.IniSet.Risky
-        @ini_set( 'memory_limit', '-1' );
-
-        $phase = sanitize_text_field( $request->get_param( 'phase' ) ?? '' );
-
-        // ------------------------------------------------------------------
-        // phase=prepare — return item list, frontend drives the batching.
-        // ------------------------------------------------------------------
-        if ( 'prepare' === $phase ) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.NoCaching
-            $rows = $wpdb->get_results(
-                "SELECT id, title FROM {$wpdb->prefix}jetreader_items ORDER BY id ASC" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-            );
-
-            $items = array_map( function( $r ) {
-                return array( 'id' => (int) $r->id, 'title' => (string) $r->title );
-            }, $rows );
-
-            return new WP_REST_Response( array(
-                'items' => $items,
-                'total' => count( $items ),
-            ) );
-        }
-
-        // ------------------------------------------------------------------
-        // phase=batch — index the supplied item IDs.
-        // ------------------------------------------------------------------
-        if ( 'batch' === $phase ) {
-            $raw_ids = $request->get_param( 'item_ids' );
-            if ( ! is_array( $raw_ids ) || empty( $raw_ids ) ) {
-                return new WP_REST_Response( array( 'message' => 'item_ids required', 'indexed' => 0 ), 400 );
-            }
-
-            $item_ids = array_map( 'intval', $raw_ids );
-            $indexed  = 0;
-            $failed   = array();
-            $start    = microtime( true );
-
-            foreach ( $item_ids as $id ) {
-                try {
-                    $ok = JetReader_Search_Index::index_single_item( $id );
-                    if ( $ok ) {
-                        $indexed++;
-                    }
-                } catch ( \Throwable $e ) {
-                    $failed[] = array( 'id' => $id, 'error' => $e->getMessage() );
-                }
-            }
-
-            return new WP_REST_Response( array(
-                'indexed' => $indexed,
-                'failed'  => $failed,
-                'elapsed' => round( microtime( true ) - $start, 1 ),
-            ) );
-        }
-
-        // ------------------------------------------------------------------
-        // phase=cleanup — remove orphaned rows for deleted items.
-        // ------------------------------------------------------------------
-        if ( 'cleanup' === $phase ) {
-            $deleted = JetReader_Search_Index::cleanup_orphaned_rows();
-            return new WP_REST_Response( array( 'deleted' => $deleted ) );
-        }
-
-        // ------------------------------------------------------------------
-        // Legacy: full synchronous rebuild (no phase param).
-        // ------------------------------------------------------------------
-        $start = microtime( true );
-
-        try {
-            $indexed = JetReader_Search_Index::rebuild_all();
-        } catch ( \Throwable $e ) {
-            return new WP_REST_Response(
-                array(
-                    'message' => __( 'An error occurred while rebuilding the index: ', 'jetreader' ) . $e->getMessage(),
-                    'indexed' => 0,
-                    'elapsed' => round( microtime( true ) - $start, 1 ),
-                ),
-                500
-            );
-        }
-
-        $elapsed = round( microtime( true ) - $start, 1 );
-
-        if ( $indexed < 0 ) {
-            return new WP_REST_Response(
-                array(
-                    'message' => __( 'Index rebuild already in progress. Please wait.', 'jetreader' ),
-                    'indexed' => 0,
-                    'elapsed' => 0,
-                ),
-                409
-            );
-        }
-
-        return new WP_REST_Response( array(
-            'message' => sprintf(
-                /* translators: 1: item count, 2: seconds */
-                __( '%1$d item(s) indexed in %2$s seconds.', 'jetreader' ),
-                $indexed,
-                $elapsed
-            ),
-            'indexed' => $indexed,
-            'elapsed' => $elapsed,
-        ) );
-    }
-
-    /**
      * Proxy an external file to work around browser CORS restrictions.
-     * Requires login. Only http/https URLs are allowed; private/reserved IP ranges
+     * Only http/https URLs are allowed; private/reserved IP ranges
      * are blocked after DNS resolution to prevent SSRF. Response size is capped.
      */
     public function proxy_file( WP_REST_Request $request ) {
         $url = $request->get_param( 'url' );
-
-        // Admin can proxy anything.
-        if ( ! current_user_can( 'manage_options' ) ) {
-            global $wpdb;
-            $url_clean = sanitize_text_field( $url );
-            // Only allow proxying URLs that are stored in the database as ebook files or inside volumes
-            // AND are associated with a published item (visibility = 'publish').
-            $exists = $wpdb->get_var(
-                $wpdb->prepare(
-                    "SELECT COUNT(*) FROM {$wpdb->prefix}jetreader_items 
-                     WHERE (file_path = %s OR volumes LIKE %s) 
-                       AND visibility = 'publish'",
-                    $url_clean,
-                    '%' . $wpdb->esc_like( $url_clean ) . '%'
-                )
-            );
-            if ( ! $exists ) {
-                return new WP_Error( 'jetreader_proxy_unauthorized', __( 'You do not have permission to proxy this URL.', 'jetreader' ), array( 'status' => 403 ) );
-            }
-        }
 
         // Only allow http/https — block file://, ftp://, data:, etc.
         $scheme = wp_parse_url( $url, PHP_URL_SCHEME );
@@ -3389,6 +3108,8 @@ class JetReader_REST_API {
         }
 
         // Allowed content-type prefixes for reader files.
+        // We exclude 'image/' (e.g. SVG) to prevent SVG-based script execution vectors.
+        // Images do not need to be proxied anyway as standard img tags naturally bypass CORS.
         $allowed_content_types = array(
             'application/pdf',
             'application/epub',
@@ -3399,7 +3120,6 @@ class JetReader_REST_API {
             'application/msword',                              // doc
             'application/vnd.ms-',                             // legacy Office formats
             'text/plain',                                      // txt only
-            'image/',
         );
 
         $response = wp_remote_get( $url, array(
@@ -3446,14 +3166,90 @@ class JetReader_REST_API {
         }
 
         // Stream raw bytes — bypass WP_REST_Response JSON encoding.
-        header( 'Content-Type: ' . sanitize_mime_type( $ct_base ) );
+        // Security headers prevent XSS even if content-type is spoofed.
+        $safe_mime = sanitize_mime_type( $ct_base );
+        header( 'Content-Type: ' . $safe_mime );
         header( 'Access-Control-Allow-Origin: ' . esc_url_raw( get_site_url() ) );
         header( 'X-Content-Type-Options: nosniff' );
         header( "Content-Security-Policy: default-src 'none'; sandbox;" );
         header( 'Cache-Control: private, max-age=3600' );
-        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-        echo $body;
+
+        if ( 'text/plain' === $ct_base ) {
+            // Text content: escape HTML to prevent XSS.
+            echo esc_html( $body );
+        } else {
+            // Binary content (PDF, EPUB, DOCX, DOC):
+            // - Force download (Content-Disposition: attachment) to prevent
+            //   any browser-side rendering or script execution.
+            // - HTML content types are already rejected above.
+            // - SVG/image types are excluded from the allowed list.
+            // - nosniff + CSP sandbox provide defense-in-depth.
+            // - esc_html() / wp_kses() would corrupt binary files.
+            header( 'Content-Disposition: attachment; filename="document.' . esc_attr( pathinfo( wp_parse_url( $url, PHP_URL_PATH ) ?: 'document', PATHINFO_EXTENSION ) ?: 'bin' ) . '"' );
+            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- binary content, cannot be escaped without corruption.
+            echo $body;
+        }
         exit;
+    }
+
+    /**
+     * Check permissions for proxying a URL.
+     *
+     * @param WP_REST_Request $request The REST request.
+     * @return bool|WP_Error True if allowed, WP_Error otherwise.
+     */
+    public function proxy_permissions_check( WP_REST_Request $request ) {
+        $url = $request->get_param( 'url' );
+        if ( empty( $url ) ) {
+            return new WP_Error( 'jetreader_proxy_missing_url', __( 'Missing URL parameter.', 'jetreader' ), array( 'status' => 400 ) );
+        }
+
+        // 1. Admins can proxy any URL.
+        if ( current_user_can( 'manage_options' ) ) {
+            return true;
+        }
+
+        // 2. Otherwise, check if the URL is associated with an item in the library.
+        global $wpdb;
+        $url_clean = sanitize_text_field( $url );
+        $url_esc   = esc_url_raw( $url );
+        
+        // Since volumes is stored in JSON, slashes are escaped as \/.
+        // We generate the JSON-escaped version of the URLs to match the database values.
+        $url_json     = trim( wp_json_encode( $url_clean ), '"' );
+        $url_json_esc = trim( wp_json_encode( $url_esc ), '"' );
+
+        $items = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT id, visibility FROM {$wpdb->prefix}jetreader_items 
+                 WHERE file_path = %s OR file_path = %s 
+                    OR volumes LIKE %s OR volumes LIKE %s 
+                    OR volumes LIKE %s OR volumes LIKE %s",
+                $url_clean,
+                $url_esc,
+                '%' . $wpdb->esc_like( $url_clean ) . '%',
+                '%' . $wpdb->esc_like( $url_esc ) . '%',
+                '%' . $wpdb->esc_like( $url_json ) . '%',
+                '%' . $wpdb->esc_like( $url_json_esc ) . '%'
+            )
+        );
+
+        if ( empty( $items ) ) {
+            return new WP_Error( 'jetreader_proxy_unauthorized', __( 'You do not have permission to proxy this URL.', 'jetreader' ), array( 'status' => 403 ) );
+        }
+
+        foreach ( $items as $item ) {
+            if ( 'publish' === $item->visibility ) {
+                return true;
+            }
+            if ( in_array( $item->visibility, array( 'private', 'draft' ), true ) ) {
+                if ( current_user_can( 'read_private_posts' ) || current_user_can( 'edit_posts' ) ) {
+                    return true;
+                }
+            }
+        }
+
+        return new WP_Error( 'jetreader_proxy_unauthorized', __( 'You do not have permission to proxy this URL.', 'jetreader' ), array( 'status' => 403 ) );
     }
 
     /**
@@ -3471,323 +3267,6 @@ class JetReader_REST_API {
             FILTER_VALIDATE_IP,
             FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
         );
-    }
-
-    /* ------------------------------------------------------------------ */
-    /*  Export                                                             */
-    /* ------------------------------------------------------------------ */
-
-    /**
-     * Export all items (or filtered by type) as a JSON array.
-     * Client-side converts to CSV / XLSX using SheetJS.
-     */
-    public function export_items( $request ) {
-        global $wpdb;
-
-        $type          = sanitize_text_field( $request->get_param( 'type' ) ?? '' );
-        $allowed_types = array( 'book', 'article', 'magazine', 'qa' );
-
-        if ( ! empty( $type ) && ! in_array( $type, $allowed_types, true ) ) {
-            return new WP_Error( 'jetreader_invalid_type', 'Invalid type.', array( 'status' => 400 ) );
-        }
-
-        if ( ! empty( $type ) ) {
-            $items = $wpdb->get_results( $wpdb->prepare(
-                "SELECT * FROM {$wpdb->prefix}jetreader_items WHERE type = %s ORDER BY created_at DESC",
-                $type
-            ) );
-        } else {
-            $items = $wpdb->get_results(
-                "SELECT * FROM {$wpdb->prefix}jetreader_items ORDER BY created_at DESC"
-            );
-        }
-
-        if ( empty( $items ) ) {
-            return new WP_REST_Response( array(), 200 );
-        }
-
-        // Batch-fetch category names to avoid N+1.
-        $item_ids    = array_map( function ( $i ) { return intval( $i->id ); }, $items );
-        $escaped_ids = implode( ',', array_map( 'intval', $item_ids ) );
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-        $cat_rows    = $wpdb->get_results( "SELECT ic.item_id, c.name FROM {$wpdb->prefix}jetreader_item_categories ic JOIN {$wpdb->prefix}jetreader_categories c ON c.id = ic.category_id WHERE ic.item_id IN ({$escaped_ids})" );
-
-        $cat_map = array();
-        foreach ( $cat_rows as $row ) {
-            $cat_map[ $row->item_id ][] = $row->name;
-        }
-
-        $output = array();
-        foreach ( $items as $item ) {
-            $volumes = null;
-            if ( ! empty( $item->volumes ) ) {
-                $decoded = json_decode( $item->volumes, true );
-                if ( is_array( $decoded ) ) {
-                    $volumes = $decoded;
-                }
-            }
-
-            $entry = array(
-                'type'             => $item->type,
-                'title'            => $item->title,
-                'author'           => $item->author,
-                'translator'       => $item->translator,
-                'publisher'        => $item->publisher,
-                'isbn'             => $item->isbn,
-                'language'         => $item->language,
-                'description'      => $item->description,
-                'publication_year' => $item->publication_year ? intval( $item->publication_year ) : null,
-                'visibility'       => $item->visibility,
-                'featured'         => (bool) $item->featured,
-                'category_names'   => isset( $cat_map[ $item->id ] )
-                    ? implode( ', ', $cat_map[ $item->id ] )
-                    : '',
-            );
-
-            if ( ! empty( $volumes ) ) {
-                $entry['volumes'] = $volumes;
-            } else {
-                $entry['cover_image'] = $item->cover_image;
-                $entry['file_path']   = $item->file_path;
-                $entry['file_type']   = $item->file_type;
-            }
-
-            $output[] = $entry;
-        }
-
-        return new WP_REST_Response( $output, 200 );
-    }
-
-    /* ------------------------------------------------------------------ */
-    /*  Import                                                             */
-    /* ------------------------------------------------------------------ */
-
-    /**
-     * Batch-import items sent as a JSON array.
-     * Client sends chunks of ~200 rows; this function inserts each one,
-     * auto-creating missing authors, publishers, and categories.
-     */
-    public function import_items( $request ) {
-        global $wpdb;
-
-        $type  = sanitize_text_field( $request->get_param( 'type' ) ?? '' );
-        $items = $request->get_param( 'items' );
-
-        $allowed_types = array( 'book', 'article', 'magazine', 'qa' );
-        if ( ! in_array( $type, $allowed_types, true ) ) {
-            return new WP_Error( 'jetreader_invalid_type', 'Invalid type.', array( 'status' => 400 ) );
-        }
-
-        if ( ! is_array( $items ) || empty( $items ) ) {
-            return new WP_Error( 'jetreader_no_items', 'No items provided.', array( 'status' => 400 ) );
-        }
-
-        $success = 0;
-        $failed  = 0;
-        $errors  = array();
-
-        foreach ( $items as $idx => $raw ) {
-            $row   = (array) $raw;
-            $title = sanitize_text_field( $row['title'] ?? '' );
-
-            if ( '' === trim( $title ) ) {
-                $failed++;
-                $errors[] = array(
-                    'row'     => $idx + 1,
-                    'title'   => '',
-                    'message' => 'Title is required.',
-                );
-                continue;
-            }
-
-            // Unique slug.
-            $slug          = sanitize_title( $title );
-            $existing_slug = $wpdb->get_var( $wpdb->prepare(
-                "SELECT id FROM {$wpdb->prefix}jetreader_items WHERE slug = %s",
-                $slug
-            ) );
-            if ( $existing_slug ) {
-                $slug .= '-' . time() . '-' . $idx;
-            }
-
-            // Ensure author / publisher records exist.
-            $author    = sanitize_text_field( $row['author']    ?? '' );
-            $publisher = sanitize_text_field( $row['publisher'] ?? '' );
-            if ( ! empty( $author ) ) {
-                $author_names = array_filter( array_map( 'trim', explode( ',', $author ) ) );
-                foreach ( $author_names as $auth_name ) {
-                    if ( '' !== $auth_name ) {
-                        $this->import_ensure_author( $auth_name );
-                    }
-                }
-            }
-            if ( ! empty( $publisher ) ) {
-                $publisher_names = array_filter( array_map( 'trim', explode( ',', $publisher ) ) );
-                foreach ( $publisher_names as $pub_name ) {
-                    if ( '' !== $pub_name ) {
-                        $this->import_ensure_publisher( $pub_name );
-                    }
-                }
-            }
-
-            // Resolve category names → IDs (auto-create missing).
-            $cat_raw      = $row['category_names'] ?? '';
-            $category_ids = $this->import_resolve_categories( (string) $cat_raw, $type );
-
-            // Visibility.
-            $allowed_vis = array( 'publish', 'draft', 'private' );
-            $visibility  = sanitize_text_field( $row['visibility'] ?? 'publish' );
-            if ( ! in_array( $visibility, $allowed_vis, true ) ) {
-                $visibility = 'publish';
-            }
-
-            // featured: accept "true"/"1"/true.
-            $featured_raw = $row['featured'] ?? false;
-            $featured     = ( $featured_raw === true || $featured_raw === 1
-                || strtolower( (string) $featured_raw ) === 'true'
-                || $featured_raw === '1' ) ? 1 : 0;
-
-            $data = array(
-                'type'             => $type,
-                'title'            => $title,
-                'slug'             => $slug,
-                'description'      => wp_kses_post( $row['description'] ?? '' ),
-                'cover_image'      => esc_url_raw( $row['cover_image'] ?? '' ),
-                'file_path'        => sanitize_text_field( $row['file_path'] ?? '' ),
-                'file_type'        => sanitize_text_field( $row['file_type'] ?? '' ),
-                'language'         => sanitize_text_field( $row['language'] ?? 'tr' ),
-                'author'           => $author,
-                'translator'       => sanitize_text_field( $row['translator'] ?? '' ),
-                'publisher'        => $publisher,
-                'isbn'             => sanitize_text_field( $row['isbn'] ?? '' ),
-                'publication_year' => ! empty( $row['publication_year'] ) ? intval( $row['publication_year'] ) : null,
-                'visibility'       => $visibility,
-                'featured'         => $featured,
-                'volumes'          => null,
-            );
-
-            // Validate file path
-            if ( ! empty( $data['file_path'] ) && ! $this->validate_file_reference( $data['file_path'] ) ) {
-                $failed++;
-                $errors[] = array(
-                    'row'     => $idx + 1,
-                    'title'   => $title,
-                    'message' => 'Invalid file path/URL or domain not allowed.',
-                );
-                continue;
-            }
-
-            // Handle volumes array (books/magazines).
-            if ( ! empty( $row['volumes'] ) && is_array( $row['volumes'] ) ) {
-                $clean_vols = array();
-                $vols_valid = true;
-                foreach ( array_values( $row['volumes'] ) as $vi => $vol ) {
-                    $vol = (array) $vol;
-                    if ( empty( $vol['file_path'] ) ) continue;
-                    $vol_path = sanitize_text_field( $vol['file_path'] );
-                    if ( ! $this->validate_file_reference( $vol_path ) ) {
-                        $vols_valid = false;
-                        $failed++;
-                        $errors[] = array(
-                            'row'     => $idx + 1,
-                            'title'   => $title,
-                            'message' => 'Invalid volume file path/URL or domain not allowed.',
-                        );
-                        break;
-                    }
-
-                    // Auto detect encoding for volume if text file.
-                    $vol_type = sanitize_text_field( $vol['file_type'] ?? '' );
-                    $vol_encoding = isset( $vol['encoding'] ) ? sanitize_text_field( $vol['encoding'] ) : 'utf-8';
-                    if ( 'txt' === $vol_type && empty( $vol['encoding'] ) ) {
-                        $local_path = JetReader_Upload_Handler::url_to_local_path( $vol_path );
-                        if ( file_exists( $local_path ) ) {
-                            $content_sample = file_get_contents( $local_path, false, null, 0, 10000 );
-                            if ( function_exists( 'mb_detect_encoding' ) && $content_sample ) {
-                                $enc = mb_detect_encoding( $content_sample, array( 'UTF-8', 'ISO-8859-9', 'Windows-1254', 'Windows-1251', 'ISO-8859-1', 'ASCII', 'UTF-16', 'UTF-16LE', 'UTF-16BE', 'BIG5', 'GBK', 'EUC-JP', 'SJIS' ), true );
-                                if ( $enc ) {
-                                    $vol_encoding = strtolower( $enc );
-                                }
-                            }
-                        }
-                    }
-
-                    $clean_vols[] = array(
-                        'vol'         => $vi + 1,
-                        'file_path'   => $vol_path,
-                        'file_type'   => $vol_type,
-                        'cover_image' => esc_url_raw( $vol['cover_image'] ?? '' ),
-                        'page_count'  => isset( $vol['page_count'] ) ? intval( $vol['page_count'] ) : 0,
-                        'encoding'    => $vol_encoding,
-                    );
-                }
-                if ( ! $vols_valid ) {
-                    continue;
-                }
-                if ( ! empty( $clean_vols ) ) {
-                    $data['volumes']     = wp_json_encode( $clean_vols );
-                    $data['file_path']   = $clean_vols[0]['file_path'];
-                    $data['file_type']   = $clean_vols[0]['file_type'];
-                    $data['cover_image'] = $clean_vols[0]['cover_image'];
-                }
-            }
-
-            // Detect encoding for single file TXT during import.
-            $item_metadata = array();
-            if ( ! empty( $data['file_path'] ) && 'txt' === $data['file_type'] ) {
-                $local_path = JetReader_Upload_Handler::url_to_local_path( $data['file_path'] );
-                if ( file_exists( $local_path ) ) {
-                    $content_sample = file_get_contents( $local_path, false, null, 0, 10000 );
-                    if ( function_exists( 'mb_detect_encoding' ) && $content_sample ) {
-                        $enc = mb_detect_encoding( $content_sample, array( 'UTF-8', 'ISO-8859-9', 'Windows-1254', 'Windows-1251', 'ISO-8859-1', 'ASCII', 'UTF-16', 'UTF-16LE', 'UTF-16BE', 'BIG5', 'GBK', 'EUC-JP', 'SJIS' ), true );
-                        if ( $enc ) {
-                            $item_metadata['encoding'] = strtolower( $enc );
-                        }
-                    }
-                }
-            }
-            $data['metadata'] = ! empty( $item_metadata ) ? wp_json_encode( $item_metadata ) : null;
-
-            // Dynamic format array.
-            $formats = array();
-            foreach ( $data as $value ) {
-                $formats[] = is_null( $value ) ? '%s' : ( is_int( $value ) ? '%d' : '%s' );
-            }
-
-            $result = $wpdb->insert( "{$wpdb->prefix}jetreader_items", $data, $formats );
-
-            if ( false === $result ) {
-                $failed++;
-                $errors[] = array(
-                    'row'     => $idx + 1,
-                    'title'   => $title,
-                    'message' => $wpdb->last_error ?: 'DB insert failed.',
-                );
-                continue;
-            }
-
-            $item_id = $wpdb->insert_id;
-            $success++;
-
-            try { $this->sync_item_categories( $item_id, $category_ids, $type ); } catch ( \Throwable $e ) {}
-            try {
-                if ( class_exists( 'JetReader_CPT' ) ) {
-                    JetReader_CPT::sync_from_item( $item_id );
-                }
-            } catch ( \Throwable $e ) {}
-            try { JetReader_Upload_Handler::schedule_index( $item_id ); } catch ( \Throwable $e ) {}
-        }
-
-        $this->invalidate_dashboard_cache();
-        $this->invalidate_authors_cache();
-        $this->invalidate_publishers_cache();
-        $this->invalidate_categories_cache();
-
-        return new WP_REST_Response( array(
-            'success' => $success,
-            'failed'  => $failed,
-            'errors'  => $errors,
-        ), 200 );
     }
 
     /**
@@ -4083,14 +3562,11 @@ class JetReader_REST_API {
                 $this->sync_item_categories( $item_id, $category_ids, $type );
             } catch ( \Throwable $e ) {}
 
-            // Sync CPT & index
+            // Sync CPT
             try {
                 if ( class_exists( 'JetReader_CPT' ) ) {
                     JetReader_CPT::sync_from_item( $item_id );
                 }
-            } catch ( \Throwable $e ) {}
-            try {
-                JetReader_Upload_Handler::schedule_index( $item_id );
             } catch ( \Throwable $e ) {}
         }
 

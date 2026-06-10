@@ -26,7 +26,6 @@ JetReader turns WordPress into a digital library with a fullscreen React documen
 * **In-doc Search** — Find terms directly inside the document with page-jump.
 * **Resume Reading** — Remembers the user's reading progress.
 * **Deep Linking** — Direct URLs (e.g., `#page=12`) to open at a specific page.
-* * **JetReader Pro** — Grid, Slider, Elementor and Gutenberg blocks available at https://wplector.com
 
 == Installation ==
 
@@ -54,8 +53,7 @@ To build the compiled assets from the source code:
 3. Install dependencies by running:
    `npm install`
 4. Build the production assets using the Vite builder:
-   - For Pro version: `npm run build`
-   - For Lite version: `npm run build:lite`
+   `npm run build`
 5. The generated compiled files will be output to the `dist/` directory.
 
 === Third-Party Libraries ===
@@ -88,9 +86,6 @@ Yes. JetReader declares compatibility with WooCommerce High-Performance Order St
 
 = What are Tags used for? =
 Tags are a lightweight cross-type taxonomy. Unlike categories (which are content-type specific), a single tag can group books, articles, magazines, and Q&A documents together. This enables flexible filtering and discovery across your entire library.
-
-= Which features require JetReader Pro? =
-The `[jetreader_grid]` and `[jetreader_slider]` shortcodes, the Displays visual builder, and the Import & Export tab all require an active JetReader Pro license.
 
 = How do I add screenshots to a WordPress.org plugin page? =
 See the Screenshots section below for the required images and how to place them.

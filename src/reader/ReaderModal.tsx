@@ -2366,7 +2366,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
 
                 for (let i = 1; i <= total; i += batchSize) {
                     if (cancelled) return;
-                    const promises = [];
+                    const promises: Promise<{ pageNum: number; str: string; }>[] = [];
                     const limit = Math.min(i + batchSize - 1, total);
 
                     for (let j = i; j <= limit; j++) {

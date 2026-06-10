@@ -204,31 +204,6 @@ const DEFAULT_FILTERS: ActiveFilters = {
 };
 
 /* ------------------------------------------------------------------ */
-/*  Content-search types                                               */
-/* ------------------------------------------------------------------ */
-
-interface ContentMatch {
-    excerpt: string;
-    page_num: number;
-    volume_idx: number;
-}
-
-interface ContentSearchResult {
-    item_id: number;
-    title: string;
-    cover_url: string;
-    type: string;
-    author?: string;
-    publisher?: string;
-    file_type?: string;
-    year?: string | number;
-    cpt_url: string;
-    matches: ContentMatch[];
-    total_matches?: number;
-    match_type: 'content' | 'title' | 'author' | 'publisher';
-}
-
-/* ------------------------------------------------------------------ */
 /*  Hooks                                                              */
 /* ------------------------------------------------------------------ */
 
@@ -276,82 +251,6 @@ function usePublishers() {
         staleTime: 1000 * 60 * 10,
     } );
 }
-
-function useContentSearch( q: string ) {
-    return useQuery<{ results: ContentSearchResult[] }>( {
-        queryKey: [ 'content-search', q ],
-        queryFn: async () => {
-            if ( q.length < 2 ) return { results: [] };
-            const res = await fetch(
-                `${API_BASE}/content-search?q=${ encodeURIComponent( q ) }&limit=20`,
-                { headers: { 'X-WP-Nonce': getNonce() } }
-            );
-            return res.json();
-        },
-        enabled: q.length >= 2,
-        staleTime: 1000 * 60 * 5,
-    } as any );
-}
-
-// Single quotes / apostrophes → ' (U+0027) — includes Arabic romanization ʾ/ʿ
-const _APOS_RE   = /[‘’‚‛ʼʻ＇`´ʾʿ]/g;
-// Double quotes → " (U+0022)
-const _DQUOTE_RE = /[“”„‟«»]/g;
-// Dashes → - (U+002D): en-dash, em-dash, minus sign, fullwidth dash variants
-const _DASH_RE   = /[‐‑‒–—―−﹘﹣－]/g;
-// Full-width ASCII punctuation → ASCII  (U+FFxx − 0xFEE0 = ASCII code)
-const _FWIDTH_RE = /[！？．，；：（）]/g;
-
-/**
- * Normalise a string for highlight comparison: NFC + Turkish İ/ı → i +
- * all typographic variants (apostrophes, double quotes, dashes, full-width) → ASCII.
- * Every substitution is 1:1 BMP code-unit, so normText.length === text.length always.
- */
-function _normHL( s: string ): string {
-    return s
-        .normalize( 'NFC' )
-        .replace( /İ/g, 'i' )
-        .replace( _APOS_RE,   "'" )
-        .replace( _DQUOTE_RE, '"' )
-        .replace( _DASH_RE,   '-' )
-        .replace( _FWIDTH_RE, ( m ) => String.fromCodePoint( m.codePointAt( 0 )! - 0xFEE0 ) )
-        .toLowerCase()
-        .replace( /ı/g, 'i' );
-}
-
-/** Highlight every occurrence of `term` in `text` with a yellow mark.
- *  Case-insensitive, apostrophe-variant-insensitive, Turkish-aware. */
-function highlightTerm( text: string, term: string ): React.ReactNode {
-    if ( ! term || ! text ) return text;
-    const normTerm = _normHL( term );
-    const normText = _normHL( text );
-    if ( ! normTerm || normText.length !== text.length ) return text;
-
-    const hits: [ number, number ][] = [];
-    let i = 0;
-    while ( i < normText.length ) {
-        const idx = normText.indexOf( normTerm, i );
-        if ( idx === -1 ) break;
-        hits.push( [ idx, idx + normTerm.length ] );
-        i = idx + 1;
-    }
-    if ( ! hits.length ) return text;
-
-    const out: React.ReactNode[] = [];
-    let pos = 0;
-    hits.forEach( ( [ s, e ], ki ) => {
-        if ( s > pos ) out.push( text.slice( pos, s ) );
-        out.push(
-            <mark key={ ki } className="bg-yellow-200 dark:bg-yellow-800 rounded-sm px-0.5 not-italic">
-                { text.slice( s, e ) }
-            </mark>
-        );
-        pos = e;
-    } );
-    if ( pos < text.length ) out.push( text.slice( pos ) );
-    return out;
-}
-
 
 /* ------------------------------------------------------------------ */
 /*  FilterSidebar                                                      */
@@ -405,7 +304,7 @@ const inputStyle: React.CSSProperties = {
 const FilterSidebar: React.FC<SidebarProps> = ( {
     settings, categories, authors, publishers, filters, onFilterChange, onClear, onMobileClose,
 } ) => {
-    const { t, availableLanguages, locale } = useTranslation();
+    const { t, locale } = useTranslation();
 
     const toggleCategory = ( id: number ) => {
         const next = filters.categoryIds.includes( id )
@@ -749,7 +648,7 @@ const ItemCard: React.FC<{
     const coverH   = CARD_SIZE[ imageSize ] ?? 'h-52';
     const fitClass   = imageFit === 'contain' ? 'object-contain' : imageFit === 'fill' ? 'object-fill' : 'object-cover';
     const scaleClass = imageFit === 'cover' ? 'group-hover:scale-[1.03] transition-transform duration-500 ease-out' : '';
- 
+
     // Collect visible meta badges
     const metaBadges: { label: string; key: string }[] = [];
     if ( showCardType && item.file_type ) {
@@ -1122,7 +1021,6 @@ const InfoModal: React.FC<{
     const hasFile    = !! item.file_path;
     const showDl     = downloadEnabled && ( isMultiVol ? ( selectedVolIdx !== null && !! item.volumes?.[selectedVolIdx]?.file_path ) : hasFile );
     const dlHref     = isMultiVol && selectedVolIdx !== null ? ( item.volumes?.[selectedVolIdx]?.file_path ?? '' ) : item.file_path;
-    const hasActions = ( showReadButton && hasFile ) || downloadEnabled;
 
     return (
         <motion.div
@@ -1521,268 +1419,7 @@ const Pagination: React.FC<{
 };
 
 /* ------------------------------------------------------------------ */
-/*  Main library content                                               */
-/* ------------------------------------------------------------------ */
-
-/* ------------------------------------------------------------------ */
-/*  Content-search results list                                        */
-/* ------------------------------------------------------------------ */
-
-const TYPE_ICONS: Record<string, string> = {
-    book: '📚', article: '📄', magazine: '🗞️', qa: '💬',
-};
-
-const ContentSearchResultList: React.FC<{ searchTerm: string }> = ( { searchTerm } ) => {
-    const { t, locale }        = useTranslation();
-    const { data, isLoading }  = useContentSearch( searchTerm );
-    const results              = data?.results ?? [];
-    const [ selectedTab, setSelectedTab ] = React.useState<string>( '' );
-
-    if ( isLoading ) {
-        return (
-            <div className="py-16 flex flex-col items-center gap-3">
-                <div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
-                <p className="text-sm text-gray-400 dark:text-gray-500">{ t( 'search.searching' ) }</p>
-            </div>
-        );
-    }
-
-    if ( results.length === 0 ) {
-        return (
-            <div className="text-center py-16">
-                <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto text-gray-300 dark:text-gray-600 mb-3" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                <p className="text-gray-500 dark:text-gray-400 text-sm">
-                    { t( 'frontend.emptyNoResults' ) } &ldquo;{ searchTerm }&rdquo;
-                </p>
-            </div>
-        );
-    }
-
-    const isTr = locale?.startsWith( 'tr' );
-    const titleLabel = t( 'search.titleResults' ) || ( isTr ? 'Kitaplar & Belgeler' : 'Books & Documents' );
-    const authorLabel = t( 'search.authorResults' ) || t( 'frontend.sidebarAuthor' ) || ( isTr ? 'Yazarlar' : 'Authors' );
-    const publisherLabel = t( 'search.publisherResults' ) || t( 'frontend.sidebarPublisher' ) || ( isTr ? 'Yayınevleri' : 'Publishers' );
-
-    const contentResults   = results.filter( ( r ) => r.match_type === 'content' );
-    const titleResults     = results.filter( ( r ) => r.match_type === 'title' );
-    const authorResults    = results.filter( ( r ) => r.match_type === 'author' );
-    const publisherResults = results.filter( ( r ) => r.match_type === 'publisher' );
-
-    const activeTabs = [];
-    if ( contentResults.length > 0 ) {
-        activeTabs.push( { key: 'content', label: t( 'search.contentResults' ) || ( isTr ? 'İçerik Sonuçları' : 'Content Results' ), count: contentResults.length, data: contentResults } );
-    }
-    if ( titleResults.length > 0 ) {
-        activeTabs.push( { key: 'titles', label: titleLabel, count: titleResults.length, data: titleResults } );
-    }
-    if ( authorResults.length > 0 ) {
-        activeTabs.push( { key: 'authors', label: authorLabel, count: authorResults.length, data: authorResults } );
-    }
-    if ( publisherResults.length > 0 ) {
-        activeTabs.push( { key: 'publishers', label: publisherLabel, count: publisherResults.length, data: publisherResults } );
-    }
-
-    const currentTab = activeTabs.find( ( t ) => t.key === selectedTab ) || activeTabs[0];
-    const activeTab = currentTab?.key ?? '';
-
-    return (
-        <div className="flex flex-col gap-4 text-left">
-            { activeTabs.length > 1 && (
-                <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700 pb-2 overflow-x-auto scrollbar-none shrink-0">
-                    { activeTabs.map( ( tab ) => (
-                        <button
-                            key={ tab.key }
-                            onClick={ () => setSelectedTab( tab.key ) }
-                            className={ `px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-colors flex items-center ${
-                                activeTab === tab.key
-                                    ? 'bg-primary-500 text-white'
-                                    : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
-                            }` }
-                        >
-                            { tab.label }
-                            <span className={ `ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full ${
-                                activeTab === tab.key
-                                    ? 'bg-white/20 text-white'
-                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
-                            }` }>
-                                { tab.count }
-                            </span>
-                        </button>
-                    ) ) }
-                </div>
-            ) }
-
-            <div className="flex flex-col gap-3">
-                { currentTab?.data.map( ( result ) => (
-                    <ContentSearchResultItem
-                        key={ `${result.match_type}-${result.item_id}` }
-                        result={ result }
-                        searchTerm={ searchTerm }
-                    />
-                ) ) }
-            </div>
-        </div>
-    );
-};
-
-const ContentSearchResultItem: React.FC<{
-    result: ContentSearchResult;
-    searchTerm: string;
-}> = ( { result, searchTerm } ) => {
-    const { t, locale } = useTranslation();
-    const isTr = locale?.startsWith( 'tr' );
-
-    const visibleMatches = result.matches.slice( 0, 2 );
-    const extraCount     = Math.max( 0, ( result.total_matches ?? result.matches.length ) - visibleMatches.length );
-
-    const handleGoto = ( pageNum: number, volumeIdx: number, excerpt?: string ) => {
-        if ( ! result.cpt_url ) return;
-        const deeplink: Record<string, unknown> = { itemId: result.item_id, page: pageNum, volume: volumeIdx, search: searchTerm };
-        if ( excerpt ) {
-            // Fallback anchor: if the search term fails to match in the reader
-            // (e.g. different apostrophe encoding in the file), this raw excerpt
-            // snippet lets the reader locate the correct passage by its content.
-            deeplink.anchor = excerpt.trim().slice( 0, 80 );
-        }
-        sessionStorage.setItem( 'jetreader_deeplink', JSON.stringify( deeplink ) );
-        window.location.href = result.cpt_url;
-    };
-
-    const handleSearchInBook = () => {
-        if ( ! result.cpt_url ) return;
-        sessionStorage.setItem( 'jetreader_deeplink', JSON.stringify( { itemId: result.item_id, search: searchTerm } ) );
-        window.location.href = result.cpt_url;
-    };
-
-    const handleTitleClick = ( e: React.MouseEvent ) => {
-        if ( result.cpt_url ) return;
-        e.preventDefault();
-    };
-
-    const metaParts = [];
-    if ( result.author ) metaParts.push( result.author );
-    if ( result.publisher ) metaParts.push( result.publisher );
-    if ( result.year ) metaParts.push( result.year );
-    const metaText = metaParts.join( ' | ' );
-
-    return (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-md transition-shadow text-left flex">
-
-            { /* ── Left: Cover full height ── */ }
-            <div className="shrink-0 w-48 self-stretch">
-                { result.cover_url ? (
-                    <img
-                        src={ result.cover_url }
-                        alt={ result.title }
-                        className="w-full h-full object-cover"
-                    />
-                ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-700 text-2xl">
-                        { TYPE_ICONS[ result.type ] ?? '📄' }
-                    </div>
-                ) }
-            </div>
-
-            { /* ── Right: All content ── */ }
-            <div className="flex-1 min-w-0 p-4">
-                <a
-                    href={ result.cpt_url || '#' }
-                    onClick={ handleTitleClick }
-                    className="font-semibold text-sm text-gray-900 dark:text-white hover:text-primary-600 dark:hover:text-primary-400 transition-colors line-clamp-2 block leading-snug"
-                >
-                    { result.title }
-                </a>
-
-                { metaText && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-1">
-                        { metaText }
-                    </p>
-                ) }
-
-                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                    { result.file_type && (
-                        <span className="px-1.5 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded text-[9px] font-bold uppercase">
-                            { result.file_type }
-                        </span>
-                    ) }
-                    <span className="text-xs text-gray-400 dark:text-gray-500 capitalize">
-                        { TYPE_ICONS[ result.type ] } { result.type }
-                    </span>
-                    { result.match_type === 'content' && (
-                        <span className="px-1.5 py-0.5 bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded-full text-[10px] font-medium">
-                            { t( 'search.contentSearch' ) }
-                        </span>
-                    ) }
-                </div>
-
-            { /* ── Match list — max 2 ── */ }
-            { visibleMatches.length > 0 && (
-                <ul className="flex flex-col gap-2 border-t border-gray-100 dark:border-gray-700 pt-2.5 mt-2.5">
-                    { visibleMatches.map( ( m, i ) => (
-                        <li key={ i } className="flex items-start gap-2">
-                            <span className="shrink-0 text-[10px] font-semibold bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-700/50 rounded-full px-2 py-0.5 leading-tight whitespace-nowrap tracking-wide">
-                                { ( m.volume_idx > 0 || result.matches.some( match => match.volume_idx > 0 ) ) ? (
-                                    <>
-                                        { t( 'frontend.infoModalVolItemBook' ) || 'Cilt' } { m.volume_idx + 1 } - { t( 'search.pageLabel' ) } { m.page_num + 1 }
-                                    </>
-                                ) : (
-                                    <>
-                                        { t( 'search.pageLabel' ) } { m.page_num + 1 }
-                                    </>
-                                ) }
-                            </span>
-                            <span className="flex-1 text-xs text-gray-600 dark:text-gray-300 line-clamp-2 leading-relaxed">
-                                &hellip;{ highlightTerm( m.excerpt, searchTerm ) }&hellip;
-                            </span>
-                            { result.cpt_url && (
-                                <button
-                                    onClick={ () => handleGoto( m.page_num, m.volume_idx ?? 0, m.excerpt ) }
-                                    className="jr-goto-btn"
-                                >
-                                    { t( 'search.gotoBtn' ) || 'Git' }
-                                </button>
-                            ) }
-                        </li>
-                    ) ) }
-                </ul>
-            ) }
-
-            { /* ── "More matches" footer ── */ }
-            { extraCount > 0 && (
-                <div className="mt-2.5 pt-2 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between gap-2">
-                    <span className="text-xs text-gray-400 dark:text-gray-500">
-                        { t( 'search.moreMatchesCount' ).replace( '{count}', String( extraCount ) ) }
-                    </span>
-                    { result.cpt_url && (
-                        <button
-                            onClick={ handleSearchInBook }
-                            className="text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 font-medium flex items-center gap-1 transition-colors shrink-0"
-                        >
-                            { t( 'search.searchInBook' ) }
-                            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
-                        </button>
-                    ) }
-                </div>
-            ) }
-
-            { /* ── "Read Button" for non-content match types ── */ }
-            { result.match_type !== 'content' && result.cpt_url && (
-                <div className="mt-2.5 pt-2 border-t border-gray-100 dark:border-gray-700 flex justify-end">
-                    <button
-                        onClick={ () => handleGoto( 0, 0 ) }
-                        className="px-3 py-1 bg-primary-500 text-white rounded-lg text-xs font-semibold hover:bg-primary-600 transition-colors flex items-center gap-1"
-                    >
-                        📖 { t( 'display.read' ) || ( isTr ? 'Oku' : 'Read' ) } &rarr;
-                    </button>
-                </div>
-            ) }
-            </div>{ /* ── end right content ── */ }
-        </div>
-    );
-};
-
-/* ------------------------------------------------------------------ */
-/*  Library content (grid or search results)                           */
+/*  Library content (grid)                                             */
 /* ------------------------------------------------------------------ */
 
 interface LibraryContentProps {
@@ -1820,7 +1457,6 @@ const LibraryContent: React.FC<LibraryContentProps> = ( {
 
     const { data, isLoading, isError } = useQuery<PaginatedResponse>( {
         queryKey: [ 'items', effectiveType, filters, page, settings.items_per_page ],
-        enabled: searchTerm.length < 2,
         queryFn: async () => {
             const params = new URLSearchParams( {
                 per_page: String( settings.items_per_page ),
@@ -1835,6 +1471,7 @@ const LibraryContent: React.FC<LibraryContentProps> = ( {
             if ( filters.translator )                  params.set( 'translator',      filters.translator );
             if ( filters.featured )                    params.set( 'featured',        '1' );
             if ( filters.categoryIds.length > 0 )      params.set( 'category_ids',   filters.categoryIds.join( ',' ) );
+            if ( searchTerm.length >= 2 )              params.set( 'search',         searchTerm );
 
             const res = await fetch( `${API_BASE}/items?${ params }` );
             return res.json();
@@ -1863,33 +1500,6 @@ const LibraryContent: React.FC<LibraryContentProps> = ( {
         gridTemplateColumns: `repeat(auto-fill, minmax(max(${ cardMinWidth }px, calc((100% - ${ ( gridCols - 1 ) * gap }px) / ${ gridCols })), 1fr))`,
         gap: '1.25rem',
     };
-
-    // Content search mode: show rich results list
-    if ( searchTerm.length >= 2 ) {
-        return (
-            <>
-                <ContentSearchResultList searchTerm={ searchTerm } />
-                { readerItem && (
-                    <Suspense fallback={ null }>
-                        <ReaderModal
-                            key={ readerItem.id }
-                            itemId={ readerItem.id }
-                            fileUrl={ readerItem.file_path }
-                            format={ resolveFileFormat( readerItem ) }
-                            title={ readerItem.title }
-                            volumes={ readerItem.volumes && readerItem.volumes.length > 1 ? readerItem.volumes : undefined }
-                            itemType={ readerItem.type }
-                            encoding={ readerItem.metadata?.encoding }
-                            onClose={ () => { setReaderItem( null ); setReaderVolIdx( undefined ); } }
-                            initialVolume={ readerVolIdx }
-                            initialFontSize={ resolvedFontSize }
-                            initialTheme={ resolvedTheme }
-                        />
-                    </Suspense>
-                ) }
-            </>
-        );
-    }
 
     if ( isLoading ) return <SkeletonGrid cols={ gridCols } cardMinWidth={ cardMinWidth } />;
 
@@ -2263,50 +1873,3 @@ const App: React.FC<AppProps> = ( props ) => (
 );
 
 export default App;
-
-/* ── Standalone search block ([jetreader_search] shortcode) ── */
-const StandaloneSearchInner: React.FC = () => {
-    const { t, direction }         = useTranslation();
-    const [ input, setInput ]      = useState( '' );
-    const [ term,  setTerm  ]      = useState( '' );
-
-    const handleSearch = () => {
-        if ( input.trim().length >= 2 ) setTerm( input.trim() );
-        else if ( ! input.trim() ) setTerm( '' );
-    };
-
-    return (
-        <div dir={ direction } className="flex flex-col gap-4">
-            <div className="flex gap-2">
-                <input
-                    type="text"
-                    value={ input }
-                    onChange={ ( e ) => setInput( e.target.value ) }
-                    onKeyDown={ ( e ) => e.key === 'Enter' && handleSearch() }
-                    placeholder={ t( 'frontend.searchPlaceholder' ) }
-                    className="jr-input text-sm flex-1"
-                />
-                <button onClick={ handleSearch } className="jr-btn-primary text-sm px-4 shrink-0">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                </button>
-                { term && (
-                    <button
-                        onClick={ () => { setTerm( '' ); setInput( '' ); } }
-                        className="jr-btn-secondary text-sm px-3 shrink-0"
-                    >
-                        ✕
-                    </button>
-                ) }
-            </div>
-            { term.length >= 2 && <ContentSearchResultList searchTerm={ term } /> }
-        </div>
-    );
-};
-
-export const StandaloneSearchApp: React.FC = () => (
-    <QueryClientProvider client={ queryClient }>
-        <I18nProvider>
-            <StandaloneSearchInner />
-        </I18nProvider>
-    </QueryClientProvider>
-);

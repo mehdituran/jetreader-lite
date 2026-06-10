@@ -4,8 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { I18nProvider, useTranslation } from '../i18n/I18nContext';
 import { LangCombobox } from './LangCombobox';
 
-declare const __JR_LITE__: boolean;
-
 const queryClient = new QueryClient( {
     defaultOptions: {
         queries: {
@@ -757,7 +755,6 @@ const LectorDashboard: React.FC = () => {
                         { code:'[jetreader_library]',                       label: t('dashboard.scLibraryLabel'),      desc: t('dashboard.scLibraryDesc'),      badge:'⭐' },
                         { code:'[jetreader_library type="book"]',           label: t('dashboard.scLibraryBooksLabel'), desc: t('dashboard.scLibraryBooksDesc'), badge:'📚' },
                         { code:'[jetreader_library types="book,magazine"]', label: t('dashboard.scLibraryTypesLabel'), desc: t('dashboard.scLibraryTypesDesc'), badge:'🗂️' },
-                        { code:'[jetreader_featured]',                      label: t('dashboard.scFeaturedLabel'),     desc: t('dashboard.scFeaturedDesc'),     badge:'✨' },
                     ].map( ( sc, i, arr ) => (
                         <div
                             key={ sc.code }
@@ -797,9 +794,910 @@ const LectorDashboard: React.FC = () => {
     );
 };
 
+/* ------------------------------------------------------------------ */
+/*  ItemsPage – full CRUD                                              */
+/* ------------------------------------------------------------------ */
+
+
+const FORMATS_ADMIN = [ 'epub', 'pdf', 'txt', 'docx' ];
+
+interface AdminFilters {
+    author: string;
+    file_type: string;
+    visibility: string;
+    featured: string;
+    view_min: string;
+    view_max: string;
+    has_volumes: boolean;
+    category_id: string;
+}
+
+const DEFAULT_ADMIN_FILTERS: AdminFilters = {
+    author: '', file_type: '', visibility: '', featured: '',
+    view_min: '', view_max: '', has_volumes: false, category_id: '',
+};
+
+interface BulkEditForm {
+    visibility: string;
+    featured: string;
+    language: string;
+    author: string;
+    authorChanged: boolean;
+    publisher: string;
+    publisherChanged: boolean;
+    translator: string;
+    translatorChanged: boolean;
+    publication_year: string;
+    publication_yearChanged: boolean;
+    type: string;
+    typeChanged: boolean;
+    categoryIds: number[];
+    categoryChanged: boolean;
+}
+
+/* ------------------------------------------------------------------ */
+/*  BulkAddModal – add multiple items in one go                        */
+/* ------------------------------------------------------------------ */
+
+interface BulkAddItem {
+    title: string;
+    category_names: string;
+    author: string;
+    translator: string;
+    publisher: string;
+    publication_year: string;
+    description: string;
+    visibility: string;
+    featured: boolean;
+    cover_image: string;
+    file_path: string;
+    file_type: string;
+}
+
+const EMPTY_BULK_ITEM: BulkAddItem = {
+    title: '', category_names: '', author: '', translator: '', publisher: '',
+    publication_year: '', description: '', visibility: 'publish',
+    featured: false, cover_image: '', file_path: '', file_type: '',
+};
+
+interface BulkAddModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onSaved: () => void;
+    flashMessage: ( msg: string ) => void;
+}
+
+const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, flashMessage } ) => {
+    const { t } = useTranslation();
+    const [ activeType, setActiveType ] = useState<string>( 'book' );
+    const [ rows, setRows ] = useState<BulkAddItem[]>( [ { ...EMPTY_BULK_ITEM } ] );
+    const [ saving, setSaving ] = useState( false );
+    const [ pendingType, setPendingType ] = useState<string | null>( null );
+    const [ pendingClose, setPendingClose ] = useState( false );
+    const [ isDraggingModal, setIsDraggingModal ] = useState( false );
+    const [ activeDragRowIndex, setActiveDragRowIndex ] = useState<number | null>( null );
+    const dragCounter = React.useRef( 0 );
+
+    const TYPE_SVG: Record<string, React.ReactNode> = {
+        book: (
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            </svg>
+        ),
+        article: (
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+            </svg>
+        ),
+        magazine: (
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/>
+                <path d="M18 14h-8M18 18h-8M16 6H10v4h6V6z"/>
+            </svg>
+        ),
+        qa: (
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+        )
+    };
+
+    const bulkTypeTabs = [
+        { key: 'book',     label: t( 'items.typeTabsBooks' ),     icon: TYPE_SVG.book },
+        { key: 'article',  label: t( 'items.typeTabsArticles' ),  icon: TYPE_SVG.article },
+        { key: 'magazine', label: t( 'items.typeTabsMagazines' ), icon: TYPE_SVG.magazine },
+        { key: 'qa',       label: t( 'items.typeTabsQA' ),        icon: TYPE_SVG.qa },
+    ];
+
+    const { data: bulkCategories = [] } = useQuery<CategoryExtended[]>( {
+        queryKey: [ 'categories', 'bulk', activeType ],
+        queryFn: async () => {
+            const res = await fetch( `${API_BASE}/categories?type=${ encodeURIComponent( activeType ) }`, {
+                headers: { 'X-WP-Nonce': getNonce() },
+            } );
+            const json = await res.json();
+            return Array.isArray( json ) ? json : [];
+        },
+        enabled: isOpen,
+    } );
+
+    const { data: bulkAuthors = [] } = useQuery<SimpleRecord[]>( {
+        queryKey: [ 'authors', 'bulk' ],
+        queryFn: async () => {
+            const res = await fetch( `${API_BASE}/authors`, { headers: { 'X-WP-Nonce': getNonce() } } );
+            const json = await res.json();
+            return Array.isArray( json ) ? json : [];
+        },
+        enabled: isOpen,
+    } );
+
+    const { data: bulkPublishers = [] } = useQuery<SimpleRecord[]>( {
+        queryKey: [ 'publishers', 'bulk' ],
+        queryFn: async () => {
+            const res = await fetch( `${API_BASE}/publishers`, { headers: { 'X-WP-Nonce': getNonce() } } );
+            const json = await res.json();
+            return Array.isArray( json ) ? json : [];
+        },
+        enabled: isOpen,
+    } );
+
+    const hasUnsavedData = rows.some( ( row ) =>
+        row.title.trim() !== '' ||
+        row.author.trim() !== '' ||
+        row.translator.trim() !== '' ||
+        row.publisher.trim() !== '' ||
+        row.publication_year.trim() !== '' ||
+        row.description.trim() !== '' ||
+        row.cover_image.trim() !== '' ||
+        row.file_path.trim() !== '' ||
+        row.category_names.trim() !== '' ||
+        row.file_type !== '' ||
+        row.featured ||
+        row.visibility !== 'publish'
+    );
+
+    const handleTypeChange = ( type: string ) => {
+        setActiveType( type );
+        setRows( [ { ...EMPTY_BULK_ITEM } ] );
+        setPendingType( null );
+        setPendingClose( false );
+    };
+
+    const onTabClick = ( key: string ) => {
+        if ( key === activeType ) return;
+        if ( hasUnsavedData ) {
+            setPendingType( key );
+            setPendingClose( false );
+        } else {
+            handleTypeChange( key );
+        }
+    };
+
+    const onCloseRequest = () => {
+        if ( hasUnsavedData ) {
+            setPendingClose( true );
+            setPendingType( null );
+        } else {
+            onClose();
+        }
+    };
+
+    const addRow = () => setRows( ( prev ) => [ ...prev, { ...EMPTY_BULK_ITEM } ] );
+
+    const removeRow = ( idx: number ) => {
+        if ( rows.length <= 1 ) return;
+        setRows( ( prev ) => prev.filter( ( _, i ) => i !== idx ) );
+    };
+
+    const updateRow = ( idx: number, field: keyof BulkAddItem, value: string | boolean ) => {
+        setRows( ( prev ) => prev.map( ( row, i ) => i === idx ? { ...row, [ field ]: value } : row ) );
+    };
+
+    const copyFieldToAll = ( idx: number, field: keyof BulkAddItem ) => {
+        const value = rows[ idx ][ field ];
+        setRows( ( prev ) => prev.map( ( row, i ) => i === idx ? row : { ...row, [ field ]: value } ) );
+    };
+
+    const duplicateRow = ( idx: number ) => {
+        setRows( ( prev ) => [
+            ...prev.slice( 0, idx + 1 ),
+            { ...prev[ idx ] },
+            ...prev.slice( idx + 1 ),
+        ] );
+    };
+
+    const handleModalDragEnter = ( e: React.DragEvent ) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounter.current++;
+        if ( dragCounter.current === 1 ) {
+            setIsDraggingModal( true );
+        }
+    };
+
+    const handleModalDragLeave = ( e: React.DragEvent ) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounter.current--;
+        if ( dragCounter.current === 0 ) {
+            setIsDraggingModal( false );
+        }
+    };
+
+    const handleModalDragOver = ( e: React.DragEvent ) => {
+        e.preventDefault();
+        e.stopPropagation();
+    };
+
+    const uploadAndParseFile = async ( file: File ) => {
+        const formData = new FormData();
+        formData.append( 'file', file );
+
+        const res = await fetch( `${ API_BASE }/upload`, {
+            method: 'POST',
+            headers: { 'X-WP-Nonce': getNonce() },
+            body: formData,
+        } );
+        const json = await res.json();
+        if ( json.code ) throw new Error( json.message );
+        return json;
+    };
+
+    const handleModalDrop = async ( e: React.DragEvent ) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounter.current = 0;
+        setIsDraggingModal( false );
+
+        const files = Array.from( e.dataTransfer.files || [] );
+        if ( files.length === 0 ) return;
+
+        setSaving( true );
+        flashMessage( `⚡ Uploading and parsing ${ files.length } files...` );
+
+        let updatedRows = [ ...rows ];
+        let successCount = 0;
+
+        for ( const file of files ) {
+            const ext = file.name.split( '.' ).pop()?.toLowerCase();
+            const supported = [ 'epub', 'pdf', 'txt', 'docx', 'doc' ];
+            if ( ! ext || ! supported.includes( ext ) ) {
+                flashMessage( `❌ Unsupported file type: .${ ext }` );
+                continue;
+            }
+
+            try {
+                const json = await uploadAndParseFile( file );
+                const meta = json.metadata || {};
+
+                const itemData: BulkAddItem = {
+                    title: meta.title || file.name.replace( /\.[^/.]+$/, "" ),
+                    category_names: meta.category || '',
+                    author: meta.author || '',
+                    translator: meta.translator || '',
+                    publisher: meta.publisher || '',
+                    publication_year: meta.publication_year ? String( meta.publication_year ) : '',
+                    description: meta.description || '',
+                    visibility: 'publish',
+                    featured: false,
+                    cover_image: meta.cover_image || '',
+                    file_path: json.file_url || '',
+                    file_type: json.file_type || ext,
+                };
+
+                if ( successCount === 0 && updatedRows.length === 1 && updatedRows[0].title.trim() === '' && updatedRows[0].file_path.trim() === '' ) {
+                    updatedRows[0] = itemData;
+                } else {
+                    updatedRows.push( itemData );
+                }
+                successCount++;
+            } catch ( err ) {
+                flashMessage( `❌ Upload failed for "${ file.name }": ${ err instanceof Error ? err.message : 'Unknown error' }` );
+            }
+        }
+
+        setRows( updatedRows );
+        setSaving( false );
+        if ( successCount > 0 ) {
+            flashMessage( `✅ ${ successCount } files uploaded and parsed!` );
+        }
+    };
+
+    const handleSave = async () => {
+        const validRows = rows.filter( ( r ) => r.title.trim() );
+        if ( validRows.length === 0 ) {
+            flashMessage( t( 'items.addItemError' ) );
+            return;
+        }
+        setSaving( true );
+        const payloadItems = validRows.map( ( row ) => {
+            const payload: Record<string, unknown> = {
+                type:           activeType,
+                title:          row.title.trim(),
+                visibility:     row.visibility || 'publish',
+                featured:       row.featured,
+                category_names: row.category_names,
+                description:    row.description,
+            };
+            if ( activeType !== 'qa' ) {
+                payload.author           = row.author;
+                payload.translator       = row.translator;
+                payload.publisher        = row.publisher;
+                payload.publication_year = parseInt( row.publication_year, 10 ) || null;
+                payload.cover_image      = row.cover_image;
+                payload.file_path        = row.file_path;
+                payload.file_type        = row.file_type;
+                payload.volumes          = [ { vol: 1, file_path: row.file_path, file_type: row.file_type, cover_image: row.cover_image } ];
+            }
+            return payload;
+        } );
+
+        let ok = 0, fail = 0;
+        try {
+            const res = await fetch( `${API_BASE}/items/bulk-create`, {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': getNonce() },
+                body:    JSON.stringify( { items: payloadItems } ),
+            } );
+            const json = await res.json();
+            ok = json.success ?? 0;
+            fail = json.failed ?? 0;
+        } catch {
+            fail = payloadItems.length;
+        }
+        setSaving( false );
+        flashMessage(
+            fail === 0
+                ? t( 'items.bulkAddSuccess', { N: String( ok ) } )
+                : t( 'items.bulkAddPartial', { OK: String( ok ), FAIL: String( fail ) } )
+        );
+        onSaved();
+        onClose();
+        setRows( [ { ...EMPTY_BULK_ITEM } ] );
+        setActiveType( 'book' );
+    };
+
+    if ( ! isOpen ) return null;
+
+    const isQA      = activeType === 'qa';
+    const fileTypes = [ 'epub', 'pdf', 'txt', 'docx' ];
+    const canCopy   = rows.length > 1;
+
+    const CopyToAll = ( { idx, field }: { idx: number; field: keyof BulkAddItem } ) => (
+        <button
+            type="button"
+            onClick={ () => copyFieldToAll( idx, field ) }
+            disabled={ ! canCopy }
+            title={ t( 'admin.copyAll' ) }
+            className="shrink-0 p-2 rounded-xl text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 disabled:opacity-20 disabled:cursor-not-allowed transition-all active:scale-95 border border-transparent hover:border-blue-200 dark:hover:border-blue-800 bg-transparent flex items-center justify-center w-9 h-9"
+        >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="9" y="9" width="13" height="13" rx="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+        </button>
+    );
+
+    return (
+        <AnimatePresence>
+            <motion.div
+                initial={ { opacity: 0 } }
+                animate={ { opacity: 1 } }
+                exit={ { opacity: 0 } }
+                className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center pt-6 p-4 overflow-y-auto"
+                onClick={ onCloseRequest }
+            >
+                <motion.div
+                    initial={ { scale: 0.95, opacity: 0, y: 20 } }
+                    animate={ { scale: 1, opacity: 1, y: 0 } }
+                    exit={ { scale: 0.95, opacity: 0, y: 20 } }
+                    className={ `bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-5xl mb-6 border transition-all duration-300 overflow-hidden relative ${
+                        isDraggingModal
+                            ? 'border-blue-500 ring-2 ring-blue-500/20 shadow-[0_0_20px_rgba(59,130,246,0.15)] bg-blue-50/5 dark:bg-blue-900/5'
+                            : 'border-gray-100 dark:border-gray-700/60'
+                    }` }
+                    onClick={ ( e ) => e.stopPropagation() }
+                    onDragEnter={ handleModalDragEnter }
+                    onDragOver={ handleModalDragOver }
+                    onDragLeave={ handleModalDragLeave }
+                    onDrop={ handleModalDrop }
+                >
+
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/10">
+                        <div className="flex items-center gap-2.5">
+                            <span className="p-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl shadow-sm">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+                                    <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+                                </svg>
+                            </span>
+                            <div>
+                                <h2 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">{ t( 'items.bulkAddTitle' ) }</h2>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ t( 'items.bulkAddSubtitle' ) || 'Add multiple items to your library in one go' }</p>
+                            </div>
+                        </div>
+                        <button onClick={ onCloseRequest } className="p-2 hover:bg-gray-150 dark:hover:bg-gray-700/60 rounded-xl transition-all text-gray-500 dark:text-gray-400 active:scale-95">✕</button>
+                    </div>
+
+                    {/* Type tabs */}
+                    <div className="flex gap-1 px-6 pt-3 border-b border-gray-200 dark:border-gray-700 overflow-x-auto bg-white dark:bg-gray-800">
+                        { bulkTypeTabs.map( ( tab ) => (
+                            <button
+                                key={ tab.key }
+                                onClick={ () => onTabClick( tab.key ) }
+                                className={ `flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px whitespace-nowrap ${
+                                    activeType === tab.key
+                                        ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                        : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                                }` }
+                            >
+                                <span className="shrink-0">{ tab.icon }</span>
+                                <span>{ tab.label }</span>
+                            </button>
+                        ) ) }
+                    </div>
+
+                    {/* Confirmation banner — tab change or close */}
+                    { ( pendingType || pendingClose ) && (
+                        <div className="px-6 py-3 bg-amber-50 dark:bg-amber-900/30 border-b border-amber-200 dark:border-amber-700 flex items-center justify-between gap-3 animate-fade-in">
+                            <p className="text-sm text-amber-800 dark:text-amber-300">
+                                { pendingClose
+                                    ? t( 'items.bulkCloseWarning' )
+                                    : t( 'items.bulkTabChangeWarning' ) }
+                            </p>
+                            <div className="flex gap-2 shrink-0">
+                                <button
+                                    type="button"
+                                    onClick={ () => { setPendingType( null ); setPendingClose( false ); } }
+                                    className="px-3 py-1.5 text-xs rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                                >
+                                    { t( 'items.bulkTabChangeCancel' ) }
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={ () => pendingClose ? onClose() : handleTypeChange( pendingType! ) }
+                                    className="px-3 py-1.5 text-xs rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors"
+                                >
+                                    { pendingClose
+                                        ? t( 'items.bulkCloseConfirm' )
+                                        : t( 'items.bulkTabChangeContinue' ) }
+                                </button>
+                            </div>
+                        </div>
+                    ) }
+
+                    {/* Rows – scrollable */}
+                    <div className="px-6 py-5 space-y-4 max-h-[55vh] overflow-y-auto bg-gray-50/30 dark:bg-gray-900/5">
+                        {/* Drag & Drop Hint Banner */}
+                        <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 rounded-xl p-3 text-xs text-blue-700 dark:text-blue-300 flex items-start gap-2.5 shadow-sm">
+                            <span className="text-base shrink-0">💡</span>
+                            <div>
+                                <p className="font-semibold">{ t( 'items.bulkDragDropHintTitle' ) }</p>
+                                <p className="mt-0.5 opacity-90">{ t( 'items.bulkDragDropHintDesc' ) }</p>
+                            </div>
+                        </div>
+
+                        { rows.map( ( row, idx ) => (
+                            <div
+                                key={ idx }
+                                onDragEnter={ ( e ) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setActiveDragRowIndex( idx );
+                                } }
+                                onDragOver={ ( e ) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                } }
+                                onDragLeave={ ( e ) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setActiveDragRowIndex( null );
+                                } }
+                                onDrop={ async ( e ) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setActiveDragRowIndex( null );
+
+                                    const file = e.dataTransfer.files?.[0];
+                                    if ( ! file ) return;
+
+                                    const ext = file.name.split( '.' ).pop()?.toLowerCase();
+                                    const supported = [ 'epub', 'pdf', 'txt', 'docx', 'doc' ];
+                                    if ( ! ext || ! supported.includes( ext ) ) {
+                                        flashMessage( `❌ Unsupported file type: .${ ext }` );
+                                        return;
+                                    }
+
+                                    setSaving( true );
+                                    flashMessage( `⚡ Uploading and parsing "${ file.name }" for row #${ idx + 1 }...` );
+                                    try {
+                                        const json = await uploadAndParseFile( file );
+                                        const meta = json.metadata || {};
+
+                                        setRows( ( prev ) => prev.map( ( r, i ) => i === idx ? {
+                                            ...r,
+                                            title: meta.title || r.title || file.name.replace( /\.[^/.]+$/, "" ),
+                                            category_names: meta.category || r.category_names || '',
+                                            author: meta.author || r.author || '',
+                                            translator: meta.translator || r.translator || '',
+                                            publisher: meta.publisher || r.publisher || '',
+                                            publication_year: meta.publication_year ? String( meta.publication_year ) : r.publication_year || '',
+                                            description: meta.description || r.description || '',
+                                            cover_image: meta.cover_image || r.cover_image || '',
+                                            file_path: json.file_url || '',
+                                            file_type: json.file_type || ext,
+                                        } : r ) );
+
+                                        flashMessage( `✅ Row #${ idx + 1 } populated!` );
+                                    } catch ( err ) {
+                                        flashMessage( `❌ Upload failed for row #${ idx + 1 }: ${ err instanceof Error ? err.message : 'Unknown error' }` );
+                                    } finally {
+                                        setSaving( false );
+                                    }
+                                } }
+                                className={ `bg-white dark:bg-gray-800 rounded-xl border p-4 space-y-4 shadow-sm hover:border-gray-300 dark:hover:border-gray-650 transition-all duration-200 relative ${
+                                    activeDragRowIndex === idx
+                                        ? 'border-dashed border-2 border-blue-500 bg-blue-50/20 dark:bg-blue-900/10'
+                                        : 'border-gray-200 dark:border-gray-700'
+                                }` }
+                            >
+                                { activeDragRowIndex === idx && (
+                                    <div className="absolute inset-0 bg-blue-500/5 backdrop-blur-[1px] rounded-xl flex items-center justify-center pointer-events-none z-10">
+                                        <div className="bg-white dark:bg-gray-850 px-3 py-1.5 rounded-lg shadow-md border border-blue-200 dark:border-blue-900/50 flex items-center gap-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 animate-pulse">
+                                            <span>📥</span>
+                                            <span>{ t( 'items.dropToFillRow' ) || 'Drop to populate row' }</span>
+                                        </div>
+                                    </div>
+                                ) }
+
+                                {/* Row Header */}
+                                <div className="flex items-center justify-between border-b border-gray-150 dark:border-gray-700/60 pb-2.5">
+                                    <div className="flex items-center gap-2">
+                                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 text-xs font-bold shadow-sm">{ idx + 1 }</span>
+                                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                            { activeType === 'book' ? t( 'itemForm.typeBook' ) : activeType === 'article' ? t( 'itemForm.typeArticle' ) : activeType === 'magazine' ? t( 'itemForm.typeMagazine' ) : t( 'itemForm.typeQA' ) } #{ idx + 1 }
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {/* Duplicate row */}
+                                        <button
+                                            type="button"
+                                            onClick={ () => duplicateRow( idx ) }
+                                            title={ t( 'admin.duplicateRow' ) }
+                                            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all active:scale-95 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm"
+                                        >
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                                <rect x="9" y="9" width="13" height="13" rx="2"/>
+                                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                                            </svg>
+                                        </button>
+                                        {/* Remove row */}
+                                        <button
+                                            type="button"
+                                            onClick={ () => removeRow( idx ) }
+                                            disabled={ rows.length <= 1 }
+                                            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-95 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm text-sm"
+                                        >✕</button>
+                                    </div>
+                                </div>
+
+                                { isQA ? (
+                                    /* Q&A Simple Fields Grid */
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {/* Title */}
+                                        <div className="md:col-span-2 space-y-1">
+                                            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                                { t( 'itemForm.titleRequired' ) } <span className="text-red-500">*</span>
+                                            </label>
+                                            <div className="flex items-center gap-1.5">
+                                                <input
+                                                    type="text"
+                                                    value={ row.title }
+                                                    onChange={ ( e ) => updateRow( idx, 'title', e.target.value ) }
+                                                    placeholder={ t( 'itemForm.titleRequired' ) }
+                                                    className="jr-input flex-1 text-sm min-w-0"
+                                                />
+                                                <CopyToAll idx={ idx } field="title" />
+                                            </div>
+                                        </div>
+
+                                        {/* Category */}
+                                        <div className="space-y-1">
+                                            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                                { t( 'itemForm.categoryLabel' ) }
+                                            </label>
+                                            <div className="flex items-center gap-1.5">
+                                                <input
+                                                    type="text"
+                                                    value={ row.category_names }
+                                                    onChange={ ( e ) => updateRow( idx, 'category_names', e.target.value ) }
+                                                    list="bulk-categories-list"
+                                                    className="jr-input text-sm w-full"
+                                                    placeholder={ t( 'itemForm.categoryPlaceholder' ) || 'e.g. Felsefe, Mantık' }
+                                                />
+                                                <CopyToAll idx={ idx } field="category_names" />
+                                            </div>
+                                        </div>
+
+                                        {/* Visibility */}
+                                        <div className="space-y-1">
+                                            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                                { t( 'itemForm.visibilityLabel' ) }
+                                            </label>
+                                            <div className="flex items-center gap-1.5">
+                                                <select value={ row.visibility } onChange={ ( e ) => updateRow( idx, 'visibility', e.target.value ) } className="jr-input text-sm w-full">
+                                                    <option value="publish">{ t( 'itemForm.visibilityPublish' ) }</option>
+                                                    <option value="draft">{ t( 'itemForm.visibilityDraft' ) }</option>
+                                                    <option value="private">{ t( 'itemForm.visibilityPrivate' ) }</option>
+                                                </select>
+                                                <CopyToAll idx={ idx } field="visibility" />
+                                            </div>
+                                        </div>
+
+                                        {/* Featured */}
+                                        <div className="flex items-center justify-between border border-gray-250 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/10 rounded-xl px-3.5 py-2 hover:border-gray-300 dark:hover:border-gray-655 transition-colors">
+                                            <label className="flex items-center gap-2.5 text-xs font-semibold text-gray-655 dark:text-gray-400 uppercase tracking-wide cursor-pointer select-none">
+                                                <input type="checkbox" checked={ row.featured } onChange={ ( e ) => updateRow( idx, 'featured', e.target.checked ) } className="rounded accent-blue-600 w-4 h-4" />
+                                                <span>{ t( 'itemForm.featuredLabel' ) }</span>
+                                            </label>
+                                            <CopyToAll idx={ idx } field="featured" />
+                                        </div>
+
+                                        {/* Description */}
+                                        <div className="md:col-span-2 space-y-1">
+                                            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                                { t( 'itemForm.descriptionPlaceholder' ) }
+                                            </label>
+                                            <div className="flex items-start gap-1.5">
+                                                <textarea value={ row.description } onChange={ ( e ) => updateRow( idx, 'description', e.target.value ) } placeholder={ t( 'itemForm.descriptionPlaceholder' ) } className="jr-input w-full text-sm" rows={ 2 } />
+                                                <CopyToAll idx={ idx } field="description" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    /* Books, Articles, Magazines Standard Fields Grid */
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {/* Title */}
+                                        <div className="md:col-span-2 space-y-1">
+                                            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                                { t( 'itemForm.titleRequired' ) } <span className="text-red-500">*</span>
+                                            </label>
+                                            <div className="flex items-center gap-1.5">
+                                                <input
+                                                    type="text"
+                                                    value={ row.title }
+                                                    onChange={ ( e ) => updateRow( idx, 'title', e.target.value ) }
+                                                    placeholder={ t( 'itemForm.titleRequired' ) }
+                                                    className="jr-input flex-1 text-sm min-w-0"
+                                                />
+                                                <CopyToAll idx={ idx } field="title" />
+                                            </div>
+                                        </div>
+
+                                        {/* Category */}
+                                        <div className="space-y-1">
+                                            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                                { t( 'itemForm.categoryLabel' ) }
+                                            </label>
+                                            <div className="flex items-center gap-1.5">
+                                                <input
+                                                    type="text"
+                                                    value={ row.category_names }
+                                                    onChange={ ( e ) => updateRow( idx, 'category_names', e.target.value ) }
+                                                    list="bulk-categories-list"
+                                                    className="jr-input text-sm w-full"
+                                                    placeholder={ t( 'itemForm.categoryPlaceholder' ) || 'e.g. Felsefe, Mantık' }
+                                                />
+                                                <CopyToAll idx={ idx } field="category_names" />
+                                            </div>
+                                        </div>
+
+                                        {/* Author */}
+                                        <div className="space-y-1">
+                                            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                                { t( 'items.authorLabel' ) }
+                                            </label>
+                                            <div className="flex items-center gap-1.5">
+                                                <input
+                                                    type="text"
+                                                    value={ row.author }
+                                                    onChange={ ( e ) => updateRow( idx, 'author', e.target.value ) }
+                                                    list="bulk-authors-list"
+                                                    className="jr-input w-full text-sm"
+                                                    placeholder={ t( 'itemForm.authorPlaceholder' ) || 'Enter author name' }
+                                                />
+                                                <CopyToAll idx={ idx } field="author" />
+                                            </div>
+                                        </div>
+
+                                        {/* Publisher */}
+                                        <div className="space-y-1">
+                                            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                                { t( 'itemForm.publisherLabel' ) }
+                                            </label>
+                                            <div className="flex items-center gap-1.5">
+                                                <input
+                                                    type="text"
+                                                    value={ row.publisher }
+                                                    onChange={ ( e ) => updateRow( idx, 'publisher', e.target.value ) }
+                                                    list="bulk-publishers-list"
+                                                    className="jr-input w-full text-sm"
+                                                    placeholder={ t( 'itemForm.publisherPlaceholder' ) || 'Enter publisher name' }
+                                                />
+                                                <CopyToAll idx={ idx } field="publisher" />
+                                            </div>
+                                        </div>
+
+                                        {/* Translator */}
+                                        <div className="space-y-1">
+                                            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                                { t( 'itemForm.translatorLabel' ) }
+                                            </label>
+                                            <div className="flex items-center gap-1.5">
+                                                <input
+                                                    type="text"
+                                                    value={ row.translator }
+                                                    onChange={ ( e ) => updateRow( idx, 'translator', e.target.value ) }
+                                                    placeholder={ t( 'itemForm.translatorPlaceholder' ) }
+                                                    className="jr-input text-sm w-full"
+                                                />
+                                                <CopyToAll idx={ idx } field="translator" />
+                                            </div>
+                                        </div>
+
+                                        {/* Year */}
+                                        <div className="space-y-1">
+                                            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                                { t( 'itemForm.yearLabel' ) }
+                                            </label>
+                                            <div className="flex items-center gap-1.5">
+                                                <input type="number" value={ row.publication_year } onChange={ ( e ) => updateRow( idx, 'publication_year', e.target.value ) } placeholder={ t( 'itemForm.yearLabel' ) } className="jr-input text-sm w-full" />
+                                                <CopyToAll idx={ idx } field="publication_year" />
+                                            </div>
+                                        </div>
+
+                                        {/* Visibility */}
+                                        <div className="space-y-1">
+                                            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                                { t( 'itemForm.visibilityLabel' ) }
+                                            </label>
+                                            <div className="flex items-center gap-1.5">
+                                                <select value={ row.visibility } onChange={ ( e ) => updateRow( idx, 'visibility', e.target.value ) } className="jr-input text-sm w-full">
+                                                    <option value="publish">{ t( 'itemForm.visibilityPublish' ) }</option>
+                                                    <option value="draft">{ t( 'itemForm.visibilityDraft' ) }</option>
+                                                    <option value="private">{ t( 'itemForm.visibilityPrivate' ) }</option>
+                                                </select>
+                                                <CopyToAll idx={ idx } field="visibility" />
+                                            </div>
+                                        </div>
+
+                                        {/* File Type */}
+                                        <div className="space-y-1">
+                                            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                                { t( 'itemForm.fileTypeLabel' ) || 'File Type' }
+                                            </label>
+                                            <div className="flex items-center gap-1.5">
+                                                <select value={ row.file_type } onChange={ ( e ) => updateRow( idx, 'file_type', e.target.value ) } className="jr-input text-sm w-full">
+                                                    <option value="">{ t( 'itemForm.fileTypeSelect' ) }</option>
+                                                    { fileTypes.map( ( f ) => <option key={ f } value={ f }>{ f.toUpperCase() }</option> ) }
+                                                </select>
+                                                <CopyToAll idx={ idx } field="file_type" />
+                                            </div>
+                                        </div>
+
+                                        {/* Cover Image */}
+                                        <div className="space-y-1">
+                                            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                                { t( 'itemForm.coverImageLabel' ) || 'Cover Image' }
+                                            </label>
+                                            <div className="flex items-center gap-1.5">
+                                                <div className="flex items-center gap-1 flex-1 min-w-0">
+                                                    <input type="text" value={ row.cover_image } onChange={ ( e ) => updateRow( idx, 'cover_image', e.target.value ) } placeholder={ t( 'itemForm.coverImagePlaceholder' ) } className="jr-input text-sm flex-1 min-w-0" />
+                                                    <WpMediaButton imageOnly title={ t( 'itemForm.browseMedia' ) } onSelect={ ( url ) => updateRow( idx, 'cover_image', url ) } />
+                                                </div>
+                                                <CopyToAll idx={ idx } field="cover_image" />
+                                            </div>
+                                        </div>
+
+                                        {/* File Path */}
+                                        <div className="space-y-1">
+                                            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                                { t( 'itemForm.filePathLabel' ) || 'File Path' }
+                                            </label>
+                                            <div className="flex items-center gap-1.5">
+                                                <div className="flex items-center gap-1 flex-1 min-w-0">
+                                                    <input type="text" value={ row.file_path } onChange={ ( e ) => updateRow( idx, 'file_path', e.target.value ) } placeholder={ t( 'itemForm.filePathPlaceholder' ) } className="jr-input text-sm flex-1 min-w-0" />
+                                                    <WpMediaButton title={ t( 'itemForm.browseMedia' ) } onSelect={ ( url ) => updateRow( idx, 'file_path', url ) } />
+                                                </div>
+                                                <CopyToAll idx={ idx } field="file_path" />
+                                            </div>
+                                        </div>
+
+                                        {/* Featured */}
+                                        <div className="flex items-center justify-between border border-gray-250 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/10 rounded-xl px-3.5 py-2 hover:border-gray-300 dark:hover:border-gray-650 transition-colors mt-5">
+                                            <label className="flex items-center gap-2.5 text-xs font-semibold text-gray-650 dark:text-gray-455 uppercase tracking-wide cursor-pointer select-none">
+                                                <input type="checkbox" checked={ row.featured } onChange={ ( e ) => updateRow( idx, 'featured', e.target.checked ) } className="rounded accent-blue-600 w-4 h-4" />
+                                                <span>{ t( 'itemForm.featuredLabel' ) }</span>
+                                            </label>
+                                            <CopyToAll idx={ idx } field="featured" />
+                                        </div>
+
+                                        {/* Description */}
+                                        <div className="md:col-span-2 lg:col-span-3 space-y-1">
+                                            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                                { t( 'itemForm.descriptionPlaceholder' ) }
+                                            </label>
+                                            <div className="flex items-start gap-1.5">
+                                                <textarea value={ row.description } onChange={ ( e ) => updateRow( idx, 'description', e.target.value ) } placeholder={ t( 'itemForm.descriptionPlaceholder' ) } className="jr-input w-full text-sm" rows={ 2 } />
+                                                <CopyToAll idx={ idx } field="description" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) }
+                            </div>
+                        ) ) }
+                    </div>
+
+                    {/* Footer */}
+                    <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/10">
+                        <button
+                            onClick={ addRow }
+                            className="px-4 py-2.5 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:hover:bg-blue-900/35 dark:text-blue-300 font-semibold rounded-xl transition-all duration-150 active:scale-95 flex items-center gap-1.5 border border-blue-100 dark:border-blue-800/40"
+                        >
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <line x1="12" y1="5" x2="12" y2="19"/>
+                                <line x1="5" y1="12" x2="19" y2="12"/>
+                            </svg>
+                            { t( 'items.bulkAddAddRow' ) }
+                        </button>
+                        <div className="flex gap-3">
+                            <button onClick={ onCloseRequest } className="jr-btn-secondary text-sm">
+                                { t( 'common.cancel' ) }
+                            </button>
+                            <button onClick={ handleSave } disabled={ saving } className="jr-btn-primary text-sm flex items-center gap-1.5">
+                                { saving && (
+                                    <svg className="animate-spin -ml-1 mr-1.5 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                    </svg>
+                                ) }
+                                <span>{ saving ? t( 'items.bulkSaving' ) : t( 'items.bulkAddSave' ) }</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Datalists for autocompletion */}
+                    <datalist id="bulk-categories-list">
+                        { bulkCategories.map( ( c ) => (
+                            <option key={ c.id } value={ c.name } />
+                        ) ) }
+                    </datalist>
+                    <datalist id="bulk-authors-list">
+                        { bulkAuthors.map( ( a ) => (
+                            <option key={ a.id } value={ a.name } />
+                        ) ) }
+                    </datalist>
+                    <datalist id="bulk-publishers-list">
+                        { bulkPublishers.map( ( p ) => (
+                            <option key={ p.id } value={ p.name } />
+                        ) ) }
+                    </datalist>
+                </motion.div>
+            </motion.div>
+        </AnimatePresence>
+    );
+};
+
 const ItemsPage: React.FC = () => {
     const { t, locale } = useTranslation();
     const queryClient = useQueryClient();
+
     const typeTabs = [
         { key: '',         label: t( 'items.typeTabsAll' ),       icon: '📋' },
         { key: 'book',     label: t( 'items.typeTabsBooks' ),     icon: '📚' },
@@ -3169,33 +4067,6 @@ const ToggleSwitch: React.FC<{ checked: boolean; onChange: ( v: boolean ) => voi
     </label>
 );
 
-const PremiumLockIcon: React.FC<{ className?: string }> = ( { className = "w-4 h-4" } ) => (
-    <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className={ `inline-block text-amber-500 dark:text-amber-400 shrink-0 ${className}` }
-    >
-        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-    </svg>
-);
-
-const ProBadge: React.FC = () => {
-    const locale = ( window as any ).jetreaderSettings?.locale || 'en';
-    const label = locale === 'tr' ? 'PRO' : 'PRO';
-    return (
-        <span className="bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 text-[10px] tracking-wide font-bold px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800/40 flex items-center gap-1 shrink-0">
-            <PremiumLockIcon className="w-3 h-3" />
-            { label }
-        </span>
-    );
-};
-
 /* ------------------------------------------------------------------ */
 /*  SettingsPage                                                       */
 /* ------------------------------------------------------------------ */
@@ -3216,199 +4087,6 @@ const JR_PALETTES = [
     { slug: 'silver', hex: '#ced4da' },
     { slug: 'teal',   hex: '#34a0a4' },
 ] as const;
-
-const LicenseCard: React.FC<{
-    licenseKey: string;
-    licenseStatus: string;
-    licenseExpires: string;
-    onLicenseChange: () => void;
-}> = ( { licenseKey, licenseStatus, licenseExpires, onLicenseChange } ) => {
-    const { t } = useTranslation();
-    const [ keyInput, setKeyInput ] = React.useState( licenseKey );
-    const [ working, setWorking ] = React.useState( false );
-    const [ msg, setMsg ] = React.useState( '' );
-    const [ isError, setIsError ] = React.useState( false );
-
-    const handleActivate = async () => {
-        if ( ! keyInput.trim() ) return;
-        setWorking( true );
-        setMsg( '' );
-        setIsError( false );
-        try {
-            const res = await fetch( `${API_BASE}/settings/license/activate`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-WP-Nonce': getNonce(),
-                },
-                body: JSON.stringify( { license_key: keyInput } ),
-            } );
-            const data = await res.json();
-            if ( res.ok && data.success ) {
-                setMsg( data.message || t( 'settings.licenseSuccessActive' ) );
-                setTimeout( () => {
-                    onLicenseChange();
-                }, 1000 );
-            } else {
-                setIsError( true );
-                setMsg( data.message || t( 'settings.licenseFailedActive' ) );
-            }
-        } catch {
-            setIsError( true );
-            setMsg( t( 'settings.licenseNetworkError' ) );
-        } finally {
-            setWorking( false );
-        }
-    };
-
-    const handleDeactivate = async () => {
-        setWorking( true );
-        setMsg( '' );
-        setIsError( false );
-        try {
-            const res = await fetch( `${API_BASE}/settings/license/deactivate`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-WP-Nonce': getNonce(),
-                },
-            } );
-            const data = await res.json();
-            if ( res.ok && data.success ) {
-                setMsg( data.message || t( 'settings.licenseSuccessDeactive' ) );
-                setTimeout( () => {
-                    onLicenseChange();
-                }, 1000 );
-            } else {
-                setIsError( true );
-                setMsg( data.message || t( 'settings.licenseFailedDeactive' ) );
-            }
-        } catch {
-            setIsError( true );
-            setMsg( t( 'settings.licenseNetworkError' ) );
-        } finally {
-            setWorking( false );
-        }
-    };
-
-    const isActive = licenseStatus === 'active';
-
-    return (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700 mb-6 relative overflow-hidden">
-            {/* Elegant glassmorphic background highlight */}
-            <div className="absolute -top-12 -right-12 w-32 h-32 bg-primary-500/5 rounded-full blur-xl pointer-events-none" />
-
-            <h3 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-                { t( 'settings.licenseTitle' ) }
-                { isActive ? (
-                    <span className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 text-xs font-semibold px-2.5 py-0.5 rounded-full">
-                        { t( 'settings.licenseActivePro' ) }
-                    </span>
-                ) : (
-                    <span className="bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400 text-xs font-semibold px-2.5 py-0.5 rounded-full">
-                        { t( 'settings.licenseFreeVersion' ) }
-                    </span>
-                ) }
-            </h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                { isActive 
-                    ? t( 'settings.licenseActiveDesc' )
-                    : t( 'settings.licenseFreeDesc' )
-                }
-            </p>
-
-            <div className="flex flex-col sm:flex-row gap-3">
-                <input
-                    type="text"
-                    placeholder={ t( 'settings.licenseKeyPlaceholder' ) }
-                    value={ keyInput }
-                    onChange={ ( e ) => setKeyInput( e.target.value ) }
-                    disabled={ isActive || working }
-                    className="flex-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 font-mono disabled:opacity-70 disabled:bg-gray-50 dark:disabled:bg-gray-800"
-                />
-                { isActive ? (
-                    <button
-                        onClick={ handleDeactivate }
-                        disabled={ working }
-                        className="bg-red-600 hover:bg-red-750 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors disabled:opacity-60 shrink-0"
-                    >
-                        { working ? t( 'settings.licenseProcessing' ) : t( 'settings.licenseDeactivate' ) }
-                    </button>
-                ) : (
-                    <button
-                        onClick={ handleActivate }
-                        disabled={ working || !keyInput.trim() }
-                        className="bg-primary-600 hover:bg-primary-750 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors disabled:opacity-60 shrink-0"
-                    >
-                        { working ? t( 'settings.licenseActivating' ) : t( 'settings.licenseActivate' ) }
-                    </button>
-                ) }
-            </div>
-
-            { licenseExpires && isActive && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 font-mono">
-                    📅 { t( 'settings.licenseExpiryDate' ) }: { licenseExpires }
-                </p>
-            ) }
-
-            { msg && (
-                <div className={ `mt-4 p-3 rounded-lg text-sm ${
-                    isError 
-                        ? 'bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/40 text-red-850 dark:text-red-300' 
-                        : 'bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 text-emerald-850 dark:text-emerald-300'
-                }` }>
-                    { msg }
-                </div>
-            ) }
-        </div>
-    );
-};
-
-const ProFeatureOverlay: React.FC<{ featureName: string; desc: string }> = ( { featureName, desc } ) => {
-    const locale = ( window as any ).jetreaderSettings?.locale || 'en';
-    const txt = ( en: string, tr: string ) => locale === 'tr' ? tr : en;
-
-    return (
-        <div className="flex flex-col items-center justify-center p-8 sm:p-12 text-center max-w-lg mx-auto my-12 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 relative overflow-hidden">
-            {/* Background Accent Gradients */}
-            <div className="absolute -top-24 -right-24 w-48 h-48 bg-primary-500/10 rounded-full blur-2xl pointer-events-none" />
-            <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
-
-            <div className="w-16 h-16 bg-amber-50 dark:bg-amber-950/30 rounded-full flex items-center justify-center mb-6 shadow-inner border border-amber-200/40 dark:border-amber-800/30 animate-pulse text-amber-500">
-                <PremiumLockIcon className="w-8 h-8" />
-            </div>
-            
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
-                { featureName }
-            </h2>
-            
-            <p className="text-gray-500 dark:text-gray-400 text-sm mb-6 max-w-sm">
-                { desc }
-            </p>
-            
-            <div className="flex flex-col sm:flex-row gap-3 justify-center w-full">
-                <a
-                    href="https://wplector.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="bg-primary-600 hover:bg-primary-700 text-white font-semibold px-6 py-2.5 rounded-xl transition-all shadow-md hover:shadow-lg text-sm shrink-0"
-                >
-                    🚀 { txt( 'Upgrade to JetReader Pro', 'JetReader Pro\'ya Yükselt' ) }
-                </a>
-                <button
-                    onClick={ () => {
-                        const popStateEvent = new PopStateEvent('popstate');
-                        window.history.pushState(null, '', '#jetreader');
-                        window.dispatchEvent(popStateEvent);
-                    } }
-                    className="bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-650 text-gray-700 dark:text-gray-250 font-semibold px-6 py-2.5 rounded-xl transition-all text-sm shrink-0"
-                >
-                    { txt( 'Go to Dashboard', 'Kontrol Paneline Git' ) }
-                </button>
-            </div>
-        </div>
-    );
-};
 
 const sanitizeSlug = ( val: string ) => {
     return val.toLowerCase().replace(/[^a-z0-9-_]/g, '');
@@ -3526,8 +4204,6 @@ const SettingsPage: React.FC = () => {
                 </p>
             </div>
 
-            <ProUpgradeBanner />
-
             <div className="space-y-6">
                 {/* Upload Max Size */}
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
@@ -3578,6 +4254,43 @@ const SettingsPage: React.FC = () => {
                                 <option value="sepia">{ t( 'settings.themeSepia' ) }</option>
                             </select>
                         </div>
+                    </div>
+                </div>
+
+                {/* Primary Color Palette */}
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
+                    <h3 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                        🎨 Primary Color Palette
+                    </h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                        Choose the primary color palette for the digital library frontend (tabs, buttons, hover states, active badges, and filters).
+                    </p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
+                        { JR_PALETTES.map( ( p ) => {
+                            const isSelected = ( settings.primary_palette || 'green' ) === p.slug;
+                            return (
+                                <button
+                                    key={ p.slug }
+                                    type="button"
+                                    onClick={ () => updateSetting( 'primary_palette', p.slug ) }
+                                    className={ `flex flex-col items-center gap-2 p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                                        isSelected
+                                            ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-900/20 dark:border-indigo-500 ring-2 ring-indigo-500/20'
+                                            : 'border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-600 bg-transparent'
+                                    }` }
+                                >
+                                    <span
+                                        className="w-6 h-6 rounded-full border border-black/10 dark:border-white/10 shadow-sm"
+                                        style={ { backgroundColor: p.hex } }
+                                    />
+                                    <span className={ `text-xs font-medium truncate max-w-full ${
+                                        isSelected ? 'text-indigo-600 dark:text-indigo-400 font-bold' : 'text-gray-600 dark:text-gray-300'
+                                    }` }>
+                                        { t( `colors.${ p.slug }` ) || p.slug }
+                                    </span>
+                                </button>
+                            );
+                        } ) }
                     </div>
                 </div>
 
@@ -3731,125 +4444,7 @@ const SettingsPage: React.FC = () => {
 
 const AboutPage: React.FC = () => {
     const { t } = useTranslation();
-    const info = ( window as unknown as { jetreaderSettings?: typeof jetreaderSettings } ).jetreaderSettings?.systemInfo;
-
-    type RebuildPhase = 'idle' | 'preparing' | 'indexing' | 'cleanup' | 'done' | 'error';
-
-    const [ phase,        setPhase        ] = React.useState<RebuildPhase>( 'idle' );
-    const [ progress,     setProgress     ] = React.useState( { current: 0, total: 0, title: '' } );
-    const [ resultMsg,    setResultMsg     ] = React.useState( '' );
-    const [ failCount,    setFailCount     ] = React.useState( 0 );
-    const abortRef = React.useRef<AbortController | null>( null );
-
-    // Warn user if they try to close/navigate away while indexing.
-    React.useEffect( () => {
-        if ( phase !== 'indexing' && phase !== 'preparing' && phase !== 'cleanup' ) return;
-        const handler = ( e: BeforeUnloadEvent ) => {
-            e.preventDefault();
-            e.returnValue = t( 'about.rebuildLeaveWarning' );
-        };
-        window.addEventListener( 'beforeunload', handler );
-        return () => window.removeEventListener( 'beforeunload', handler );
-    }, [ phase, t ] );
-
-    const handleRebuildIndex = async () => {
-        setPhase( 'preparing' );
-        setProgress( { current: 0, total: 0, title: '' } );
-        setResultMsg( '' );
-        setFailCount( 0 );
-
-        const ctrl    = new AbortController();
-        abortRef.current = ctrl;
-
-        const apiBase = ( window as any ).jetreaderSettings?.apiUrl ?? '/wp-json/jetreader/v1/';
-        const base    = apiBase.replace( /\/$/, '' );
-        const nonce   = ( window as any ).jetreaderSettings?.nonce ?? '';
-        const headers = { 'X-WP-Nonce': nonce, 'Content-Type': 'application/json' };
-
-        const post = async ( body: object ) => {
-            const res = await fetch( `${ base }/rebuild-index`, {
-                method: 'POST',
-                headers,
-                body:   JSON.stringify( body ),
-                signal: AbortSignal.timeout( 300_000 ), // 5 min per request
-            } );
-            if ( !res.ok ) {
-                const err = await res.json().catch( () => ( {} ) );
-                throw new Error( err.message ?? `HTTP ${ res.status }` );
-            }
-            return res.json();
-        };
-
-        try {
-            // --- Step 1: get item list ---
-            const prep = await post( { phase: 'prepare' } );
-            const items: { id: number; title: string }[] = prep.items ?? [];
-            const total = items.length;
-
-            if ( total === 0 ) {
-                setPhase( 'done' );
-                setResultMsg( t( 'about.rebuildDoneEmpty' ) );
-                return;
-            }
-
-            setPhase( 'indexing' );
-            setProgress( { current: 0, total, title: '' } );
-
-            // --- Step 2: process in batches ---
-            let indexed  = 0;
-            let failures = 0;
-            const startMs = Date.now();
-
-            for ( let i = 0; i < items.length; i += REBUILD_BATCH_SIZE ) {
-                if ( ctrl.signal.aborted ) break;
-
-                const batch     = items.slice( i, i + REBUILD_BATCH_SIZE );
-                const batchIds  = batch.map( ( it ) => it.id );
-                const batchTitle = batch[ 0 ]?.title ?? '';
-
-                setProgress( { current: Math.min( i + REBUILD_BATCH_SIZE, total ), total, title: batchTitle } );
-
-                try {
-                    const batchRes = await post( { phase: 'batch', item_ids: batchIds } );
-                    indexed  += batchRes.indexed ?? 0;
-                    failures += ( batchRes.failed ?? [] ).length;
-                } catch ( batchErr ) {
-                    failures += batch.length;
-                }
-            }
-
-            // --- Step 3: clean up orphaned rows ---
-            setPhase( 'cleanup' );
-            try {
-                await post( { phase: 'cleanup' } );
-            } catch { /* non-fatal */ }
-
-            const elapsedS = ( ( Date.now() - startMs ) / 1000 ).toFixed( 1 );
-            setPhase( 'done' );
-            setFailCount( failures );
-
-            if ( failures === 0 ) {
-                setResultMsg(
-                    t( 'about.rebuildDoneItems' )
-                        .replace( '{N}', String( indexed ) )
-                        .replace( '{S}', elapsedS )
-                );
-            } else {
-                setResultMsg(
-                    t( 'about.rebuildPartialError' )
-                        .replace( '{N}', String( indexed ) )
-                        .replace( '{F}', String( failures ) )
-                );
-            }
-
-        } catch ( e: any ) {
-            setPhase( 'error' );
-            setResultMsg( e?.message ? `${ t( 'about.rebuildError' ) }: ${ e.message }` : t( 'about.rebuildError' ) );
-        }
-    };
-
-    const isRunning = phase === 'preparing' || phase === 'indexing' || phase === 'cleanup';
-    const pct = progress.total > 0 ? Math.round( ( progress.current / progress.total ) * 100 ) : 0;
+    const info = ( window as any ).jetreaderSettings?.systemInfo;
 
     const links = [
         {
@@ -3910,79 +4505,6 @@ const AboutPage: React.FC = () => {
                 </div>
             </div>
 
-            { /* Tools card */ }
-            <div className="rounded-2xl bg-white dark:bg-gray-800 shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
-                <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">
-                    { t( 'about.tools' ) }
-                </h2>
-                <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
-                                { t( 'about.rebuildIndex' ) }
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                { t( 'about.rebuildIndexDesc' ) }
-                            </p>
-
-                            { /* Progress area */ }
-                            { isRunning && (
-                                <div className="mt-3 space-y-1.5">
-                                    { /* Warning: keep page open */ }
-                                    <p className="text-xs font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-3 py-2 rounded-lg">
-                                        ⚠️ { t( 'about.rebuildKeepOpen' ) }
-                                    </p>
-
-                                    { /* Status label */ }
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                                        { phase === 'preparing' && t( 'about.rebuildPreparing' ) }
-                                        { phase === 'cleanup'   && t( 'about.rebuildCleanup' ) }
-                                        { phase === 'indexing'  && progress.total > 0 && (
-                                            t( 'about.rebuildIndexing' )
-                                                .replace( '{current}', String( progress.current ) )
-                                                .replace( '{total}',   String( progress.total   ) )
-                                        ) }
-                                        { phase === 'indexing' && progress.title && (
-                                            <span className="block truncate text-gray-400 dark:text-gray-500 italic mt-0.5">
-                                                { progress.title }
-                                            </span>
-                                        ) }
-                                    </p>
-
-                                    { /* Progress bar */ }
-                                    { phase === 'indexing' && progress.total > 0 && (
-                                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-                                            <div
-                                                className="bg-primary-500 h-1.5 rounded-full transition-all duration-300"
-                                                style={ { width: `${ pct }%` } }
-                                            />
-                                        </div>
-                                    ) }
-                                </div>
-                            ) }
-                        </div>
-
-                        <button
-                            onClick={ handleRebuildIndex }
-                            disabled={ isRunning }
-                            className="shrink-0 px-4 py-2 text-sm font-medium rounded-lg border transition-colors disabled:opacity-50
-                                bg-primary-600 border-primary-600 text-white hover:bg-primary-700 disabled:cursor-not-allowed"
-                        >
-                            { isRunning ? t( 'about.rebuildRunning' ) : t( 'about.rebuildIndexBtn' ) }
-                        </button>
-                    </div>
-
-                    { /* Result message (done / error) */ }
-                    { resultMsg && !isRunning && (
-                        <p className={ `text-xs px-3 py-2 rounded-lg ${ phase === 'done' && failCount === 0
-                            ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                            : 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400' }` }>
-                            { resultMsg }
-                        </p>
-                    ) }
-                </div>
-            </div>
-
             { /* System info card */ }
             <div className="rounded-2xl bg-white dark:bg-gray-800 shadow-sm border border-gray-200 dark:border-gray-700 p-6">
                 <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">
@@ -4012,223 +4534,6 @@ const AboutPage: React.FC = () => {
         </div>
     );
 };
-
-/* ------------------------------------------------------------------ */
-/*  DisplaysPage — Visual shortcode builder                           */
-/* ------------------------------------------------------------------ */
-
-interface DisplayPreset {
-    id: string;
-    label: string;
-    mode: 'grid' | 'slider';
-    type: string;
-    category: string;
-    author: string;
-    columns: number;
-    columnsTablet: number;
-    columnsMobile: number;
-    visible: number;
-    visibleTablet: number;
-    visibleMobile: number;
-    rows: number;
-    limit: number;
-    orderby: string;
-    items: string;
-    showFilter: boolean;
-    showImage: boolean;
-    showDescription: boolean;
-    showType: boolean;
-    showAuthor: boolean;
-    showTranslator: boolean;
-    showPublisher: boolean;
-    showYear: boolean;
-    showLanguage: boolean;
-    showPageCount: boolean;
-    showReadButton: boolean;
-    showInfoButton: boolean;
-    showArrows: boolean;
-    showDots: boolean;
-    drag: boolean;
-    autoplay: boolean;
-    autoplaySpeed: number;
-    cardWidth: string;
-    imageSize: 'small' | 'medium' | 'large' | 'xlarge' | 'xxlarge';
-    imageFit:  'cover' | 'contain' | 'fill';
-    cardMinWidth: number;
-    width: string;
-    height: string;
-    title: string;
-    cardRadius: 'none' | 'small' | 'medium' | 'large' | 'xlarge';
-    cardBorder: 'none' | 'subtle' | 'thick';
-    cardShadow: 'none' | 'subtle' | 'medium' | 'large';
-    cardHover: 'none' | 'lift' | 'zoom' | 'glow' | 'shadow';
-    cardAlign: 'left' | 'center';
-    cardLayout: 'vertical' | 'horizontal';
-}
-
-const PRESET_DEFAULTS: DisplayPreset = {
-    id: '',
-    label: 'My Display',
-    mode: 'grid',
-    type: '',
-    category: '',
-    author: '',
-    columns: 4,
-    columnsTablet: 2,
-    columnsMobile: 1,
-    visible: 4,
-    visibleTablet: 2,
-    visibleMobile: 1,
-    rows: 1,
-    limit: 12,
-    orderby: 'newest',
-    items: '',
-    showFilter: true,
-    showImage: true,
-    showDescription: false,
-    showType: true,
-    showAuthor: true,
-    showReadButton: true,
-    showInfoButton: true,
-    showTranslator: false,
-    showPublisher: false,
-    showYear: true,
-    showLanguage: true,
-    showPageCount: true,
-    showArrows: true,
-    showDots: true,
-    drag: true,
-    autoplay: false,
-    autoplaySpeed: 3000,
-    cardWidth: '',
-    imageSize: 'medium',
-    imageFit:  'cover',
-    cardMinWidth: 180,
-    width: '100%',
-    height: 'auto',
-    title: '',
-    cardRadius: 'medium',
-    cardBorder: 'subtle',
-    cardShadow: 'subtle',
-    cardHover: 'zoom',
-    cardAlign: 'left',
-    cardLayout: 'vertical',
-};
-
-function buildShortcode( p: DisplayPreset ): string {
-    const tag = p.mode === 'grid' ? 'jetreader_grid' : 'jetreader_slider';
-    const parts: string[] = [];
-
-    const add = ( key: string, val: string | number | boolean, def: string | number | boolean ) => {
-        if ( String( val ) !== String( def ) ) parts.push( `${ key }="${ val }"` );
-    };
-
-    if ( p.type )     parts.push( `type="${ p.type }"` );
-    if ( p.category ) parts.push( `category="${ p.category }"` );
-    if ( p.author )   parts.push( `author="${ p.author }"` );
-    if ( p.items )    parts.push( `items="${ p.items }"` );
-    if ( p.title )    parts.push( `title="${ p.title }"` );
-
-    add( 'orderby', p.orderby, 'newest' );
-    add( 'limit',   p.limit,   p.mode === 'grid' ? 12 : 10 );
-
-    if ( p.mode === 'grid' ) {
-        add( 'columns',        p.columns,       4 );
-        add( 'columns_tablet', p.columnsTablet, 2 );
-        add( 'columns_mobile', p.columnsMobile, 1 );
-        add( 'show_filter',    p.showFilter,    true );
-    } else {
-        add( 'visible',        p.visible,       4 );
-        add( 'visible_tablet', p.visibleTablet, 2 );
-        add( 'visible_mobile', p.visibleMobile, 1 );
-        add( 'rows',           p.rows,          1 );
-        add( 'show_arrows',    p.showArrows,    true );
-        add( 'show_dots',      p.showDots,      true );
-        add( 'drag',           p.drag,          true );
-        add( 'autoplay',       p.autoplay,      false );
-        if ( p.autoplay ) add( 'autoplay_speed', p.autoplaySpeed, 3000 );
-        if ( p.cardWidth ) parts.push( `card_width="${ p.cardWidth }"` );
-    }
-
-    add( 'show_image',        p.showImage,        true );
-    add( 'show_description',  p.showDescription,  false );
-    add( 'show_type',         p.showType,         true );
-    add( 'show_author',       p.showAuthor,       true );
-    add( 'show_read_button',  p.showReadButton,   true );
-    add( 'show_info_button',  p.showInfoButton,   true );
-    add( 'show_translator',   p.showTranslator,   false );
-    add( 'show_publisher',    p.showPublisher,    false );
-    add( 'show_year',         p.showYear,         true );
-    add( 'show_language',     p.showLanguage,     true );
-    add( 'show_page_count',   p.showPageCount,   true );
-    add( 'image_size',        p.imageSize,        'medium' );
-    add( 'image_fit',        p.imageFit,        'cover' );
-    add( 'card_min_width',   p.cardMinWidth,    p.mode === 'grid' ? 180 : 160 );
-    add( 'card_radius',      p.cardRadius,      'medium' );
-    add( 'card_border',      p.cardBorder,      'subtle' );
-    add( 'card_shadow',      p.cardShadow,      'subtle' );
-    add( 'card_hover',       p.cardHover,       'zoom' );
-    add( 'card_align',       p.cardAlign,       'left' );
-    add( 'card_layout',      p.cardLayout,      'vertical' );
-    add( 'width',            p.width,           '100%' );
-    add( 'height',           p.height,          'auto' );
-
-    return `[${ tag }${ parts.length ? ' ' + parts.join( ' ' ) : '' }]`;
-}
-
-const STORAGE_KEY = 'jetreader_display_presets';
-function loadPresets(): DisplayPreset[] {
-    try { const raw = localStorage.getItem( STORAGE_KEY ); return raw ? JSON.parse( raw ) : []; } catch { return []; }
-}
-function savePresets( list: DisplayPreset[] ) { localStorage.setItem( STORAGE_KEY, JSON.stringify( list ) ); }
-
-/* Shared UI primitives (scoped to Displays page) */
-const DSection: React.FC<{ title: string; children: React.ReactNode }> = ( { title, children } ) => (
-    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
-        <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-4">{ title }</p>
-        <div className="space-y-3">{ children }</div>
-    </div>
-);
-const DRow: React.FC<{ label: string; children: React.ReactNode }> = ( { label, children } ) => (
-    <div className="flex items-center justify-between gap-4">
-        <span className="text-sm text-gray-700 dark:text-gray-300 shrink-0 w-44">{ label }</span>
-        <div className="flex-1">{ children }</div>
-    </div>
-);
-const DSel: React.FC<{ value: string; onChange: ( v: string ) => void; options: { value: string; label: string }[] }> = ( { value, onChange, options } ) => (
-    <select value={ value } onChange={ e => onChange( e.target.value ) }
-        className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
-        { options.map( o => <option key={ o.value } value={ o.value }>{ o.label }</option> ) }
-    </select>
-);
-const DNum: React.FC<{ value: number; min: number; max: number; onChange: ( v: number ) => void }> = ( { value, min, max, onChange } ) => {
-    const [ draft, setDraft ] = React.useState( String( value ) );
-    const committed = React.useRef( value );
-    if ( committed.current !== value ) {
-        committed.current = value;
-        setDraft( String( value ) );
-    }
-    const commit = () => {
-        const n = Math.max( min, Math.min( max, parseInt( draft, 10 ) || min ) );
-        setDraft( String( n ) );
-        if ( n !== value ) onChange( n );
-    };
-    return (
-        <input type="number" value={ draft } min={ min } max={ max }
-            onChange={ e => setDraft( e.target.value ) }
-            onBlur={ commit }
-            className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
-    );
-};
-const DTxt: React.FC<{ value: string; placeholder?: string; onChange: ( v: string ) => void }> = ( { value, placeholder, onChange } ) => (
-    <input type="text" value={ value } placeholder={ placeholder } onChange={ e => onChange( e.target.value ) }
-        className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
-);
-const DToggle = ToggleSwitch;
-
-
-const DisplaysPage: React.FC = () => null;
-const ImportExportPage: React.FC = () => null;
 
 const FilesPage: React.FC = () => {
     const { t } = useTranslation();

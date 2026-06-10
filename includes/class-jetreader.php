@@ -61,10 +61,6 @@ class JetReader {
             require_once JETREADER_PLUGIN_DIR . 'includes/class-gutenberg-blocks.php';
         }
         require_once JETREADER_PLUGIN_DIR . 'includes/class-cpt.php';
-        require_once JETREADER_PLUGIN_DIR . 'includes/class-search-index.php';
-        if ( file_exists( JETREADER_PLUGIN_DIR . 'includes/class-display-engine.php' ) ) {
-            require_once JETREADER_PLUGIN_DIR . 'includes/class-display-engine.php';
-        }
         require_once JETREADER_PLUGIN_DIR . 'includes/class-color-engine.php';
 
         // Register Elementor category and widgets on their respective hooks.
@@ -176,11 +172,6 @@ class JetReader {
         // Inject palette CSS via wp_enqueue_scripts (uses wp_add_inline_style).
         add_action( 'wp_enqueue_scripts', array( 'JetReader_Color_Engine', 'inject_colors' ), 20 );
 
-        // WP-Cron: single-item index job.
-        add_action( 'jetreader_index_item', array( 'JetReader_Upload_Handler', 'run_index_job' ) );
-
-        // WP-Cron: full rebuild index job.
-        add_action( 'jetreader_rebuild_index', array( $this, 'cron_rebuild_index' ) );
     }
 
     /**
@@ -200,16 +191,6 @@ class JetReader {
         JetReader_Database::maybe_add_authors_table();
         JetReader_Database::maybe_add_publishers_table();
         update_option( 'jetreader_db_version', JETREADER_VERSION );
-    }
-
-    /**
-     * WP-Cron callback to rebuild the entire search index.
-     */
-    public function cron_rebuild_index(): void {
-        if ( ! class_exists( 'JetReader_Search_Index' ) ) {
-            require_once JETREADER_PLUGIN_DIR . 'includes/class-search-index.php';
-        }
-        JetReader_Search_Index::rebuild_all();
     }
 
     /**
@@ -471,29 +452,21 @@ class JetReader {
     }
 
     /**
-     * Shortcode: [jetreader_library type="book" types="book,magazine" search="content"]
+     * Shortcode: [jetreader_library type="book" types="book,magazine"]
      *
      * type=""           → show all 4 type tabs (default)
      * type="book"       → force single type, hide tabs, show filtered list
      * types="book,magazine" → show only the specified type tabs (2+ values)
-     * search="title"    → title/description search only (default, backwards-compat)
-     * search="content"  → full-text content search via /content-search endpoint
      */
     public function shortcode_library( $atts ) {
         $atts = shortcode_atts(
             array(
                 'type'   => '',      // single forced type — hides tab bar
                 'types'  => '',      // comma-separated list — shows only those tabs
-                'search' => 'title', // 'title' | 'content'
             ),
             $atts,
             'jetreader_library'
         );
-
-        // Sanitize search mode — only two valid values.
-        $search_mode = in_array( $atts['search'], array( 'title', 'content' ), true )
-            ? $atts['search']
-            : 'title';
 
         // Sanitize types list — only allow valid type slugs.
         $valid_types = array( 'book', 'article', 'magazine', 'qa' );
@@ -511,10 +484,9 @@ class JetReader {
         $this->maybe_enqueue_frontend_assets();
 
         $html = sprintf(
-            '<div id="jetreader-frontend-app" class="jetreader-wrap alignwide" data-library-type="%s" data-library-types="%s" data-search-mode="%s"></div>',
+            '<div id="jetreader-frontend-app" class="jetreader-wrap alignwide" data-library-type="%s" data-library-types="%s"></div>',
             esc_attr( $atts['type'] ),
-            esc_attr( $types_clean ),
-            esc_attr( $search_mode )
+            esc_attr( $types_clean )
         );
 
         $allowed_html = array(
@@ -523,7 +495,6 @@ class JetReader {
                 'class'              => true,
                 'data-library-type'  => true,
                 'data-library-types' => true,
-                'data-search-mode'   => true,
             ),
         );
 
