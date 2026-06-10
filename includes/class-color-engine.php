@@ -147,19 +147,16 @@ class JetReader_Color_Engine {
             return;
         }
 
-        $settings  = get_option( 'jetreader_settings', array() );
         $palettes  = self::palettes();
+        $gray_palette = $palettes['gray'] ?? $palettes['green'];
         $scope_map = array(
-            '#jetreader-frontend-app'    => 'green',
-            '#jetreader-search-app'      => 'green',
-            '[data-jr-display="grid"]'   => 'green',
-            '[data-jr-display="slider"]' => 'green',
+            '#jetreader-frontend-app' => $gray_palette,
+            '#jetreader-search-app'   => $gray_palette,
         );
 
         $css = '';
-        foreach ( $scope_map as $selector => $slug ) {
-            $palette = $palettes[ $slug ] ?? $palettes['green'];
-            $css    .= self::scope_css( $selector, $palette );
+        foreach ( $scope_map as $selector => $palette ) {
+            $css .= self::scope_css( $selector, $palette );
         }
 
         if ( ! $css ) {

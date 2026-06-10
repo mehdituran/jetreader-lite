@@ -847,7 +847,7 @@ class JetReader_REST_API {
         if ( isset( $params['include_all_ids'] ) && '1' === (string) $params['include_all_ids'] ) {
             // phpcs:disable PluginCheck.Security.DirectDB.UnescapedDBParameter
             $all_ids = array_map( 'intval', $wpdb->get_col(
-                "SELECT i.id FROM {$wpdb->prefix}jetreader_items i{$join} WHERE {$where_clause} ORDER BY {$order_sql}"
+                "SELECT i.id FROM {$wpdb->prefix}jetreader_items i{$join} WHERE {$where_clause} ORDER BY {$order_sql} LIMIT 50000"
             ) );
             // phpcs:enable PluginCheck.Security.DirectDB.UnescapedDBParameter
         }
@@ -1236,6 +1236,7 @@ class JetReader_REST_API {
         $this->invalidate_publishers_cache();
         $this->invalidate_categories_cache();
         $this->invalidate_permalink_cache();
+        $this->invalidate_files_cache();
 
         // CPT sync + async search indexing.
         try {
@@ -1367,6 +1368,7 @@ class JetReader_REST_API {
         $this->invalidate_publishers_cache();
         $this->invalidate_categories_cache();
         $this->invalidate_permalink_cache();
+        $this->invalidate_files_cache();
 
         try {
             if ( class_exists( 'JetReader_CPT' ) ) {
@@ -1589,6 +1591,7 @@ class JetReader_REST_API {
         $this->invalidate_publishers_cache();
         $this->invalidate_categories_cache();
         $this->invalidate_permalink_cache();
+        $this->invalidate_files_cache();
 
         // CPT sync + async re-index if file changed.
         try {
@@ -1621,6 +1624,7 @@ class JetReader_REST_API {
         $params = $request->get_json_params();
         $ids    = isset( $params['ids'] ) && is_array( $params['ids'] ) ? $params['ids'] : array();
         $ids    = array_values( array_filter( array_map( 'intval', $ids ) ) );
+        $should_delete_files = isset( $params['delete_files'] ) ? rest_sanitize_boolean( $params['delete_files'] ) : true;
 
         if ( empty( $ids ) ) {
             return new WP_Error( 'jetreader_no_ids', __( 'No item IDs provided.', 'jetreader' ), array( 'status' => 400 ) );
@@ -1640,7 +1644,7 @@ class JetReader_REST_API {
         $placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
 
         // Fetch items to delete their files first if they live under uploads/jetreader
-        $items_to_clean = $wpdb->get_results( $wpdb->prepare( "SELECT file_path, cover_image, volumes FROM {$wpdb->prefix}jetreader_items WHERE id IN ({$placeholders})", $ids ) );
+        $items_to_clean = $should_delete_files ? $wpdb->get_results( $wpdb->prepare( "SELECT file_path, cover_image, volumes FROM {$wpdb->prefix}jetreader_items WHERE id IN ({$placeholders})", $ids ) ) : array();
         if ( ! empty( $items_to_clean ) ) {
             if ( ! class_exists( 'JetReader_Upload_Handler' ) ) {
                 require_once JETREADER_PLUGIN_DIR . 'includes/class-upload-handler.php';
@@ -1691,6 +1695,7 @@ class JetReader_REST_API {
         $this->invalidate_authors_cache();
         $this->invalidate_categories_cache();
         $this->invalidate_permalink_cache();
+        $this->invalidate_files_cache();
 
         return rest_ensure_response( array(
             'deleted' => count( $ids ),
@@ -1724,37 +1729,42 @@ class JetReader_REST_API {
             JetReader_CPT::delete_by_item( $item_id );
         }
 
-        // Fetch item to delete its files first if they live under uploads/jetreader
-        if ( ! class_exists( 'JetReader_Upload_Handler' ) ) {
-            require_once JETREADER_PLUGIN_DIR . 'includes/class-upload-handler.php';
-        }
-        $upload_dir    = wp_upload_dir();
-        $jetreader_dir = realpath( $upload_dir['basedir'] . '/jetreader' );
+        // Conditionally delete physical files from uploads/jetreader/.
+        $delete_files = $request->get_param( 'delete_files' );
+        $should_delete_files = ( $delete_files === null ) ? true : rest_sanitize_boolean( $delete_files );
 
-        $files_to_delete = array();
-        if ( ! empty( $item->file_path ) ) {
-            $files_to_delete[] = $item->file_path;
-        }
-        if ( ! empty( $item->cover_image ) ) {
-            $files_to_delete[] = $item->cover_image;
-        }
-        if ( ! empty( $item->volumes ) ) {
-            $vols = json_decode( $item->volumes, true );
-            if ( is_array( $vols ) ) {
-                foreach ( $vols as $vol ) {
-                    if ( ! empty( $vol['file_path'] ) ) {
-                        $files_to_delete[] = $vol['file_path'];
+        if ( $should_delete_files ) {
+            if ( ! class_exists( 'JetReader_Upload_Handler' ) ) {
+                require_once JETREADER_PLUGIN_DIR . 'includes/class-upload-handler.php';
+            }
+            $upload_dir    = wp_upload_dir();
+            $jetreader_dir = realpath( $upload_dir['basedir'] . '/jetreader' );
+
+            $files_to_delete = array();
+            if ( ! empty( $item->file_path ) ) {
+                $files_to_delete[] = $item->file_path;
+            }
+            if ( ! empty( $item->cover_image ) ) {
+                $files_to_delete[] = $item->cover_image;
+            }
+            if ( ! empty( $item->volumes ) ) {
+                $vols = json_decode( $item->volumes, true );
+                if ( is_array( $vols ) ) {
+                    foreach ( $vols as $vol ) {
+                        if ( ! empty( $vol['file_path'] ) ) {
+                            $files_to_delete[] = $vol['file_path'];
+                        }
                     }
                 }
             }
-        }
-        foreach ( $files_to_delete as $file_url ) {
-            $local_path = JetReader_Upload_Handler::url_to_local_path( $file_url );
-            $real_file_path = realpath( $local_path );
-            if ( false !== $real_file_path && file_exists( $real_file_path ) && is_file( $real_file_path ) ) {
-                if ( $jetreader_dir && strpos( $real_file_path, $jetreader_dir ) === 0 ) {
-                    // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink
-                    @unlink( $real_file_path );
+            foreach ( $files_to_delete as $file_url ) {
+                $local_path = JetReader_Upload_Handler::url_to_local_path( $file_url );
+                $real_file_path = realpath( $local_path );
+                if ( false !== $real_file_path && file_exists( $real_file_path ) && is_file( $real_file_path ) ) {
+                    if ( $jetreader_dir && strpos( $real_file_path, $jetreader_dir ) === 0 ) {
+                        // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink
+                        @unlink( $real_file_path );
+                    }
                 }
             }
         }
@@ -1814,8 +1824,16 @@ class JetReader_REST_API {
         require_once JETREADER_PLUGIN_DIR . 'includes/class-upload-handler.php';
 
         $upload_handler = new JetReader_Upload_Handler();
+        $response       = $upload_handler->handle_upload( $request );
 
-        return $upload_handler->handle_upload( $request );
+        if ( ! is_wp_error( $response ) ) {
+            $status = is_a( $response, 'WP_REST_Response' ) ? $response->get_status() : 200;
+            if ( $status >= 200 && $status < 300 ) {
+                $this->invalidate_files_cache();
+            }
+        }
+
+        return $response;
     }
 
     /**
@@ -2264,81 +2282,6 @@ class JetReader_REST_API {
      * @return array Modified settings with enforced Free values.
      */
     private function enforce_free_limits( array $settings ): array {
-        $settings['copy_enabled']           = false;
-        $settings['annotation_enabled']     = false;
-        $settings['download_enabled']       = false;
-        $settings['show_in_wp_search']      = false;
-        $settings['library_show_search']    = false;
-
-        // Custom URL Slugs
-        $settings['cpt_slug_book']          = 'jetreader-books';
-        $settings['cpt_slug_article']       = 'jetreader-articles';
-        $settings['cpt_slug_magazine']      = 'jetreader-magazines';
-        $settings['cpt_slug_qa']            = 'jetreader-qa';
-
-        // Sidebar Filters (leave Category free, lock others to false)
-        $settings['show_filter_language']   = false;
-        $settings['show_filter_year']       = false;
-        $settings['show_filter_author']     = false;
-        $settings['show_filter_publisher']  = false;
-        $settings['show_filter_translator'] = false;
-        $settings['show_filter_featured']   = false;
-        $settings['show_filter_type']       = false;
-
-        // Library Card Appearance
-        $settings['library_image_size']       = 'large';
-        $settings['library_image_fit']        = 'cover';
-        $settings['library_card_min_width']   = 180;
-        $settings['library_show_read_button'] = true;
-        $settings['library_show_info_button'] = true;
-        $settings['library_card_radius']      = 'medium';
-        $settings['library_card_border']      = 'subtle';
-        $settings['library_card_shadow']      = 'subtle';
-        $settings['library_card_hover']       = 'zoom';
-        $settings['library_card_align']       = 'left';
-        $settings['library_card_layout']      = 'vertical';
-
-        // Card fields visibility (Free plan shows only title on cards)
-        $settings['show_card_image']          = false;
-        $settings['show_card_author']         = false;
-        $settings['show_card_translator']     = false;
-        $settings['show_card_publisher']      = false;
-        $settings['show_card_year']           = false;
-        $settings['show_card_type']           = false;
-        $settings['show_card_language']       = false;
-        $settings['show_card_page_count']     = false;
-
-        // Detail fields visibility (Free plan shows title, description, and author only)
-        $settings['show_detail_image']        = false;
-        $settings['show_detail_translator']   = false;
-        $settings['show_detail_publisher']    = false;
-        $settings['show_detail_year']         = false;
-        $settings['show_detail_type']         = false;
-        $settings['show_detail_language']     = false;
-        $settings['show_detail_page_count']   = false;
-
-        // Color Palettes
-        $settings['library_palette']          = 'green';
-        $settings['grid_palette']             = 'green';
-        $settings['slider_palette']           = 'green';
-
-        // Display Defaults
-        $settings['display_show_image']       = true;
-        $settings['display_show_description'] = false;
-        $settings['display_show_type']        = true;
-        $settings['display_show_author']      = true;
-        $settings['display_show_read_button'] = true;
-        $settings['display_show_info_button'] = true;
-        $settings['grid_columns_desktop']     = 4;
-        $settings['grid_columns_tablet']      = 2;
-        $settings['grid_columns_mobile']      = 1;
-        $settings['slider_show_arrows']       = true;
-        $settings['slider_show_dots']         = true;
-        $settings['slider_drag']              = true;
-        $settings['slider_autoplay_default']  = false;
-        $settings['slider_autoplay_speed']    = 3000;
-        $settings['reader_logo_url']          = JETREADER_PLUGIN_URL . 'assets/logo/jetreader.svg';
-
         return $settings;
     }
 
@@ -2359,53 +2302,55 @@ class JetReader_REST_API {
         };
 
         return rest_ensure_response( array(
-            'annotation_enabled'   => false,
-            'copy_enabled'         => false,
-            'download_enabled'     => false,
+            'annotation_enabled'   => $bool( 'annotation_enabled', false ),
+            'copy_enabled'         => $bool( 'copy_enabled', false ),
+            'download_enabled'     => $bool( 'download_enabled', false ),
             'items_per_page'       => $int( 'items_per_page', 24 ),
             'grid_columns'         => $int( 'grid_columns', 4 ),
             'show_sidebar'         => $bool( 'show_sidebar', true ),
             'show_filter_category' => $bool( 'show_filter_category', true ),
-            'show_filter_language' => false,
-            'show_filter_year'     => false,
-            'show_filter_author'      => false,
-            'show_filter_publisher'   => false,
-            'show_filter_translator'  => false,
-            'show_filter_featured'    => false,
-            'show_filter_type'        => false,
-            'library_image_size'        => 'large',
-            'library_image_fit'         => 'cover',
-            'library_card_min_width'    => 180,
-            'library_show_read_button'  => true,
-            'library_show_info_button'  => true,
-            'library_show_search'       => false,
-            'library_card_radius'       => 'medium',
-            'library_card_border'       => 'subtle',
-            'library_card_shadow'       => 'subtle',
-            'library_card_hover'        => 'zoom',
-            'library_card_align'        => 'left',
-            'library_card_layout'       => 'vertical',
-            'show_card_image'       => false,
+            'show_filter_language' => $bool( 'show_filter_language', true ),
+            'show_filter_year'     => $bool( 'show_filter_year', true ),
+            'show_filter_author'      => $bool( 'show_filter_author', false ),
+            'show_filter_publisher'   => $bool( 'show_filter_publisher', false ),
+            'show_filter_translator'  => $bool( 'show_filter_translator', false ),
+            'show_filter_featured'    => $bool( 'show_filter_featured', false ),
+            'show_filter_type'        => $bool( 'show_filter_type', false ),
+            'library_image_size'        => $str( 'library_image_size', 'large' ),
+            'library_image_fit'         => $str( 'library_image_fit', 'cover' ),
+            'library_card_min_width'    => $int( 'library_card_min_width', 180 ),
+            'library_show_read_button'  => $bool( 'library_show_read_button', true ),
+            'library_show_info_button'  => $bool( 'library_show_info_button', true ),
+            'library_show_search'       => $bool( 'library_show_search', false ),
+            'library_card_radius'       => $str( 'library_card_radius', 'medium' ),
+            'library_card_border'       => $str( 'library_card_border', 'subtle' ),
+            'library_card_shadow'       => $str( 'library_card_shadow', 'subtle' ),
+            'library_card_hover'        => $str( 'library_card_hover', 'zoom' ),
+            'library_card_align'        => $str( 'library_card_align', 'left' ),
+            'library_card_layout'       => $str( 'library_card_layout', 'vertical' ),
+            'show_card_image'       => $bool( 'show_card_image', true ),
             'show_card_title'       => true,
-            'show_card_author'      => false,
-            'show_card_translator'  => false,
-            'show_card_publisher'   => false,
-            'show_card_year'        => false,
-            'show_card_type'        => false,
-            'show_card_language'    => false,
-            'show_card_page_count'  => false,
-            'show_detail_image'       => false,
+            'show_card_author'      => $bool( 'show_card_author', false ),
+            'show_card_translator'  => $bool( 'show_card_translator', false ),
+            'show_card_publisher'   => $bool( 'show_card_publisher', false ),
+            'show_card_year'        => $bool( 'show_card_year', false ),
+            'show_card_type'        => $bool( 'show_card_type', false ),
+            'show_card_language'    => $bool( 'show_card_language', false ),
+            'show_card_page_count'  => $bool( 'show_card_page_count', false ),
+            'show_detail_image'       => $bool( 'show_detail_image', true ),
             'show_detail_title'       => true,
             'show_detail_author'      => $bool( 'show_detail_author',      true ),
-            'show_detail_translator'  => false,
-            'show_detail_publisher'   => false,
-            'show_detail_year'        => false,
-            'show_detail_type'        => false,
-            'show_detail_language'    => false,
-            'show_detail_page_count'  => false,
-            'library_palette'         => 'green',
-            'grid_palette'            => 'green',
-            'slider_palette'          => 'green',
+            'show_detail_translator'  => $bool( 'show_detail_translator', false ),
+            'show_detail_publisher'   => $bool( 'show_detail_publisher', false ),
+            'show_detail_year'        => $bool( 'show_detail_year', false ),
+            'show_detail_type'        => $bool( 'show_detail_type', false ),
+            'show_detail_language'    => $bool( 'show_detail_language', false ),
+            'show_detail_page_count'  => $bool( 'show_detail_page_count', false ),
+            'library_palette'         => 'gray',
+            'grid_palette'            => 'gray',
+            'slider_palette'          => 'gray',
+            'reader_font_size'     => $str( 'reader_font_size', 'medium' ),
+            'reader_theme'         => $str( 'reader_theme', 'auto' ),
             'plugin_language'      => $str( 'plugin_language', 'en' ),
             'available_languages'  => jetreader_get_available_languages(),
             'reader_logo_url'      => JETREADER_PLUGIN_URL . 'assets/logo/jetreader.svg',
@@ -2497,6 +2442,14 @@ class JetReader_REST_API {
         foreach ( array( '', 'book', 'article', 'magazine', 'qa' ) as $type ) {
             delete_transient( 'jetreader_cats_' . md5( $type ) );
         }
+    }
+
+    /**
+     * Invalidate the cached files list.
+     * Call after any operation that adds, removes, renames, or re-links files.
+     */
+    private function invalidate_files_cache(): void {
+        delete_transient( 'jetreader_files_list' );
     }
 
     /**
@@ -3380,10 +3333,13 @@ class JetReader_REST_API {
         if ( ! current_user_can( 'manage_options' ) ) {
             global $wpdb;
             $url_clean = sanitize_text_field( $url );
-            // Only allow proxying URLs that are stored in the database as ebook files or inside volumes.
+            // Only allow proxying URLs that are stored in the database as ebook files or inside volumes
+            // AND are associated with a published item (visibility = 'publish').
             $exists = $wpdb->get_var(
                 $wpdb->prepare(
-                    "SELECT COUNT(*) FROM {$wpdb->prefix}jetreader_items WHERE file_path = %s OR volumes LIKE %s",
+                    "SELECT COUNT(*) FROM {$wpdb->prefix}jetreader_items 
+                     WHERE (file_path = %s OR volumes LIKE %s) 
+                       AND visibility = 'publish'",
                     $url_clean,
                     '%' . $wpdb->esc_like( $url_clean ) . '%'
                 )
@@ -3436,12 +3392,13 @@ class JetReader_REST_API {
         $allowed_content_types = array(
             'application/pdf',
             'application/epub',
+            'application/epub+zip',
             'application/zip',
             'application/octet-stream',
             'application/vnd.openxmlformats-officedocument',  // docx, xlsx, pptx
             'application/msword',                              // doc
             'application/vnd.ms-',                             // legacy Office formats
-            'text/',
+            'text/plain',                                      // txt only
             'image/',
         );
 
@@ -3471,6 +3428,12 @@ class JetReader_REST_API {
 
         // Validate content-type against allowlist.
         $ct_base = strtolower( explode( ';', $content_type )[0] );
+
+        // Strictly reject any HTML content type
+        if ( str_contains( $ct_base, 'html' ) ) {
+            return new WP_Error( 'jetreader_proxy_type', __( 'HTML is not allowed for security reasons.', 'jetreader' ), array( 'status' => 415 ) );
+        }
+
         $allowed = false;
         foreach ( $allowed_content_types as $prefix ) {
             if ( str_starts_with( $ct_base, $prefix ) ) {
@@ -3485,6 +3448,8 @@ class JetReader_REST_API {
         // Stream raw bytes — bypass WP_REST_Response JSON encoding.
         header( 'Content-Type: ' . sanitize_mime_type( $ct_base ) );
         header( 'Access-Control-Allow-Origin: ' . esc_url_raw( get_site_url() ) );
+        header( 'X-Content-Type-Options: nosniff' );
+        header( "Content-Security-Policy: default-src 'none'; sandbox;" );
         header( 'Cache-Control: private, max-age=3600' );
         // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
         echo $body;
@@ -4225,6 +4190,13 @@ class JetReader_REST_API {
      * List all files inside the jetreader uploads directory with their metadata and linked item statuses.
      */
     public function get_files( WP_REST_Request $request ): WP_REST_Response {
+        $cache_key = 'jetreader_files_list';
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.NoCaching
+        $cached = get_transient( $cache_key );
+        if ( false !== $cached ) {
+            return new WP_REST_Response( $cached, 200 );
+        }
+
         $upload_dir    = wp_upload_dir();
         $jetreader_dir = $upload_dir['basedir'] . '/jetreader';
 
@@ -4240,6 +4212,7 @@ class JetReader_REST_API {
 
         // Fetch all items from the database to map linkages
         global $wpdb;
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $items = $wpdb->get_results(
             "SELECT id, title, type, file_path, cover_image, volumes FROM {$wpdb->prefix}jetreader_items",
             ARRAY_A
@@ -4313,6 +4286,8 @@ class JetReader_REST_API {
             return $b['modified'] <=> $a['modified'];
         } );
 
+        set_transient( $cache_key, $result, 5 * MINUTE_IN_SECONDS );
+
         return new WP_REST_Response( $result, 200 );
     }
 
@@ -4360,6 +4335,7 @@ class JetReader_REST_API {
         if ( $success_count > 0 ) {
             // Invalidate CPT permalinks cache just in case we deleted files that were linked
             delete_transient( 'jetreader_cpt_permalink_map' );
+            $this->invalidate_files_cache();
         }
 
         if ( count( $failed_files ) === 0 ) {
@@ -4493,8 +4469,9 @@ class JetReader_REST_API {
             $old_url
         ) );
 
-        // Invalidate permalink cache
+        // Invalidate permalink cache and files list cache
         delete_transient( 'jetreader_cpt_permalink_map' );
+        $this->invalidate_files_cache();
 
         return new WP_REST_Response(
             array(

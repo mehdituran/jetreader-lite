@@ -28,7 +28,15 @@ class JetReader_Upload_Handler {
         'txt'  => 'text/plain',
         'doc'  => 'application/msword',
         'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'jpg'  => 'image/jpeg',
+        'jpeg' => 'image/jpeg',
+        'png'  => 'image/png',
+        'webp' => 'image/webp',
+        'gif'  => 'image/gif',
+        'svg'  => 'image/svg+xml',
     );
+
+    private $image_exts = array( 'jpg', 'jpeg', 'png', 'webp', 'gif', 'svg' );
 
     /**
      * Handle file upload from REST API request.
@@ -70,8 +78,11 @@ class JetReader_Upload_Handler {
             $expected_mime = $this->allowed_mimes[ $extension ];
             // Allow application/zip as a valid magic-byte result for epub (zip-based format).
             $zip_exts      = array( 'epub' );
-            $mime_ok       = ( $real_mime === $expected_mime )
-                || ( in_array( $extension, $zip_exts, true ) && 'application/zip' === $real_mime );
+            // For images, allow any image/* MIME type to accommodate minor browser variations.
+            $is_image = in_array( $extension, $this->image_exts, true );
+            $mime_ok  = ( $real_mime === $expected_mime )
+                || ( in_array( $extension, $zip_exts, true ) && 'application/zip' === $real_mime )
+                || ( $is_image && strpos( $real_mime, 'image/' ) === 0 );
 
             if ( ! $mime_ok ) {
                 return new WP_Error(
@@ -160,6 +171,21 @@ class JetReader_Upload_Handler {
 
         // Get file URL.
         $file_url = $upload_dir['baseurl'] . '/jetreader/' . $unique_name;
+
+        // Images don't need metadata extraction or chapter parsing.
+        if ( in_array( $extension, $this->image_exts, true ) ) {
+            return rest_ensure_response(
+                array(
+                    'file_name' => $unique_name,
+                    'file_url'  => $file_url,
+                    'file_path' => $destination,
+                    'file_type' => $extension,
+                    'file_size' => $file_size,
+                    'metadata'  => array(),
+                    'message'   => __( 'Image uploaded successfully.', 'jetreader' ),
+                )
+            );
+        }
 
         // Extract metadata based on file type.
         $metadata = $this->extract_metadata( $destination, $extension );

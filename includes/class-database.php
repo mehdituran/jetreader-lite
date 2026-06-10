@@ -63,6 +63,7 @@ class JetReader_Database {
             KEY visibility (visibility),
             KEY featured (featured),
             KEY created_at (created_at),
+            KEY visibility_type_created (visibility, type, created_at),
             FULLTEXT KEY ft_title_description (title, description)
         ) ENGINE=InnoDB $charset_collate;";
 
@@ -217,6 +218,9 @@ class JetReader_Database {
 
         // Upgrade search_index schema (volume_idx, page_num).
         self::maybe_upgrade_search_index();
+
+        // Add composite index for the common list query pattern.
+        self::maybe_add_composite_index();
 
         // Bust the CPT permalink transient so stale slugs are never served
         // after an upgrade or fresh activation.
@@ -430,5 +434,24 @@ class JetReader_Database {
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         dbDelta( $sql );
+    }
+
+    /**
+     * Add composite index (visibility, type, created_at) to jetreader_items for existing installs.
+     * Speeds up the common list query: WHERE visibility = 'publish' AND type = 'book' ORDER BY created_at DESC.
+     * Safe to call multiple times — checks before altering.
+     */
+    public static function maybe_add_composite_index() {
+        global $wpdb;
+        $table = $wpdb->prefix . 'jetreader_items';
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $exists = $wpdb->get_var(
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            $wpdb->prepare( "SHOW INDEX FROM `{$table}` WHERE Key_name = %s", 'visibility_type_created' )
+        );
+        if ( ! $exists ) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.DirectQuery
+            $wpdb->query( "ALTER TABLE `{$table}` ADD KEY `visibility_type_created` (`visibility`, `type`, `created_at`)" );
+        }
     }
 }

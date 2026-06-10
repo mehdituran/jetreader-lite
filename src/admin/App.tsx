@@ -4384,27 +4384,12 @@ const sanitizeSlug = ( val: string ) => {
 
 const SettingsPage: React.FC = () => {
     const { t } = useTranslation();
-    const [ settings, setSettings ] = React.useState<Record<string, unknown>>( {} );
+    const [ settings, setSettings ] = React.useState<Record<string, any>>( {} );
     const [ loading, setLoading ] = React.useState( true );
     const [ saving, setSaving ] = React.useState( false );
     const [ message, setMessage ] = React.useState( '' );
     const savedRef = React.useRef<string>( '{}' );
     const [ isDirty, setIsDirty ] = React.useState( false );
-
-    const locale = ( window as any ).jetreaderSettings?.locale || 'en';
-    const txt = ( en: string, tr: string ) => locale === 'tr' ? tr : en;
-    const isLite = true;
-    // Lite edition: only a whitelisted set of settings ships, and every shipped
-    // control is fully functional (no locks). Pro-only sections are not rendered
-    // at all. In the Pro edition `isPro` continues to reflect the license state.
-    const isPro = false;
-    const LITE_FILTERS       = [ 'show_filter_category', 'show_filter_language', 'show_filter_year' ];
-    const LITE_CARD_FIELDS   = [ 'show_card_image', 'show_card_title' ];
-    const LITE_DETAIL_FIELDS = [ 'show_detail_image', 'show_detail_title', 'show_detail_author' ];
-
-    // Available languages from window.jetreaderSettings.
-    const availableLanguages: Array<{ code: string; name: string }> =
-        ( window as any ).jetreaderSettings?.availableLanguages || [];
 
     React.useEffect( () => {
         fetch( `${API_BASE}/settings`, {
@@ -4429,7 +4414,6 @@ const SettingsPage: React.FC = () => {
         } );
     };
 
-    // Warn on browser/tab close when there are unsaved changes.
     React.useEffect( () => {
         const handler = ( e: BeforeUnloadEvent ) => {
             if ( ! isDirty ) return;
@@ -4443,8 +4427,6 @@ const SettingsPage: React.FC = () => {
     const saveSettings = async () => {
         setSaving( true );
         setMessage( '' );
-        const previousLanguage = ( window as any ).jetreaderSettings?.locale || 'en';
-        const newLanguage = settings.plugin_language || 'en';
 
         try {
             const res = await fetch( `${API_BASE}/settings`, {
@@ -4461,13 +4443,6 @@ const SettingsPage: React.FC = () => {
                 setSettings( data.settings );
                 savedRef.current = JSON.stringify( data.settings );
                 setIsDirty( false );
-
-                // If the language changed, reload the page so PHP sends new translations.
-                if ( newLanguage !== previousLanguage ) {
-                    setTimeout( () => {
-                        window.location.reload();
-                    }, 500 );
-                }
             } else {
                 setMessage( t( 'settings.saveFailed' ) );
             }
@@ -4482,10 +4457,6 @@ const SettingsPage: React.FC = () => {
     if ( loading ) {
         return <AdminSpinner />;
     }
-
-    const licenseKey = String( settings.license_key || '' );
-    const licenseStatus = String( settings.license_status || '' );
-    const licenseExpires = String( settings.license_expires || '' );
 
     return (
         <div className="p-6 max-w-3xl">
@@ -4516,168 +4487,20 @@ const SettingsPage: React.FC = () => {
             ) }
             <div className="mb-8">
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {t('settings.title')}
+                    ⚙️ JetReader Settings
                 </h1>
                 <p className="mt-1 text-gray-500 dark:text-gray-400 text-sm">
-                    {t('settings.subtitle')}
+                    Configure plugin behavior and reader options.
                 </p>
             </div>
 
-            { isLite && <ProUpgradeBanner /> }
+            <ProUpgradeBanner />
 
             <div className="space-y-6">
-                {/* Pro License Verification Card */}
-                { !isLite && (
-                    <LicenseCard
-                        licenseKey={ licenseKey }
-                        licenseStatus={ licenseStatus }
-                        licenseExpires={ licenseExpires }
-                        onLicenseChange={ handleLicenseChange }
-                    />
-                ) }
-
-                { ! isLite && ( <>
-                {/* Plugin Language */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
-                    <div className="flex items-center gap-2 mb-2">
-                        <h3 className="font-semibold text-gray-900 dark:text-white">
-                            🌐 {t('items.languageLabel')}
-                        </h3>
-                        { !isPro && <PremiumLockIcon className="w-4 h-4" /> }
-                    </div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-                        { t( 'settings.languageDesc' ) }
-                    </p>
-                    { !isPro && (
-                        <p className="text-xs text-amber-600 dark:text-amber-400 font-medium mb-3">
-                            ⚠️ { t( 'settings.languageProOnly' ) }
-                        </p>
-                    ) }
-                    <select
-                        value={ String( settings.plugin_language || 'en' ) }
-                        onChange={ ( e ) => updateSetting( 'plugin_language', e.target.value ) }
-                        className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                    >
-                        { availableLanguages.length > 0 ? (
-                            availableLanguages.map( ( lang ) => (
-                                <option key={ lang.code } value={ lang.code }>
-                                    { lang.name }
-                                </option>
-                            ) )
-                        ) : (
-                            <>
-                                <option value="en">English</option>
-                                <option value="tr">Türkçe</option>
-                                <option value="ar">العربية</option>
-                                <option value="fr">Français</option>
-                                <option value="de">Deutsch</option>
-                                <option value="id">Bahasa Indonesia</option>
-                                <option value="fa">فارسی</option>
-                                <option value="ru">Русский</option>
-                                <option value="es">Español</option>
-                            </>
-                        ) }
-                    </select>
-                </div>
-
-                {/* Reader Logo */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
-                    <div className="flex items-center gap-2 mb-2">
-                        <h3 className="font-semibold text-gray-900 dark:text-white">
-                            🖼️ { t( 'settings.logoTitle' ) }
-                        </h3>
-                        { !isPro && <PremiumLockIcon className="w-4 h-4" /> }
-                    </div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-                        { t( 'settings.logoDesc' ) }
-                    </p>
-                    { !isPro && (
-                        <p className="text-xs text-amber-600 dark:text-amber-400 font-medium mb-3">
-                            ⚠️ { t( 'settings.logoProOnly' ) }
-                        </p>
-                    ) }
-                    <div className="flex items-center gap-3">
-                        <input
-                            type="url"
-                            value={ String( settings.reader_logo_url || '' ) }
-                            onChange={ ( e ) => updateSetting( 'reader_logo_url', e.target.value ) }
-                            placeholder="https://..."
-                            disabled={ !isPro }
-                            className={ `flex-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 ${ !isPro ? 'bg-gray-100 dark:bg-gray-800/50 cursor-not-allowed opacity-60' : '' }` }
-                        />
-                        { !! settings.reader_logo_url && (
-                            <img
-                                src={ String( settings.reader_logo_url ) }
-                                alt="Logo preview"
-                                className="max-h-[40px] w-auto object-contain rounded border border-gray-200 dark:border-gray-600 p-1"
-                                onError={ ( e ) => { ( e.target as HTMLImageElement ).style.display = 'none'; } }
-                            />
-                        ) }
-                    </div>
-                </div>
-
-                {/* Annotation + Copy + Download */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 divide-y sm:divide-y-0 sm:divide-x divide-gray-100 dark:divide-gray-700 sm:flex">
-                    { [
-                        { key: 'annotation_enabled', titleKey: 'settings.annotationTitle', descKey: 'settings.annotationDesc', isPremium: true },
-                        { key: 'copy_enabled',        titleKey: 'settings.copyTitle',       descKey: 'settings.copyDesc', isPremium: true },
-                        { key: 'download_enabled',    titleKey: 'settings.downloadTitle',   descKey: 'settings.downloadDesc', isPremium: true },
-                    ].map( ( f ) => (
-                        <div key={ f.key } className="flex items-center justify-between p-6 flex-1 relative">
-                            <div className="mr-4">
-                                <h3 className="font-semibold text-gray-900 dark:text-white text-sm flex items-center gap-1.5">
-                                    { t( f.titleKey ) }
-                                    { f.isPremium && !isPro && <PremiumLockIcon /> }
-                                </h3>
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{ t( f.descKey ) }</p>
-                            </div>
-                            <ToggleSwitch
-                                checked={ f.isPremium && !isPro ? false : Boolean( settings[ f.key ] ) }
-                                onChange={ ( v ) => updateSetting( f.key, v ) }
-                                disabled={ f.isPremium && !isPro }
-                            />
-                        </div>
-                    ) ) }
-                </div>
-
-                {/* WordPress Search Integration + Library Search */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
-                    <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-200 dark:divide-gray-700">
-                        <div className="flex items-center justify-between p-6">
-                            <div className="mr-4">
-                                <h3 className="font-semibold text-gray-900 dark:text-white text-sm flex items-center gap-1.5">
-                                    { t( 'settings.wpSearchTitle' ) }
-                                    { !isPro && <PremiumLockIcon /> }
-                                </h3>
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{ t( 'settings.wpSearchDesc' ) }</p>
-                            </div>
-                            <ToggleSwitch
-                                checked={ !isPro ? false : settings.show_in_wp_search !== false }
-                                onChange={ ( v ) => updateSetting( 'show_in_wp_search', v ) }
-                                disabled={ !isPro }
-                            />
-                        </div>
-                        <div className="flex items-center justify-between p-6">
-                            <div className="mr-4">
-                                <h3 className="font-semibold text-gray-900 dark:text-white text-sm flex items-center gap-1.5">
-                                    { t( 'settings.librarySearchTitle' ) }
-                                    { !isPro && <PremiumLockIcon /> }
-                                </h3>
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{ t( 'settings.librarySearchDesc' ) }</p>
-                            </div>
-                            <ToggleSwitch
-                                checked={ !isPro ? false : settings.library_show_search !== false }
-                                onChange={ ( v ) => updateSetting( 'library_show_search', v ) }
-                                disabled={ !isPro }
-                            />
-                        </div>
-                    </div>
-                </div>
-
                 {/* Upload Max Size */}
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
                     <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
-                        { t( 'settings.uploadMaxSize' ) }
+                        📁 Maximum Upload Size (MB)
                     </h3>
                     <input
                         type="number"
@@ -4695,7 +4518,7 @@ const SettingsPage: React.FC = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                { t( 'settings.fontSize' ) }
+                                🔤 Default Reader Font Size
                             </label>
                             <select
                                 value={ String( settings.reader_font_size || 'medium' ) }
@@ -4710,7 +4533,7 @@ const SettingsPage: React.FC = () => {
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                { t( 'settings.theme' ) }
+                                🎨 Default Reader Theme
                             </label>
                             <select
                                 value={ String( settings.reader_theme || 'auto' ) }
@@ -4726,53 +4549,17 @@ const SettingsPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Custom URL Slugs */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
-                    <div className="flex items-center gap-2 mb-2">
-                        <h3 className="font-semibold text-gray-900 dark:text-white">
-                            🔗 { t( 'settings.customSlugsTitle' ) }
-                        </h3>
-                        { !isPro && <ProBadge /> }
-                    </div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                        { t( 'settings.customSlugsDesc' ) }
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        { [
-                            { key: 'cpt_slug_book',     label: t( 'settings.bookSlugLabel' ),     placeholder: 'jetreader-books',     def: 'jetreader-books' },
-                            { key: 'cpt_slug_article',  label: t( 'settings.articleSlugLabel' ),  placeholder: 'jetreader-articles',  def: 'jetreader-articles' },
-                            { key: 'cpt_slug_magazine', label: t( 'settings.magazineSlugLabel' ), placeholder: 'jetreader-magazines', def: 'jetreader-magazines' },
-                            { key: 'cpt_slug_qa',       label: t( 'settings.qaSlugLabel' ),       placeholder: 'jetreader-qa',        def: 'jetreader-qa' },
-                        ].map( ( f ) => (
-                            <div key={ f.key }>
-                                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                                    { f.label }
-                                </label>
-                                <input
-                                    type="text"
-                                    value={ isPro ? String( settings[ f.key ] ?? f.def ) : f.def }
-                                    onChange={ ( e ) => updateSetting( f.key, sanitizeSlug( e.target.value ) ) }
-                                    placeholder={ f.placeholder }
-                                    disabled={ !isPro }
-                                    className={ `w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 ${ !isPro ? 'bg-gray-100 dark:bg-gray-800/50 cursor-not-allowed opacity-60' : '' }` }
-                                />
-                            </div>
-                        ) ) }
-                    </div>
-                </div>
-                </> ) }
-
                 {/* ---------- LIBRARY DISPLAY ---------- */}
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
                     <h2 className="text-base font-bold text-gray-900 dark:text-white mb-5 flex items-center gap-2">
-                        { t( 'settings.libraryDisplay' ) }
+                        🗂️ Library View
                     </h2>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-5">
                         {/* Items per page */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                { t( 'settings.itemsPerPage' ) }
+                                Items per page
                             </label>
                             <select
                                 value={ Number( settings.items_per_page ) || 24 }
@@ -4788,7 +4575,7 @@ const SettingsPage: React.FC = () => {
                         {/* Grid columns */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                { t( 'settings.gridColumns' ) }
+                                Grid columns (desktop)
                             </label>
                             <select
                                 value={ Number( settings.grid_columns ) || 4 }
@@ -4805,8 +4592,8 @@ const SettingsPage: React.FC = () => {
                     {/* Show sidebar */}
                     <div className="flex items-center justify-between py-3 border-t border-gray-100 dark:border-gray-700">
                         <div>
-                            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{ t( 'settings.showSidebar' ) }</p>
-                            <p className="text-xs text-gray-500 mt-0.5">{ t( 'settings.showSidebarDesc' ) }</p>
+                            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Show filter sidebar</p>
+                            <p className="text-xs text-gray-500 mt-0.5">Display the left sidebar on the library page</p>
                         </div>
                         <ToggleSwitch
                             checked={ Boolean( settings.show_sidebar ?? true ) }
@@ -4817,497 +4604,98 @@ const SettingsPage: React.FC = () => {
                     { /* ── Sidebar filter toggles ── */ }
                     <div className="border-t-2 border-indigo-100 dark:border-indigo-900/40 mt-6 pt-5 mb-3">
                         <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
-                            { t( 'settings.sidebarFilters' ) }
+                            Sidebar Filters — Show / Hide
                         </p>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
                         { [
-                            { key: 'show_filter_category', label: t( 'settings.filterCategories' ), desc: t( 'settings.filterCategoriesDesc' ), isPremium: false },
-                            { key: 'show_filter_language', label: t( 'settings.filterLanguage' ),   desc: t( 'settings.filterLanguageDesc' ), isPremium: true },
-                            { key: 'show_filter_year',     label: t( 'settings.filterYear' ),       desc: t( 'settings.filterYearDesc' ), isPremium: true },
-                            { key: 'show_filter_author',     label: t( 'settings.filterAuthor' ),      desc: t( 'settings.filterAuthorDesc' ), isPremium: true },
-                            { key: 'show_filter_publisher',  label: t( 'settings.filterPublisher' ),   desc: t( 'settings.filterPublisherDesc' ), isPremium: true },
-                            { key: 'show_filter_translator', label: t( 'settings.filterTranslator' ),  desc: t( 'settings.filterTranslatorDesc' ), isPremium: true },
-                            { key: 'show_filter_featured',   label: t( 'settings.filterFeatured' ),    desc: t( 'settings.filterFeaturedDesc' ), isPremium: true },
-                            { key: 'show_filter_type',       label: t( 'settings.filterType' ),        desc: t( 'settings.filterTypeDesc' ), isPremium: true },
-                        ].filter( ( f ) => ! isLite || LITE_FILTERS.includes( f.key ) ).map( ( f ) => (
+                            { key: 'show_filter_category', label: '🏷️ Categories', desc: 'Filter by category' },
+                            { key: 'show_filter_language', label: '🌐 Language',   desc: 'Filter by language' },
+                            { key: 'show_filter_year',     label: '📅 Year Range',       desc: 'Filter by publication year' },
+                        ].map( ( f ) => (
                             <div key={ f.key } className="flex items-center justify-between py-2.5 border-t border-gray-100 dark:border-gray-700">
                                 <div className="min-w-0 mr-3">
                                     <p className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
                                         { f.label }
-                                        { f.isPremium && !isPro && <PremiumLockIcon /> }
                                     </p>
                                     <p className="text-xs text-gray-500 mt-0.5">{ f.desc }</p>
                                 </div>
                                 <ToggleSwitch
-                                    checked={ f.isPremium && !isPro ? false : Boolean( settings[ f.key ] ?? true ) }
+                                    checked={ Boolean( settings[ f.key ] ?? true ) }
                                     onChange={ ( v ) => updateSetting( f.key, v ) }
-                                    disabled={ f.isPremium && !isPro }
                                 />
                             </div>
                         ) ) }
                     </div>
 
-                    { ! isLite && ( <>
-                    { /* ── Library card appearance ── */ }
-                    <div className="border-t-2 border-indigo-100 dark:border-indigo-900/40 mt-6 pt-5 mb-3">
-                        <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
-                            { t( 'settings.libraryCardAppearance' ) }
-                            { !isPro && <PremiumLockIcon /> }
-                        </p>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-2">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                { t( 'settings.libraryImageSize' ) }
-                            </label>
-                            <select
-                                value={ !isPro ? 'large' : String( settings.library_image_size ?? 'large' ) }
-                                onChange={ ( e ) => updateSetting( 'library_image_size', e.target.value ) }
-                                disabled={ !isPro }
-                                className={ `text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 w-full ${ !isPro ? 'bg-gray-100 dark:bg-gray-800/50 cursor-not-allowed opacity-60' : '' }` }
-                            >
-                                <option value="small">{ t( 'displays.imageSizeSmall' ) }</option>
-                                <option value="medium">{ t( 'displays.imageSizeMedium' ) }</option>
-                                <option value="large">{ t( 'displays.imageSizeLarge' ) }</option>
-                                <option value="xlarge">{ t( 'displays.imageSizeXLarge' ) }</option>
-                                <option value="xxlarge">{ t( 'displays.imageSizeXXLarge' ) }</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                { t( 'settings.libraryImageFit' ) }
-                            </label>
-                            <select
-                                value={ !isPro ? 'cover' : String( settings.library_image_fit ?? 'cover' ) }
-                                onChange={ ( e ) => updateSetting( 'library_image_fit', e.target.value ) }
-                                disabled={ !isPro }
-                                className={ `text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 w-full ${ !isPro ? 'bg-gray-100 dark:bg-gray-800/50 cursor-not-allowed opacity-60' : '' }` }
-                            >
-                                <option value="cover">{ t( 'displays.imageFitCover' ) }</option>
-                                <option value="contain">{ t( 'displays.imageFitContain' ) }</option>
-                                <option value="fill">{ t( 'displays.imageFitFill' ) }</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                { t( 'displays.cardRadius' ) }
-                            </label>
-                            <select
-                                value={ !isPro ? 'medium' : String( settings.library_card_radius ?? 'medium' ) }
-                                onChange={ ( e ) => updateSetting( 'library_card_radius', e.target.value ) }
-                                disabled={ !isPro }
-                                className={ `text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 w-full ${ !isPro ? 'bg-gray-100 dark:bg-gray-800/50 cursor-not-allowed opacity-60' : '' }` }
-                            >
-                                <option value="none">{ t( 'displays.radiusNone' ) }</option>
-                                <option value="small">{ t( 'displays.radiusSmall' ) }</option>
-                                <option value="medium">{ t( 'displays.radiusMedium' ) }</option>
-                                <option value="large">{ t( 'displays.radiusLarge' ) }</option>
-                                <option value="xlarge">{ t( 'displays.radiusXLarge' ) }</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                { t( 'displays.cardBorder' ) }
-                            </label>
-                            <select
-                                value={ !isPro ? 'subtle' : String( settings.library_card_border ?? 'subtle' ) }
-                                onChange={ ( e ) => updateSetting( 'library_card_border', e.target.value ) }
-                                disabled={ !isPro }
-                                className={ `text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 w-full ${ !isPro ? 'bg-gray-100 dark:bg-gray-800/50 cursor-not-allowed opacity-60' : '' }` }
-                            >
-                                <option value="none">{ t( 'displays.borderNone' ) }</option>
-                                <option value="subtle">{ t( 'displays.borderSubtle' ) }</option>
-                                <option value="thick">{ t( 'displays.borderThick' ) }</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                { t( 'displays.cardShadow' ) }
-                            </label>
-                            <select
-                                value={ !isPro ? 'subtle' : String( settings.library_card_shadow ?? 'subtle' ) }
-                                onChange={ ( e ) => updateSetting( 'library_card_shadow', e.target.value ) }
-                                disabled={ !isPro }
-                                className={ `text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 w-full ${ !isPro ? 'bg-gray-100 dark:bg-gray-800/50 cursor-not-allowed opacity-60' : '' }` }
-                            >
-                                <option value="none">{ t( 'displays.shadowNone' ) }</option>
-                                <option value="subtle">{ t( 'displays.shadowSubtle' ) }</option>
-                                <option value="medium">{ t( 'displays.shadowMedium' ) }</option>
-                                <option value="large">{ t( 'displays.shadowLarge' ) }</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                { t( 'displays.cardHover' ) }
-                            </label>
-                            <select
-                                value={ !isPro ? 'zoom' : String( settings.library_card_hover ?? 'zoom' ) }
-                                onChange={ ( e ) => updateSetting( 'library_card_hover', e.target.value ) }
-                                disabled={ !isPro }
-                                className={ `text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 w-full ${ !isPro ? 'bg-gray-100 dark:bg-gray-800/50 cursor-not-allowed opacity-60' : '' }` }
-                            >
-                                <option value="none">{ t( 'displays.hoverNone' ) }</option>
-                                <option value="lift">{ t( 'displays.hoverLift' ) }</option>
-                                <option value="zoom">{ t( 'displays.hoverZoom' ) }</option>
-                                <option value="glow">{ t( 'displays.hoverGlow' ) }</option>
-                                <option value="shadow">{ t( 'displays.hoverShadow' ) }</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                { t( 'displays.cardAlign' ) }
-                            </label>
-                            <select
-                                value={ !isPro ? 'left' : String( settings.library_card_align ?? 'left' ) }
-                                onChange={ ( e ) => updateSetting( 'library_card_align', e.target.value ) }
-                                disabled={ !isPro }
-                                className={ `text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 w-full ${ !isPro ? 'bg-gray-100 dark:bg-gray-800/50 cursor-not-allowed opacity-60' : '' }` }
-                            >
-                                <option value="left">{ t( 'displays.alignLeft' ) }</option>
-                                <option value="center">{ t( 'displays.alignCenter' ) }</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                { t( 'displays.cardLayout' ) }
-                            </label>
-                            <select
-                                value={ !isPro ? 'vertical' : String( settings.library_card_layout ?? 'vertical' ) }
-                                onChange={ ( e ) => updateSetting( 'library_card_layout', e.target.value ) }
-                                disabled={ !isPro }
-                                className={ `text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 w-full ${ !isPro ? 'bg-gray-100 dark:bg-gray-800/50 cursor-not-allowed opacity-60' : '' }` }
-                            >
-                                <option value="vertical">{ t( 'displays.layoutVertical' ) }</option>
-                                <option value="horizontal">{ t( 'displays.layoutHorizontal' ) }</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div className="flex items-center justify-between py-3 border-t border-gray-100 dark:border-gray-700">
-                        <div>
-                            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{ t( 'settings.libraryCardMinWidth' ) }</p>
-                            <p className="text-xs text-gray-500 mt-0.5">{ t( 'settings.libraryCardMinWidthDesc' ) }</p>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                            <input
-                                type="number" min={ 80 } max={ 600 }
-                                key={ `card-min-width-${ !isPro ? 180 : (settings.library_card_min_width ?? 180) }` }
-                                defaultValue={ !isPro ? 180 : Number( settings.library_card_min_width ?? 180 ) }
-                                onBlur={ ( e ) => updateSetting( 'library_card_min_width', Math.max( 80, Math.min( 600, parseInt( e.target.value ) || 180 ) ) ) }
-                                disabled={ !isPro }
-                                className={ `w-24 text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-right ${ !isPro ? 'opacity-60 bg-gray-100 dark:bg-gray-800 cursor-not-allowed' : '' }` }
-                            />
-                            <span className="text-sm text-gray-400">px</span>
-                        </div>
-                    </div>
-
-                    </> ) }
-
-                    { /* ── Card field visibility (includes buttons) ── */ }
+                    { /* ── Card field visibility ── */ }
                     <div className="border-t-2 border-indigo-100 dark:border-indigo-900/40 mt-6 pt-5 mb-3">
                         <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
-                            { t( 'settings.cardFieldsVisibility' ) }
+                            Card Fields — Show / Hide
                         </p>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
                         { [
-                            { key: 'show_card_image',       label: t( 'settings.cardImage' ),       desc: t( 'settings.cardImageDesc' ),       def: true,  isPremium: true },
-                            { key: 'show_card_title',       label: t( 'settings.cardTitle' ),       desc: t( 'settings.cardTitleDesc' ),       def: true,  isPremium: false },
-                            { key: 'show_card_author',      label: t( 'settings.cardAuthor' ),      desc: t( 'settings.cardAuthorDesc' ),      def: true,  isPremium: true },
-                            { key: 'show_card_translator',  label: t( 'settings.cardTranslator' ),  desc: t( 'settings.cardTranslatorDesc' ),  def: false, isPremium: true },
-                            { key: 'show_card_publisher',   label: t( 'settings.cardPublisher' ),   desc: t( 'settings.cardPublisherDesc' ),   def: false, isPremium: true },
-                            { key: 'show_card_year',        label: t( 'settings.cardYear' ),        desc: t( 'settings.cardYearDesc' ),        def: true,  isPremium: true },
-                            { key: 'show_card_type',        label: t( 'settings.cardType' ),        desc: t( 'settings.cardTypeDesc' ),        def: true,  isPremium: true },
-                            { key: 'show_card_language',    label: t( 'settings.cardLanguage' ),    desc: t( 'settings.cardLanguageDesc' ),    def: false, isPremium: true },
-                            { key: 'show_card_page_count',  label: t( 'settings.cardPageCount' ),    desc: t( 'settings.cardPageCountDesc' ),    def: true,  isPremium: true },
-                        ].filter( ( f ) => ! isLite || LITE_CARD_FIELDS.includes( f.key ) ).map( ( f ) => (
+                            { key: 'show_card_image',       label: '🖼️ Cover Image',       desc: 'Show the cover image on library cards',       def: true },
+                            { key: 'show_card_title',       label: '📝 Item Title',       desc: 'Show the item title on cards',       def: true },
+                        ].map( ( f ) => (
                             <div key={ f.key } className="flex items-center justify-between py-2.5 border-t border-gray-100 dark:border-gray-700">
                                 <div className="min-w-0 mr-3">
                                     <p className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
                                         { f.label }
-                                        { f.isPremium && !isPro && <PremiumLockIcon /> }
                                     </p>
                                     <p className="text-xs text-gray-500 mt-0.5">{ f.desc }</p>
                                 </div>
                                 <ToggleSwitch
-                                    checked={ f.isPremium && !isPro ? false : Boolean( settings[ f.key ] ?? f.def ) }
+                                    checked={ Boolean( settings[ f.key ] ?? f.def ) }
                                     onChange={ ( v ) => updateSetting( f.key, v ) }
-                                    disabled={ f.isPremium && !isPro }
                                 />
                             </div>
                         ) ) }
-                        { ! isLite && ( <>
-                        <div className="flex items-center justify-between py-2.5 border-t border-gray-100 dark:border-gray-700">
-                            <div className="min-w-0 mr-3">
-                                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
-                                    { t( 'settings.libraryShowReadBtn' ) }
-                                    { !isPro && <PremiumLockIcon /> }
-                                </p>
-                                <p className="text-xs text-gray-500 mt-0.5">{ t( 'settings.libraryShowReadBtnDesc' ) }</p>
-                            </div>
-                            <ToggleSwitch
-                                checked={ !isPro ? true : settings.library_show_read_button !== false }
-                                onChange={ ( v ) => updateSetting( 'library_show_read_button', v ) }
-                                disabled={ !isPro }
-                            />
-                        </div>
-                        <div className="flex items-center justify-between py-2.5 border-t border-gray-100 dark:border-gray-700">
-                            <div className="min-w-0 mr-3">
-                                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
-                                    { t( 'settings.libraryShowInfoBtn' ) }
-                                    { !isPro && <PremiumLockIcon /> }
-                                </p>
-                                <p className="text-xs text-gray-500 mt-0.5">{ t( 'settings.libraryShowInfoBtnDesc' ) }</p>
-                            </div>
-                            <ToggleSwitch
-                                checked={ !isPro ? true : settings.library_show_info_button !== false }
-                                onChange={ ( v ) => updateSetting( 'library_show_info_button', v ) }
-                                disabled={ !isPro }
-                            />
-                        </div>
-                        </> ) }
                     </div>
 
                     { /* ── Detail field visibility ── */ }
                     <div className="border-t-2 border-indigo-100 dark:border-indigo-900/40 mt-6 pt-5 mb-3">
                         <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
-                            { t( 'settings.detailFieldsVisibility' ) }
+                            Detail Fields — Show / Hide
                         </p>
-                        <p className="text-xs text-gray-500 mt-0.5">{ t( 'settings.detailFieldsVisibilityDesc' ) }</p>
+                        <p className="text-xs text-gray-500 mt-0.5">Affects all detail modals in library, grid, and slider views.</p>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
                         { [
-                            { key: 'show_detail_image',       label: t( 'settings.detailImage' ),       desc: t( 'settings.detailImageDesc' ),       def: true,  isPremium: true },
-                            { key: 'show_detail_title',       label: t( 'settings.detailTitle' ),       desc: t( 'settings.detailTitleDesc' ),       def: true,  isPremium: false },
-                            { key: 'show_detail_author',      label: t( 'settings.detailAuthor' ),      desc: t( 'settings.detailAuthorDesc' ),      def: true,  isPremium: false },
-                            { key: 'show_detail_translator',  label: t( 'settings.detailTranslator' ),  desc: t( 'settings.detailTranslatorDesc' ),  def: true,  isPremium: true },
-                            { key: 'show_detail_publisher',   label: t( 'settings.detailPublisher' ),   desc: t( 'settings.detailPublisherDesc' ),   def: true,  isPremium: true },
-                            { key: 'show_detail_year',        label: t( 'settings.detailYear' ),        desc: t( 'settings.detailYearDesc' ),        def: true,  isPremium: true },
-                            { key: 'show_detail_type',        label: t( 'settings.detailType' ),        desc: t( 'settings.detailTypeDesc' ),        def: true,  isPremium: true },
-                            { key: 'show_detail_language',    label: t( 'settings.detailLanguage' ),    desc: t( 'settings.detailLanguageDesc' ),    def: true,  isPremium: true },
-                            { key: 'show_detail_page_count',  label: t( 'settings.detailPageCount' ),  desc: t( 'settings.detailPageCountDesc' ),  def: true,  isPremium: true },
-                        ].filter( ( f ) => ! isLite || LITE_DETAIL_FIELDS.includes( f.key ) ).map( ( f ) => (
+                            { key: 'show_detail_image',       label: '🖼️ Cover Image',       desc: 'Show the cover image in the detail modal',       def: true },
+                            { key: 'show_detail_title',       label: '📝 Item Title',       desc: 'Show the item title in the detail modal',       def: true },
+                            { key: 'show_detail_author',      label: '✍️ Author',      desc: 'Show the author name in the detail modal',      def: true },
+                        ].map( ( f ) => (
                             <div key={ f.key } className="flex items-center justify-between py-2.5 border-t border-gray-100 dark:border-gray-700">
                                 <div className="min-w-0 mr-3">
                                     <p className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
                                         { f.label }
-                                        { f.isPremium && !isPro && <PremiumLockIcon /> }
                                     </p>
                                     <p className="text-xs text-gray-500 mt-0.5">{ f.desc }</p>
                                 </div>
                                 <ToggleSwitch
-                                    checked={ f.isPremium && !isPro ? false : Boolean( settings[ f.key ] ?? f.def ) }
+                                    checked={ Boolean( settings[ f.key ] ?? f.def ) }
                                     onChange={ ( v ) => updateSetting( f.key, v ) }
-                                    disabled={ f.isPremium && !isPro }
                                 />
                             </div>
                         ) ) }
                     </div>
                 </div>
-
-                { ! isLite && ( <>
-                {/* Color Themes */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
-                    <h3 className="font-semibold text-gray-900 dark:text-white mb-1">
-                        { t( 'colors.sectionTitle' ) }
-                    </h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
-                        { t( 'colors.sectionDesc' ) }
-                    </p>
-                    { [
-                        { key: 'library_palette', labelKey: 'colors.libraryLabel', isPremium: true },
-                        { key: 'grid_palette',    labelKey: 'colors.gridLabel',    isPremium: true },
-                        { key: 'slider_palette',  labelKey: 'colors.sliderLabel',  isPremium: true },
-                    ].map( ( { key, labelKey, isPremium } ) => (
-                        <div key={ key } className="py-4 border-t border-gray-100 dark:border-gray-700 first:border-t-0 first:pt-0">
-                            <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-1.5">
-                                { t( labelKey ) }
-                                { isPremium && !isPro && <PremiumLockIcon /> }
-                            </p>
-                            <div className="flex gap-3 flex-wrap">
-                                { JR_PALETTES.map( ( p ) => {
-                                    const active = ( ( settings as Record<string, unknown> )[ key ] ?? 'green' ) === p.slug;
-                                    const disabled = !isPro && p.slug !== 'green';
-                                    return (
-                                        <button
-                                            key={ p.slug }
-                                            title={ t( `colors.${p.slug}` ) }
-                                            onClick={ () => !disabled && updateSetting( key, p.slug ) }
-                                            style={ { backgroundColor: p.hex } }
-                                            disabled={ disabled }
-                                            className={ `relative w-9 h-9 rounded-full border-2 transition-all duration-150 ${ active ? 'border-gray-800 dark:border-white scale-110 shadow-md' : 'border-transparent hover:scale-105 hover:shadow-sm' } ${ disabled ? 'opacity-25 cursor-not-allowed scale-95' : '' }` }
-                                        >
-                                            { active && (
-                                                <span className="absolute inset-0 flex items-center justify-center text-white text-sm font-bold drop-shadow">✓</span>
-                                            ) }
-                                        </button>
-                                    );
-                                } ) }
-                            </div>
-                        </div>
-                    ) ) }
-                </div>
-
-                {/* Display Defaults */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
-                    <h3 className="font-semibold text-gray-900 dark:text-white mb-1 flex items-center gap-1.5">
-                        🖼 { t( 'displays.displayDefaultsTitle' ) }
-                        { !isPro && <PremiumLockIcon /> }
-                    </h3>
-                    <div className="flex items-start justify-between gap-4 mb-4">
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                            { t( 'displays.displayDefaultsDesc' ) }
-                        </p>
-                        <NavLink
-                            page="jetreader-displays"
-                            className="shrink-0 text-xs px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors whitespace-nowrap"
-                        >
-                            { t( 'displays.goToDisplays' ) }
-                        </NavLink>
-                    </div>
-
-                    <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">
-                        { t( 'displays.cardFieldsSection' ) }
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
-                        { [
-                            { key: 'display_show_image',        label: t( 'displays.showCoverImage' ),      desc: t( 'displays.showCoverImageDesc' ),    def: true  },
-                            { key: 'display_show_description',  label: t( 'displays.showDescriptionLabel' ), desc: t( 'displays.showDescriptionDesc' ),   def: false },
-                            { key: 'display_show_type',         label: t( 'displays.showTypeBadge' ),       desc: t( 'displays.showTypeBadgeDesc' ),     def: true  },
-                            { key: 'display_show_author',       label: t( 'displays.showAuthorName' ),      desc: t( 'displays.showAuthorNameDesc' ),    def: true  },
-                            { key: 'display_show_read_button',  label: t( 'displays.showReadButton' ),      desc: t( 'displays.showReadButtonDesc' ),    def: true  },
-                            { key: 'display_show_info_button',  label: t( 'displays.showInfoButton' ),      desc: t( 'displays.showInfoButtonDesc' ),    def: true  },
-                        ].map( f => (
-                            <div key={ f.key } className="flex items-center justify-between py-2.5 border-t border-gray-100 dark:border-gray-700">
-                                <div className="min-w-0 mr-3">
-                                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
-                                        { f.label }
-                                        { !isPro && <PremiumLockIcon /> }
-                                    </p>
-                                    <p className="text-xs text-gray-500 mt-0.5">{ f.desc }</p>
-                                </div>
-                                <ToggleSwitch
-                                    checked={ !isPro ? (f.key !== 'display_show_description') : Boolean( settings[ f.key ] ?? f.def ) }
-                                    onChange={ v => updateSetting( f.key, v ) }
-                                    disabled={ !isPro }
-                                />
-                            </div>
-                        ) ) }
-                    </div>
-
-                    <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mt-5 mb-3">
-                        { t( 'displays.gridDefaultsSection' ) }
-                    </p>
-                    { [
-                        { key: 'grid_columns_desktop', label: t( 'displays.desktopColumns' ), min: 1, max: 6, def: 4 },
-                        { key: 'grid_columns_tablet',  label: t( 'displays.tabletColumns' ),  min: 1, max: 4, def: 2 },
-                        { key: 'grid_columns_mobile',  label: t( 'displays.mobileColumns' ),  min: 1, max: 2, def: 1 },
-                    ].map( f => (
-                        <div key={ f.key } className="flex items-center justify-between py-2.5 border-t border-gray-100 dark:border-gray-700">
-                            <p className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
-                                { f.label }
-                                { !isPro && <PremiumLockIcon /> }
-                            </p>
-                            <input
-                                type="number"
-                                min={ f.min }
-                                max={ f.max }
-                                key={ `${ f.key }-${ !isPro ? f.def : Number( settings[ f.key ] ?? f.def ) }` }
-                                defaultValue={ !isPro ? f.def : Number( settings[ f.key ] ?? f.def ) }
-                                onBlur={ e => updateSetting( f.key, Math.max( f.min, Math.min( f.max, parseInt( e.target.value ) || f.def ) ) ) }
-                                disabled={ !isPro }
-                                className={ `w-20 text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-center ${ !isPro ? 'opacity-60 bg-gray-100 dark:bg-gray-800 cursor-not-allowed' : '' }` }
-                            />
-                        </div>
-                    ) ) }
-
-                    <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mt-5 mb-3">
-                        { t( 'displays.sliderDefaultsSection' ) }
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
-                        { [
-                            { key: 'slider_show_arrows',      label: t( 'displays.showNavigationArrows' ), desc: t( 'displays.showNavigationArrowsDesc' ) },
-                            { key: 'slider_show_dots',        label: t( 'displays.showDotNavigation' ),    desc: t( 'displays.showDotNavigationDesc' ) },
-                            { key: 'slider_drag',             label: t( 'displays.enableMouseDrag' ),      desc: t( 'displays.enableMouseDragDesc' ) },
-                            { key: 'slider_autoplay_default', label: t( 'displays.autoplayDefault' ),      desc: t( 'displays.autoplayDefaultDesc' ) },
-                        ].map( f => (
-                            <div key={ f.key } className="flex items-center justify-between py-2.5 border-t border-gray-100 dark:border-gray-700">
-                                <div className="min-w-0 mr-3">
-                                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
-                                        { f.label }
-                                        { !isPro && <PremiumLockIcon /> }
-                                    </p>
-                                    <p className="text-xs text-gray-500 mt-0.5">{ f.desc }</p>
-                                </div>
-                                <ToggleSwitch
-                                    checked={ !isPro ? (f.key !== 'slider_autoplay_default') : Boolean( settings[ f.key ] ?? ( f.key !== 'slider_autoplay_default' ) ) }
-                                    onChange={ v => updateSetting( f.key, v ) }
-                                    disabled={ !isPro }
-                                />
-                            </div>
-                        ) ) }
-                    </div>
-                    <div className="flex items-center justify-between py-2.5 border-t border-gray-100 dark:border-gray-700">
-                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
-                            { t( 'displays.autoplaySpeedLabel' ) }
-                            { !isPro && <PremiumLockIcon /> }
-                        </p>
-                        <input
-                            type="number"
-                            min={ 500 }
-                            max={ 10000 }
-                            step={ 500 }
-                            key={ `autoplay-speed-${ !isPro ? 3000 : (settings.slider_autoplay_speed ?? 3000) }` }
-                            defaultValue={ !isPro ? 3000 : Number( settings.slider_autoplay_speed ?? 3000 ) }
-                            onBlur={ e => updateSetting( 'slider_autoplay_speed', Math.max( 500, Math.min( 10000, parseInt( e.target.value ) || 3000 ) ) ) }
-                            disabled={ !isPro }
-                            className={ `w-24 text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-center ${ !isPro ? 'opacity-60 bg-gray-100 dark:bg-gray-800 cursor-not-allowed' : '' }` }
-                        />
-                    </div>
-                </div>
-                </> ) }
-            </div>{/* /space-y-6 */}
-
-            {/* Save Button + Message */}
+            </div>
             <div className="mt-8 flex items-center gap-4">
-                <button onClick={ saveSettings } disabled={ !isDirty || saving } className="jr-btn-primary disabled:opacity-50 disabled:cursor-not-allowed">
+                <button
+                    onClick={ saveSettings }
+                    disabled={ ! isDirty || saving }
+                    className="jr-btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                     { saving ? t( 'settings.saving' ) : t( 'settings.saveButton' ) }
                 </button>
-                { message && (
-                    <p className="text-sm text-gray-700 dark:text-gray-300">{ message }</p>
-                ) }
+                { message && <p className="text-sm text-gray-700 dark:text-gray-300">{ message }</p> }
             </div>
         </div>
     );
 };
-
-const handleLicenseChange = () => {
-    window.location.reload();
-};
-
-/* ------------------------------------------------------------------ */
-/*  AboutPage — Plugin info, support links, system info               */
-/* ------------------------------------------------------------------ */
-
-declare const jetreaderSettings: {
-    apiUrl: string;
-    nonce: string;
-    pluginUrl: string;
-    locale: string;
-    translations: Record<string, unknown>;
-    availableLanguages: string[];
-    isLoggedIn: boolean;
-    siteUrl: string;
-    isPro?: boolean;
-    systemInfo?: {
-        pluginVersion: string;
-        wpVersion: string;
-        phpVersion: string;
-        elementor: string | false;
-    };
-};
-
-const REBUILD_BATCH_SIZE = 3; // items per request — small enough to stay under server timeouts
 
 const AboutPage: React.FC = () => {
     const { t } = useTranslation();
@@ -6575,61 +5963,14 @@ const App: React.FC = () => {
     }, [ navigateTo ] );
 
     const renderPage = () => {
-        const isLite = true;
-        const isPro  = false;
-        const locale = ( window as any ).jetreaderSettings?.locale || 'en';
-        const txt = ( en: string, tr: string ) => locale === 'tr' ? tr : en;
-
         switch ( currentPage ) {
             case 'jetreader':            return <LectorDashboard />;
             case 'jetreader-items':      return <ItemsPage />;
             case 'jetreader-constants':
             case 'jetreader-categories': return <ConstantsPage />;
             case 'jetreader-settings':   return <SettingsPage />;
-            case 'jetreader-displays':
-                // Lite: feature doesn't exist in this build — send back to dashboard.
-                if ( isLite ) { return <LectorDashboard />; }
-                return isPro ? (
-                    <DisplaysPage />
-                ) : (
-                    <ProFeatureOverlay
-                        featureName={ txt( 'Visual Displays Builder', 'Görsel Görünüm Oluşturucu' ) }
-                        desc={ txt(
-                            'Build custom grid and slider layouts based on categories or authors. Configure columns, navigation, colors, and other advanced display settings.',
-                            'Kategorilere veya yazarlara göre özel ızgara ve slayt düzenleri oluşturun. Sütunları, navigasyonu, renkleri ve diğer gelişmiş görünüm ayarlarını yapılandırın.'
-                        ) }
-                    />
-                );
             case 'jetreader-about':      return <AboutPage />;
-            case 'jetreader-files':
-                // Lite: feature doesn't exist in this build — send back to dashboard.
-                if ( isLite ) { return <LectorDashboard />; }
-                return isPro ? (
-                    <FilesPage />
-                ) : (
-                    <ProFeatureOverlay
-                        featureName={ txt( 'File Manager', 'Dosya Yöneticisi' ) }
-                        desc={ txt(
-                            'Manage raw documents (PDF, EPUB, DOCX, TXT) and cover images directly in your repository. Easily rename files and auto-update references, copy URLs, and clean up unused files.',
-                            'Belge (PDF, EPUB, DOCX, TXT) ve kapak resmi havuzunuzu doğrudan yönetin. Dosyaları kolayca yeniden adlandırın ve referansları otomatik güncelleyin, URL\'leri kopyalayın ve kullanılmayan dosyaları temizleyin.'
-                        ) }
-                    />
-                );
-            case 'jetreader-import':
-                // Lite: feature doesn't exist in this build — send back to dashboard.
-                if ( isLite ) { return <LectorDashboard />; }
-                return isPro ? (
-                    <ImportExportPage />
-                ) : (
-                    <ProFeatureOverlay
-                        featureName={ txt( 'Library Import & Export', 'Kütüphane İçe/Dışa Aktarma' ) }
-                        desc={ txt(
-                            'Bulk import library items (books, magazines, articles, Q&As) from JSON, CSV, or XLSX files, or export your library database.',
-                            'Kitap, dergi, makale ve soru-cevap ögelerini JSON, CSV veya XLSX dosyalarından toplu olarak içe aktarın ya da kütüphanenizi dışa aktarın.'
-                        ) }
-                    />
-                );
-            default:                      return <LectorDashboard />;
+            default:                     return <LectorDashboard />;
         }
     };
 

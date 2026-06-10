@@ -91,10 +91,10 @@ class JetReader_Activator {
             'copy_enabled'       => true,
             'plugin_language'    => 'en',
             // CPT URL slugs (customisable per language/site).
-            'cpt_slug_book'      => 'books',
-            'cpt_slug_article'   => 'articles',
-            'cpt_slug_magazine'  => 'magazines',
-            'cpt_slug_qa'        => 'qa',
+            'cpt_slug_book'      => 'jetreader-books',
+            'cpt_slug_article'   => 'jetreader-articles',
+            'cpt_slug_magazine'  => 'jetreader-magazines',
+            'cpt_slug_qa'        => 'jetreader-qa',
             // Library card appearance.
             'library_card_radius' => 'medium',
             'library_card_border' => 'subtle',

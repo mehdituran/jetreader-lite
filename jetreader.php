@@ -119,7 +119,11 @@ jetreader_run();
  * @return array Translation array or empty array on failure.
  */
 function jetreader_get_translations( $locale ) {
-    $locale = 'en';
+    // Sanitize locale to prevent directory traversal
+    $locale = preg_replace( '/[^a-zA-Z0-9_-]/', '', $locale );
+    if ( empty( $locale ) ) {
+        $locale = 'en';
+    }
 
     $file = JETREADER_PLUGIN_DIR . 'lang/' . $locale . '.json';
 
@@ -159,16 +163,46 @@ function jetreader_get_translations( $locale ) {
  * Get list of available languages from lang/ directory.
  *
  * Scans the lang/ folder for *.json files and builds an array
- * of { code, name } objects using the native language name from
- * the translations file itself, with a fallback map.
+ * of { code, name } objects.
  *
  * @return array Array of { code, name } language objects.
  */
 function jetreader_get_available_languages() {
-    return array(
-        array(
+    $langs = array();
+    $dir   = JETREADER_PLUGIN_DIR . 'lang/';
+
+    if ( is_dir( $dir ) ) {
+        $files = glob( $dir . '*.json' );
+        if ( is_array( $files ) ) {
+            $names = array(
+                'en' => 'English',
+                'tr' => 'Türkçe',
+                'ar' => 'العربية',
+                'de' => 'Deutsch',
+                'es' => 'Español',
+                'fr' => 'Français',
+                'it' => 'Italiano',
+                'pt' => 'Português',
+                'ru' => 'Русский',
+                'zh' => '中文',
+            );
+            foreach ( $files as $file ) {
+                $code = basename( $file, '.json' );
+                $name = $names[ $code ] ?? strtoupper( $code );
+                $langs[] = array(
+                    'code' => $code,
+                    'name' => $name,
+                );
+            }
+        }
+    }
+
+    if ( empty( $langs ) ) {
+        $langs[] = array(
             'code' => 'en',
             'name' => 'English',
-        ),
-    );
+        );
+    }
+
+    return $langs;
 }

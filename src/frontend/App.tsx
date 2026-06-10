@@ -175,6 +175,8 @@ interface PublicSettings {
     show_detail_type?: boolean;
     show_detail_language?: boolean;
     show_detail_page_count?: boolean;
+    reader_font_size?: string;
+    reader_theme?: string;
 }
 
 interface ActiveFilters {
@@ -1800,6 +1802,18 @@ const LibraryContent: React.FC<LibraryContentProps> = ( {
     const [ infoItem,   setInfoItem   ] = useState<LibraryItem | null>( null );
     const [ readerVolIdx, setReaderVolIdx ] = useState<number | undefined>( undefined );
 
+    const resolvedTheme = ( (): 'light' | 'dark' | 'sepia' => {
+        const raw = settings.reader_theme ?? 'auto';
+        if ( raw === 'auto' ) return window.matchMedia( '(prefers-color-scheme: dark)' ).matches ? 'dark' : 'light';
+        if ( raw === 'dark' || raw === 'sepia' ) return raw;
+        return 'light';
+    } )();
+    const resolvedFontSize = ( () => {
+        const raw = settings.reader_font_size ?? 'medium';
+        if ( raw === 'small' || raw === 'large' || raw === 'xlarge' ) return raw;
+        return 'medium' as const;
+    } )();
+
     const effectiveType = forcedType ?? ( filters.type || activeType );
 
     useEffect( () => { setPage( 1 ); }, [ effectiveType, filters, searchTerm ] );
@@ -1868,6 +1882,8 @@ const LibraryContent: React.FC<LibraryContentProps> = ( {
                             encoding={ readerItem.metadata?.encoding }
                             onClose={ () => { setReaderItem( null ); setReaderVolIdx( undefined ); } }
                             initialVolume={ readerVolIdx }
+                            initialFontSize={ resolvedFontSize }
+                            initialTheme={ resolvedTheme }
                         />
                     </Suspense>
                 ) }
@@ -1953,6 +1969,8 @@ const LibraryContent: React.FC<LibraryContentProps> = ( {
                         encoding={ readerItem.metadata?.encoding }
                         onClose={ () => { setReaderItem( null ); setReaderVolIdx( undefined ); } }
                         initialVolume={ readerVolIdx }
+                        initialFontSize={ resolvedFontSize }
+                        initialTheme={ resolvedTheme }
                     />
                 </Suspense>
             ) }

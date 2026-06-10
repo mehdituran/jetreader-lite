@@ -93,6 +93,10 @@ interface ReaderModalProps {
     initialAnchor?: string;
     /** Custom character encoding for text files */
     encoding?: string;
+    /** Default font size from admin settings */
+    initialFontSize?: 'small' | 'medium' | 'large' | 'xlarge';
+    /** Default theme from admin settings ('auto' resolves at call site) */
+    initialTheme?: 'light' | 'dark' | 'sepia';
 }
 
 /**
@@ -1830,6 +1834,8 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
     initialSearch,
     initialAnchor,
     encoding,
+    initialFontSize,
+    initialTheme,
 }) => {
 
     const isPageMode = pageMode === 'page';
@@ -1915,8 +1921,8 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
     const [showAnnotationInput, setShowAnnotationInput] = useState(false);
 
     /* ── Display prefs ── */
-    const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large' | 'xlarge'>('medium');
-    const [theme, setTheme] = useState<'light' | 'dark' | 'sepia'>('light');
+    const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large' | 'xlarge'>( initialFontSize ?? 'medium' );
+    const [theme, setTheme] = useState<'light' | 'dark' | 'sepia'>( initialTheme ?? 'light' );
 
     /* ── Search ── */
     const [showSearch, setShowSearch] = useState(!!initialSearch);
@@ -2000,21 +2006,8 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
         }
     }, [isPageMode]);
 
-    /* ── Load saved display preferences ── */
-    useEffect(() => {
-        try {
-            const prefs = JSON.parse(localStorage.getItem('jetreader_prefs') ?? '{}');
-            if (prefs.fontSize) setFontSize(prefs.fontSize);
-            if (prefs.theme) setTheme(prefs.theme);
-        } catch { /* noop */ }
-    }, []);
-
-    /* ── Save display preferences ── */
-    useEffect(() => {
-        try {
-            localStorage.setItem('jetreader_prefs', JSON.stringify({ fontSize, theme }));
-        } catch { /* noop */ }
-    }, [fontSize, theme]);
+    /* Display preferences (theme/fontSize) are driven by admin settings.
+       No localStorage persistence — admin default always wins on open. */
 
     /* ── Track read count (fire-and-forget, runs once on mount) ── */
     useEffect(() => {
@@ -2041,6 +2034,19 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                         copy_enabled: data.copy_enabled ?? true,
                         logo_url: data.reader_logo_url ?? '',
                     });
+                    // Apply theme and fontSize from fresh API response — this is the
+                    // authoritative source, overriding any stale React Query cache in the parent.
+                    const rawTheme = data.reader_theme ?? 'auto';
+                    const freshTheme: 'light' | 'dark' | 'sepia' =
+                        rawTheme === 'auto'
+                            ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+                            : (rawTheme === 'dark' || rawTheme === 'sepia' ? rawTheme : 'light');
+                    setTheme(freshTheme);
+
+                    const rawFont = data.reader_font_size ?? 'medium';
+                    const freshFont: 'small' | 'medium' | 'large' | 'xlarge' =
+                        (['small', 'large', 'xlarge'] as const).includes(rawFont as any) ? rawFont as any : 'medium';
+                    setFontSize(freshFont);
                 }
             })
             .catch(() => { });

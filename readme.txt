@@ -44,7 +44,7 @@ https://wplector.com
 
 == Source Code & Build Instructions ==
 
-This plugin contains minified/compiled React assets under the `dist/` directory. The complete, unminified, human-readable source code is publicly accessible and maintained in the following repository:
+This plugin contains minified/compiled React assets under the `dist/` directory. The complete, unminified, human-readable source code is included inside the `src/` directory of the plugin, and is also publicly accessible and maintained in the following repository:
 https://github.com/mehdituran/jetreader-lite
 
 === Build Tools & Steps ===
