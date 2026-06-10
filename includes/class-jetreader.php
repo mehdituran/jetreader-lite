@@ -437,8 +437,6 @@ class JetReader {
                     'availableLanguages' => jetreader_get_available_languages(),
                     'isLoggedIn'         => is_user_logged_in(),
                     'siteUrl'            => get_site_url(),
-                    'isPro'              => false,
-                    'isLite'             => true,
                     'systemInfo'         => array(
                         'pluginVersion' => JETREADER_VERSION,
                         'wpVersion'     => get_bloginfo( 'version' ),
