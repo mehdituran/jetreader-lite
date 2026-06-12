@@ -8,7 +8,7 @@ Requires PHP: 8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-JetReader turns WordPress into a digital library with a fullscreen React document reader, visual shortcode builders, and advanced metadata management.
+JetReader turns WordPress into a digital library with a fullscreen React document reader and advanced document management.
 
 == Description ==
 
@@ -33,12 +33,12 @@ JetReader turns WordPress into a digital library with a fullscreen React documen
 2. Activate the plugin through the **Plugins** menu.
 3. Upon activation, the plugin will automatically create custom database tables and register the default CPT rewrite rules.
 4. Go to **JetReader → Settings** to set your default language, reader options, library card layout, and color palettes.
-5. Create a new WordPress Page, insert the `[jetreader_library]` shortcode (or insert the JetReader Library Gutenberg Block), and publish it.
+5. Create a new WordPress Page, insert the `[jetreader_library]` shortcode, and publish it.
 6. Add your first digital item via **JetReader → Library Items → Add New** or by uploading documents. Your library is now ready!
 
 == Documentation ==
 
-For full documentation, shortcode attributes, REST API endpoints, and Gutenberg block settings, please visit the official documentation page:
+For full documentation, shortcode attributes, and REST API endpoints, please visit the official documentation page:
 https://wplector.com
 
 == Source Code & Build Instructions ==
@@ -79,7 +79,7 @@ Yes. Go to **JetReader → Settings** and toggle the "Copy Enabled" permission. 
 JetReader allows visitors to search through uploaded documents in the library by their titles. For document-internal content search, the reader parses and searches document text directly in the visitor's browser (client-side), without requiring any server-side database indexing.
 
 = Will JetReader slow down my WordPress site? =
-No. Frontend assets (JavaScript and CSS bundles) are enqueued dynamically and only load on pages where a JetReader shortcode or block is present.
+No. Frontend assets (JavaScript and CSS bundles) are enqueued dynamically and only load on pages where a JetReader shortcode is present.
 
 = Is JetReader compatible with WooCommerce? =
 Yes. JetReader declares compatibility with WooCommerce High-Performance Order Storage (HPOS) so no admin compatibility warnings appear on WooCommerce stores.
@@ -101,17 +101,14 @@ See the Screenshots section below for the required images and how to place them.
 == Changelog ==
 
 = 1.0.0 =
-* Initial stable release of JetReader.
+* Initial stable release of JetReader Lite.
 * Added support for EPUB, PDF, TXT, and DOCX files.
 * Added modern fullscreen React-based document reader interface.
 * Added customizable reading themes (Light, Dark, Sepia, Auto) and font sizes.
 * Added persistent user bookmarks, notes, and colored highlights.
 * Added deep linking and resume reading features.
-* Added responsive grid and slider visual builders with shortcode generator.
-* Added native Gutenberg Blocks and Elementor Widgets.
 * Added SEO optimization, CPT sync, and Schema.org metadata injection.
-* Added standalone full-text content search widget.
-* Added CSV, Excel, and JSON bulk import and export tools.
+* Added standalone document metadata search.
 
 == Upgrade Notice ==
 

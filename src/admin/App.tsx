@@ -636,7 +636,7 @@ const LectorDashboard: React.FC = () => {
 
     const fetchStats = React.useCallback( ( force = false ) => {
         setStatsLoading( true );
-        fetch( `${API_BASE}/dashboard${force ? '?force=1' : ''}`, {
+        fetch( `${API_BASE}/dashboard${force ? `${API_BASE.includes( '?' ) ? '&' : '?'}force=1` : ''}`, {
             headers: { 'X-WP-Nonce': getNonce() },
         } )
             .then( ( res ) => res.json() )
@@ -916,7 +916,7 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
     const { data: bulkCategories = [] } = useQuery<CategoryExtended[]>( {
         queryKey: [ 'categories', 'bulk', activeType ],
         queryFn: async () => {
-            const res = await fetch( `${API_BASE}/categories?type=${ encodeURIComponent( activeType ) }`, {
+            const res = await fetch( `${API_BASE}/categories${API_BASE.includes( '?' ) ? '&' : '?'}type=${ encodeURIComponent( activeType ) }`, {
                 headers: { 'X-WP-Nonce': getNonce() },
             } );
             const json = await res.json();
@@ -1807,7 +1807,7 @@ const ItemsPage: React.FC = () => {
             if ( activeFilters.has_volumes )     params.set( 'has_volumes', '1' );
             if ( activeFilters.category_id )     params.set( 'category_id', activeFilters.category_id );
             params.set( 'include_all_ids', '1' );
-            const res = await fetch( `${API_BASE}/items?${params.toString()}`, {
+            const res = await fetch( `${API_BASE}/items${API_BASE.includes( '?' ) ? '&' : '?'}${params.toString()}`, {
                 headers: { 'X-WP-Nonce': getNonce() },
             } );
             const json = await res.json();
@@ -1840,7 +1840,7 @@ const ItemsPage: React.FC = () => {
     const searchItems = async () => {
         if ( ! searchTerm.trim() ) { refetch(); return; }
         try {
-            const res = await fetch( `${API_BASE}/search?q=${encodeURIComponent( searchTerm )}`, {
+            const res = await fetch( `${API_BASE}/search${API_BASE.includes( '?' ) ? '&' : '?'}q=${encodeURIComponent( searchTerm )}`, {
                 headers: { 'X-WP-Nonce': getNonce() },
             } );
             if ( ! res.ok ) {
@@ -1871,6 +1871,7 @@ const ItemsPage: React.FC = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries( { queryKey: [ 'items' ] } );
+            queryClient.invalidateQueries( { queryKey: [ 'dashboard-stats' ] } );
             setDeleteConfirm( null );
             flashMessage( '✅ Item deleted successfully.' );
         },
@@ -2853,7 +2854,7 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
     const { data: formCategories = [] } = useQuery<CategoryExtended[]>( {
         queryKey: [ 'categories', 'form', form.type ],
         queryFn: async () => {
-            const res = await fetch( `${API_BASE}/categories?type=${ encodeURIComponent( form.type ) }`, {
+            const res = await fetch( `${API_BASE}/categories${API_BASE.includes( '?' ) ? '&' : '?'}type=${ encodeURIComponent( form.type ) }`, {
                 headers: { 'X-WP-Nonce': getNonce() },
             } );
             const json = await res.json();
@@ -4463,6 +4464,69 @@ const SettingsPage: React.FC = () => {
 const AboutPage: React.FC = () => {
     const { t } = useTranslation();
     const info = ( window as any ).jetreaderSettings?.systemInfo;
+    const apiBase  = ( window as any ).jetreaderSettings?.apiUrl?.replace( /\/$/, '' ) ?? '/wp-json/jetreader/v1';
+    const nonce    = ( window as any ).jetreaderSettings?.nonce ?? '';
+    const queryClient = useQueryClient();
+
+    const [ isCleaning, setIsCleaning ] = React.useState( false );
+    const [ cleanResult, setCleanResult ] = React.useState<{ count: number; size: number } | null>( null );
+    const [ showConfirm, setShowConfirm ] = React.useState( false );
+    const [ cleanError, setCleanError ] = React.useState<string | null>( null );
+
+    // Fetch the list of all files to identify unused ones
+    const { data: files = [], isLoading, refetch } = useQuery<any[]>({
+        queryKey: [ 'files' ],
+        queryFn: async () => {
+            const res = await fetch( `${ apiBase }/files`, { headers: { 'X-WP-Nonce': nonce } } );
+            const json = await res.json();
+            return Array.isArray( json ) ? json : [];
+        }
+    });
+
+    const unusedFiles = React.useMemo(() => {
+        return files.filter( ( f: any ) => !f.linked_items || f.linked_items.length === 0 );
+    }, [ files ]);
+
+    const unusedCount = unusedFiles.length;
+    const unusedSize = React.useMemo(() => {
+        return unusedFiles.reduce( ( acc: number, f: any ) => acc + ( f.size || 0 ), 0 );
+    }, [ unusedFiles ]);
+
+    const formatBytes = ( bytes: number ) => {
+        if ( bytes === 0 ) return '0 Bytes';
+        const k = 1024;
+        const sizes = [ 'Bytes', 'KB', 'MB', 'GB' ];
+        const i = Math.floor( Math.log( bytes ) / Math.log( k ) );
+        return parseFloat( ( bytes / Math.pow( k, i ) ).toFixed( 2 ) ) + ' ' + sizes[ i ];
+    };
+
+    const handleClean = async () => {
+        setIsCleaning( true );
+        setCleanError( null );
+        try {
+            const res = await fetch( `${ apiBase }/files/clean-unused`, {
+                method: 'POST',
+                headers: {
+                    'X-WP-Nonce': nonce,
+                    'Content-Type': 'application/json'
+                }
+            } );
+            const json = await res.json();
+            if ( res.ok && json.success ) {
+                setCleanResult({ count: json.deleted_count, size: json.deleted_size });
+                // Invalidate query to refresh files count
+                queryClient.invalidateQueries( { queryKey: [ 'files' ] } );
+                refetch();
+            } else {
+                setCleanError( json.message || 'Failed to clean files.' );
+            }
+        } catch ( err ) {
+            setCleanError( 'A network error occurred.' );
+        } finally {
+            setIsCleaning( false );
+            setShowConfirm( false );
+        }
+    };
 
     const links = [
         {
@@ -4549,6 +4613,130 @@ const AboutPage: React.FC = () => {
                     ) ) }
                 </dl>
             </div>
+
+            { /* Clean Unused Files card */ }
+            <div className="rounded-2xl bg-white dark:bg-gray-800 shadow-sm border border-gray-200 dark:border-gray-700 p-6 mt-6">
+                <div className="flex items-start gap-4">
+                    <div className="p-3 bg-amber-50 dark:bg-amber-900/30 text-amber-500 dark:text-amber-450 rounded-xl">
+                        <span className="text-2xl">🧹</span>
+                    </div>
+                    <div className="flex-1">
+                        <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">
+                            { t( 'about.cleanUnusedTitle' ) }
+                        </h2>
+                        <p className="text-sm text-gray-550 dark:text-gray-400 mt-1 leading-relaxed">
+                            { t( 'about.cleanUnusedDesc' ) }
+                        </p>
+
+                        <div className="mt-4">
+                            { isLoading ? (
+                                <div className="flex items-center gap-2 text-sm text-gray-550 dark:text-gray-400">
+                                    <svg className="animate-spin h-4 w-4 text-primary-500" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                    </svg>
+                                    <span>{ t( 'about.scanning' ) }</span>
+                                </div>
+                            ) : cleanResult ? (
+                                <div className="rounded-xl bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900/40 p-4 text-sm text-green-800 dark:text-green-300">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="font-semibold">{ t( 'about.cleanSuccess' ) }</p>
+                                            <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                                                Deleted { cleanResult.count } files ({ formatBytes( cleanResult.size ) }).
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={ () => setCleanResult( null ) }
+                                            className="text-green-500 hover:text-green-700 dark:hover:text-green-400 text-xs font-semibold"
+                                        >
+                                            Dismiss
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : cleanError ? (
+                                <div className="rounded-xl bg-red-50 dark:bg-red-950/25 border border-red-200 dark:border-red-900/40 p-4 text-sm text-red-800 dark:text-red-300 flex justify-between items-start">
+                                    <span>{ cleanError }</span>
+                                    <button
+                                        onClick={ () => setCleanError( null ) }
+                                        className="text-red-500 hover:text-red-750 dark:hover:text-red-400 text-xs font-semibold ml-2"
+                                    >
+                                        Dismiss
+                                    </button>
+                                </div>
+                            ) : unusedCount === 0 ? (
+                                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-green-50 dark:bg-green-950/30 text-green-750 dark:text-green-400 border border-green-100 dark:border-green-900/30">
+                                    <span>✨</span>
+                                    <span>{ t( 'about.noUnusedFiles' ) }</span>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col gap-3">
+                                    <div className="inline-flex self-start items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-amber-50 dark:bg-amber-950/30 text-amber-750 dark:text-amber-400 border border-amber-100 dark:border-amber-900/30">
+                                        <span>⚠️</span>
+                                        <span>
+                                            { t( 'about.unusedFound', { count: unusedCount, size: formatBytes( unusedSize ) } ) }
+                                        </span>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        disabled={ isCleaning }
+                                        onClick={ () => setShowConfirm( true ) }
+                                        className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl font-semibold text-sm text-white bg-amber-600 hover:bg-amber-500 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm self-start"
+                                    >
+                                        { isCleaning ? (
+                                            <>
+                                                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                                </svg>
+                                                { t( 'about.cleaning' ) }
+                                            </>
+                                        ) : (
+                                            t( 'about.cleanButton' )
+                                        ) }
+                                    </button>
+                                </div>
+                            ) }
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            { /* Confirmation Modal */ }
+            { showConfirm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/55 backdrop-blur-sm transition-opacity duration-300">
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl max-w-md w-full border border-gray-100 dark:border-gray-700 overflow-hidden transform scale-100 transition-all duration-300">
+                        <div className="p-6">
+                            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                                { t( 'about.confirmTitle' ) }
+                            </h3>
+                            <p className="mt-3 text-sm text-gray-655 dark:text-gray-405 leading-relaxed">
+                                { t( 'about.confirmMsg', { count: unusedCount, size: formatBytes( unusedSize ) } ) }
+                            </p>
+                            <p className="mt-3 text-xs text-amber-600 dark:text-amber-400 font-medium">
+                                * This will only remove unlinked files from the <code className="bg-amber-50 dark:bg-amber-950/20 px-1 py-0.5 rounded font-mono font-bold">uploads/jetreader/</code> directory. Standard WordPress Media Library is not affected.
+                            </p>
+                        </div>
+                        <div className="px-6 py-4 bg-gray-50 dark:bg-gray-750 flex justify-end gap-3 border-t border-gray-150 dark:border-gray-700">
+                            <button
+                                type="button"
+                                onClick={ () => setShowConfirm( false ) }
+                                className="px-4 py-2 text-sm font-medium text-gray-750 dark:text-gray-305 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                            >
+                                { t( 'common.cancel' ) }
+                            </button>
+                            <button
+                                type="button"
+                                onClick={ handleClean }
+                                className="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-500 rounded-lg shadow-sm hover:shadow transition-all"
+                            >
+                                { t( 'about.confirmBtn' ) }
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ) }
         </div>
     );
 };
@@ -4642,7 +4830,7 @@ const FilesPage: React.FC = () => {
         if ( ! deletingFile ) return;
         setDeleteProcessing( true );
         try {
-            const res = await fetch( `${ apiBase }/files?filename=${ encodeURIComponent( deletingFile.name ) }`, {
+            const res = await fetch( `${ apiBase }/files${apiBase.includes( '?' ) ? '&' : '?'}filename=${ encodeURIComponent( deletingFile.name ) }`, {
                 method: 'DELETE',
                 headers: { 'X-WP-Nonce': nonce }
             } );

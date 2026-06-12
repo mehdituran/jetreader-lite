@@ -326,6 +326,16 @@ class JetReader_REST_API {
             )
         );
 
+        register_rest_route(
+            $this->namespace,
+            '/files/clean-unused',
+            array(
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => array( $this, 'clean_unused_files' ),
+                'permission_callback' => array( $this, 'check_admin_permission' ),
+            )
+        );
+
         // Dashboard stats.
         register_rest_route(
             $this->namespace,
@@ -3988,6 +3998,105 @@ class JetReader_REST_API {
                 'message'   => __( 'File renamed and references updated successfully.', 'jetreader' ),
                 'new_name'  => $new_name,
                 'new_url'   => $new_url
+            ),
+            200
+        );
+    }
+
+    /**
+     * POST /files/clean-unused
+     * Scan and delete all orphan files from the jetreader uploads directory.
+     */
+    public function clean_unused_files( WP_REST_Request $request ): WP_REST_Response {
+        $upload_dir    = wp_upload_dir();
+        $jetreader_dir = $upload_dir['basedir'] . '/jetreader';
+
+        if ( ! is_dir( $jetreader_dir ) ) {
+            return new WP_REST_Response(
+                array( 'success' => true, 'deleted_count' => 0, 'deleted_size' => 0, 'message' => __( 'No JetReader uploads directory exists.', 'jetreader' ) ),
+                200
+            );
+        }
+
+        $files = glob( $jetreader_dir . '/*' );
+        if ( ! is_array( $files ) ) {
+            return new WP_REST_Response(
+                array( 'success' => true, 'deleted_count' => 0, 'deleted_size' => 0, 'message' => __( 'No files found to clean.', 'jetreader' ) ),
+                200
+            );
+        }
+
+        global $wpdb;
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+        $items = $wpdb->get_results(
+            "SELECT file_path, cover_image, volumes FROM {$wpdb->prefix}jetreader_items",
+            ARRAY_A
+        );
+
+        $used_files = array();
+        foreach ( $items as $item ) {
+            if ( ! empty( $item['file_path'] ) ) {
+                $used_files[ basename( $item['file_path'] ) ] = true;
+            }
+            if ( ! empty( $item['cover_image'] ) ) {
+                $used_files[ basename( $item['cover_image'] ) ] = true;
+            }
+            if ( ! empty( $item['volumes'] ) ) {
+                $volumes = json_decode( $item['volumes'], true );
+                if ( is_array( $volumes ) ) {
+                    foreach ( $volumes as $vol ) {
+                        if ( ! empty( $vol['file_path'] ) ) {
+                            $used_files[ basename( $vol['file_path'] ) ] = true;
+                        }
+                        if ( ! empty( $vol['cover_image'] ) ) {
+                            $used_files[ basename( $vol['cover_image'] ) ] = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        $deleted_count = 0;
+        $deleted_size  = 0;
+        $failed_files  = array();
+
+        foreach ( $files as $file_path ) {
+            if ( ! is_file( $file_path ) ) {
+                continue;
+            }
+
+            $filename = basename( $file_path );
+            
+            // If it's not in the used list, delete it!
+            if ( ! isset( $used_files[ $filename ] ) ) {
+                $size = filesize( $file_path );
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink
+                if ( @unlink( $file_path ) ) {
+                    $deleted_count++;
+                    $deleted_size += $size;
+                } else {
+                    $failed_files[] = $filename;
+                }
+            }
+        }
+
+        if ( $deleted_count > 0 ) {
+            delete_transient( 'jetreader_cpt_permalink_map' );
+            $this->invalidate_files_cache();
+        }
+
+        return new WP_REST_Response(
+            array(
+                'success' => true,
+                'deleted_count' => $deleted_count,
+                'deleted_size' => $deleted_size,
+                'failed_files' => $failed_files,
+                'message' => sprintf(
+                    /* translators: 1: number of deleted files, 2: human readable size */
+                    __( 'Cleaned %1$d unused files (%2$s).', 'jetreader' ),
+                    $deleted_count,
+                    size_format( $deleted_size )
+                )
             ),
             200
         );

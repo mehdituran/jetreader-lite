@@ -575,7 +575,18 @@
         "active": "Active",
         "inactive": "Inactive",
         "tagline": "Modern Digital Library Plugin",
-        "tools": "Tools"
+        "tools": "Tools",
+        "cleanUnusedTitle": "Clean Unused Files",
+        "cleanUnusedDesc": "Scan and safely delete orphan files from the uploads/jetreader/ directory that are not linked to any active book, magazine, or volume. This will not affect your standard WordPress Media Library.",
+        "cleanButton": "Clean Unused Files",
+        "scanning": "Scanning for unused files...",
+        "noUnusedFiles": "✓ All files are clean. No unused files found.",
+        "unusedFound": "⚠️ Found {count} unused files ({size})",
+        "cleaning": "Cleaning...",
+        "cleanSuccess": "Successfully cleaned unused files.",
+        "confirmTitle": "⚠️ Confirm File Cleanup",
+        "confirmMsg": "Are you sure you want to permanently delete {count} unused files ({size}) from the server? This action cannot be undone.",
+        "confirmBtn": "Yes, Delete Unused Files"
     },
     "admin": {
         "copyAll": "Copy all",

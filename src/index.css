@@ -701,6 +701,25 @@ html.jr-modal-open {
         display: none !important;
     }
 }
+ 
+/* Toolbar responsive grid/flex overrides */
+:is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root .jr-reader-toolbar-grid {
+    display: grid !important;
+    grid-template-columns: minmax(0,1fr) auto minmax(0,1fr) !important;
+}
+@media (max-width: 639px) {
+    :is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root .jr-reader-toolbar-grid {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: wrap !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        gap: 0.5rem !important;
+    }
+    :is(#jetreader-portal-root, #jetreader-page-app) .jetreader-modal-root .jr-reader-toolbar-grid > div {
+        flex: 0 0 auto !important;
+    }
+}
 
 /* 3. Structural Themes — scoped with (1,2,0) specificity to beat any WP override */
 #jetreader-portal-root .jetreader-modal-root .jr-sidebar,

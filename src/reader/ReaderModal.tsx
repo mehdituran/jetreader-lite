@@ -907,7 +907,8 @@ const PdfScrollPage = React.memo<{
             ([e]) => setIsNear(e.isIntersecting),
             {
                 root: containerEl,
-                rootMargin: '600px 0px'
+                // Use px instead of % — % rootMargin with custom root is buggy on iOS < 16
+                rootMargin: '1500px 0px'
             }
         );
         obs.observe(el);
@@ -1232,14 +1233,19 @@ const PdfScrollView: React.FC<{
         return () => clearTimeout(timer);
     }, []);
 
-    // Track container width via ResizeObserver
+    // Track container width via ResizeObserver.
+    // Debounced 150 ms so rapid window resizing doesn't re-render every page on each pixel.
     useEffect(() => {
         const el = containerRef.current;
         if (!el) return;
         setContainerWidth(el.clientWidth);
-        const obs = new ResizeObserver(([e]) => setContainerWidth(e.contentRect.width));
+        let timer: ReturnType<typeof setTimeout>;
+        const obs = new ResizeObserver(([e]) => {
+            clearTimeout(timer);
+            timer = setTimeout(() => setContainerWidth(e.contentRect.width), 150);
+        });
         obs.observe(el);
-        return () => obs.disconnect();
+        return () => { obs.disconnect(); clearTimeout(timer); };
     }, []);
 
     // Get page-1 aspect ratio for placeholder sizing
@@ -1310,6 +1316,21 @@ const PdfScrollView: React.FC<{
         scrollToPage(currentPage);
     }, [currentPage, containerWidth, scrollToPage]);
 
+    // Zoom / dual-page anchor: when zoom or dualPage changes, all page heights change.
+    // The browser keeps the pixel scroll position, so the wrong page ends up in view.
+    // One rAF after the layout settles we snap back to the correct page instantly.
+    useEffect(() => {
+        if (!isInitialScrollDone.current) return;
+        const raf = requestAnimationFrame(() => {
+            const el = pageRefs.current[internalPageRef.current];
+            if (!el) return;
+            isScrollingRef.current = true;
+            el.scrollIntoView({ behavior: 'instant', block: 'start' });
+            setTimeout(() => { isScrollingRef.current = false; }, 300);
+        });
+        return () => cancelAnimationFrame(raf);
+    }, [zoom, dualPage]); // eslint-disable-line react-hooks/exhaustive-deps
+
     // Center highlight when search query changes
     useEffect(() => {
         if (searchQuery && searchQuery.trim().length >= 2) {
@@ -1331,13 +1352,18 @@ const PdfScrollView: React.FC<{
         }
     }, [searchScrollKey]);
 
+    // Keep a ref so onPageRef never closes over a stale currentPage.
+    // Without this, changing currentPage recreates onPageRef → setRef recreates → React
+    // re-invokes the ref callback for ALL pages, causing spurious scrollToPage calls.
+    const currentPageForRef = useRef(currentPage);
+    useEffect(() => { currentPageForRef.current = currentPage; }, [currentPage]);
+
     const onPageRef = useCallback((el: HTMLDivElement | null, index: number) => {
         pageRefs.current[index] = el;
-        // If the mounted page is the current target page, try to scroll to it
-        if (el && index === currentPage && internalPageRef.current !== index) {
+        if (el && index === currentPageForRef.current && internalPageRef.current !== index) {
             scrollToPage(index);
         }
-    }, [currentPage, scrollToPage]);
+    }, [scrollToPage]); // stable — never recreated on page change
 
     // Single page: full container width × zoom
     // Dual page: half container width × zoom, with 2px gap between pages
@@ -1708,35 +1734,22 @@ const HtmlScrollView: React.FC<{
             // eslint-disable-next-line react-hooks/exhaustive-deps
         }, [jumpFragmentKey]);
 
-        // Force repaint/reflow of content to prevent invisible text WebKit bug
-        useEffect(() => {
-            if (!containerEl) return;
-            const timer = setTimeout(() => {
-                if (searchScrollActiveRef.current) return; // Arama esnasında smooth scroll'u bölmemek için es geç
-                // Reading offsetHeight triggers layout reflow
-                const _ = containerEl.offsetHeight;
+        // WebKit invisible-text bug is handled via CSS will-change on the container (see className below).
+        // The old scrollTop±1 runtime hack caused synchronous layout reflow on every page load.
 
-                // Micro-scroll toggles to force paint/composite update
-                if (containerEl.scrollTop === 0) {
-                    containerEl.scrollTop = 1;
-                    containerEl.scrollTop = 0;
-                } else {
-                    containerEl.scrollTop += 1;
-                    containerEl.scrollTop -= 1;
-                }
-            }, 80);
-            return () => clearTimeout(timer);
-        }, [containerEl, pages]);
+
+        const currentPageForRef = useRef(currentPage);
+        useEffect(() => { currentPageForRef.current = currentPage; }, [currentPage]);
 
         const onPageRef = useCallback((el: HTMLDivElement | null, index: number) => {
             pageRefs.current[index] = el;
-            if (el && index === currentPage && internalPageRef.current !== index) {
+            if (el && index === currentPageForRef.current && internalPageRef.current !== index) {
                 scrollToPage(index);
             }
-        }, [currentPage, scrollToPage]);
+        }, [scrollToPage]); // stable — never recreated on page change
 
         return (
-            <div ref={containerRef} className="absolute inset-0 overflow-y-auto overscroll-contain jr-html-scroll-container">
+            <div ref={containerRef} className="absolute inset-0 overflow-y-auto overscroll-contain jr-html-scroll-container" style={{ willChange: 'transform' }}>
                 {pages.map((pageData, i) => {
                     const isMatch = searchMatches.some(m => m.pageIndex === i) && searchQuery.length >= 2;
                     const activeMatch = searchMatches[searchMatchIdx];
@@ -2115,6 +2128,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
 
         let initialDist = 0;
         let initialZoom = 1.0;
+        let rafId: number | null = null;
 
         const dist2 = (t: TouchList) =>
             Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
@@ -2131,12 +2145,22 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
             if (e.touches.length === 2 && initialDist > 0) {
                 if (e.cancelable) e.preventDefault();
                 const raw = Math.max(0.3, Math.min(3.0, initialZoom * (dist2(e.touches) / initialDist)));
-                setZoom(Math.round(raw * 100) / 100);
+                // Round to 5% steps — reduces re-renders ~5× vs per-pixel updates.
+                // Gate behind rAF so we fire at most once per frame (60fps cap).
+                const quantized = Math.round(raw * 20) / 20;
+                if (rafId !== null) return;
+                rafId = requestAnimationFrame(() => {
+                    setZoom(quantized);
+                    rafId = null;
+                });
             }
         };
 
         const onTouchEnd = (e: TouchEvent) => {
-            if (e.touches.length < 2) initialDist = 0;
+            if (e.touches.length < 2) {
+                initialDist = 0;
+                if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
+            }
         };
 
         el.addEventListener('touchstart', onTouchStart, { passive: false });
@@ -2147,6 +2171,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
             el.removeEventListener('touchstart', onTouchStart);
             el.removeEventListener('touchmove', onTouchMove);
             el.removeEventListener('touchend', onTouchEnd);
+            if (rafId !== null) cancelAnimationFrame(rafId);
         };
     }, [activeFormat]);
 
@@ -2244,7 +2269,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
     const loadRemoteBookmarks = async () => {
         if (!isLoggedIn()) { loadLocalBookmarks(); return; }
         try {
-            const res = await fetch(`${API_BASE}/bookmarks?item_id=${itemId}`, {
+            const res = await fetch(`${API_BASE}/bookmarks${API_BASE.includes('?') ? '&' : '?'}item_id=${itemId}`, {
                 headers: { 'X-WP-Nonce': getNonce() },
             });
             const data = await res.json();
@@ -2265,7 +2290,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
     const loadRemoteNotes = async () => {
         if (!isLoggedIn()) { loadLocalAnnotations(); return; }
         try {
-            const res = await fetch(`${API_BASE}/notes?item_id=${itemId}`, {
+            const res = await fetch(`${API_BASE}/notes${API_BASE.includes('?') ? '&' : '?'}item_id=${itemId}`, {
                 headers: { 'X-WP-Nonce': getNonce() },
             });
             const data = await res.json();
@@ -2982,8 +3007,8 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                     </div>
                 )}
 
-                {/* Top row — 3-column grid for true centering */}
-                <div className="grid items-center px-3 py-2.5 gap-2" style={{ gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)' }}>
+                {/* Top row — grid/flex toolbar */}
+                <div className="jr-reader-toolbar-grid grid items-center px-3 py-2.5 gap-2">
 
                     {/* ── LEFT: logo (desktop) + close + title + volume ── */}
                     <div className="flex items-center gap-2 min-w-0">
@@ -3403,7 +3428,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                             />
                             <motion.aside initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
                                 transition={{ type: 'spring', damping: 28, stiffness: 220 }}
-                                className={`md:hidden fixed top-0 left-0 h-full w-[335px] z-20 flex flex-col shadow-2xl border-r ${sidebarBg}`}
+                                className={`md:hidden fixed top-0 left-0 h-full w-[335px] max-w-[85vw] z-20 flex flex-col shadow-2xl border-r ${sidebarBg}`}
                             >
                                 <PdfSidebar
                                     pdfDoc={pdfDocRef.current}
@@ -3430,7 +3455,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                             />
                             <motion.aside initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
                                 transition={{ type: 'spring', damping: 28, stiffness: 220 }}
-                                className={`md:hidden fixed top-0 left-0 h-full w-[335px] z-20 flex flex-col shadow-2xl border-r ${sidebarBg}`}
+                                className={`md:hidden fixed top-0 left-0 h-full w-[335px] max-w-[85vw] z-20 flex flex-col shadow-2xl border-r ${sidebarBg}`}
                             >
                                 <TocSidebar
                                     toc={toc}
@@ -3455,8 +3480,16 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
             {!loading && !error && pages.length > 0 && (
                 <div className={`shrink-0 border-t ${toolbarBg}`} style={{ backgroundColor: toolbarBgHex }}>
 
+                    {/* Full-width progress bar for mobile / unified clean look */}
+                    <div className={`w-full h-1 relative overflow-hidden ${isDark ? 'bg-gray-800/40' : isSepia ? 'bg-amber-200/40' : 'bg-gray-200/40'}`}>
+                        <div
+                            className={`h-full transition-all duration-300 ${isSepia ? 'bg-amber-700' : 'bg-blue-500'}`}
+                            style={{ width: `${((currentPage + 1) / pages.length) * 100}%` }}
+                        />
+                    </div>
+
                     {/* Navigation row */}
-                    <div className="flex items-center gap-2 px-3 py-2">
+                    <div className="flex items-center justify-between gap-2 px-3 py-2">
 
                         {/* Prev */}
                         <button
@@ -3512,13 +3545,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                             <span className="sm:hidden text-lg font-bold">→</span>
                         </button>
 
-                        {/* Progress bar */}
-                        <div className={`flex-1 mx-2 h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-gray-800' : isSepia ? 'bg-amber-200' : 'bg-gray-200'}`}>
-                            <div
-                                className={`h-full rounded-full transition-all duration-300 ${isSepia ? 'bg-amber-700' : 'bg-blue-500'}`}
-                                style={{ width: `${((currentPage + 1) / pages.length) * 100}%` }}
-                            />
-                        </div>
+
 
                         {/* Action buttons */}
                         <div className="flex items-center gap-1 shrink-0">
@@ -3648,61 +3675,72 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
             {/* ══════════════════════════════════════════════════════ */}
             <AnimatePresence mode="wait">
                 {showAnnotationInput && settings.annotation_enabled && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 16, scale: 0.97 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 16, scale: 0.97 }}
-                        className={`fixed bottom-24 left-1/2 -translate-x-1/2 shadow-2xl border rounded-2xl p-4 w-[360px] max-w-[95vw] z-[10001] ${isDark ? 'bg-gray-900 border-gray-700' : isSepia ? 'bg-amber-50 border-amber-300' : 'bg-white border-gray-200'
-                            }`}
+                    <div
+                        className="fixed inset-0 z-[10000] flex items-center justify-center sm:items-end sm:pb-24 p-4 bg-black/30 sm:bg-transparent pointer-events-auto sm:pointer-events-none"
+                        onClick={() => {
+                            setShowAnnotationInput(false);
+                            setSelectedText('');
+                            setAnnotationNote('');
+                            window.getSelection()?.removeAllRanges();
+                        }}
                     >
-                        <p className={`text-[10px] font-semibold uppercase tracking-wider mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                            {t('reader.selectedText')}
-                        </p>
-                        <blockquote className={`text-sm italic rounded-lg p-2.5 mb-3 leading-relaxed ${isDark ? 'bg-gray-800 text-gray-300' : isSepia ? 'bg-amber-100 text-amber-900' : 'bg-gray-100 text-gray-700'}`}>
-                            &ldquo;{selectedText}&rdquo;
-                        </blockquote>
+                        <motion.div
+                            initial={{ opacity: 0, y: 16, scale: 0.97 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 16, scale: 0.97 }}
+                            className={`relative shadow-2xl border rounded-2xl p-4 w-[360px] max-w-[95vw] pointer-events-auto ${isDark ? 'bg-gray-900 border-gray-700' : isSepia ? 'bg-amber-50 border-amber-300' : 'bg-white border-gray-200'
+                                }`}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <p className={`text-[10px] font-semibold uppercase tracking-wider mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                {t('reader.selectedText')}
+                            </p>
+                            <blockquote className={`text-sm italic rounded-lg p-2.5 mb-3 leading-relaxed ${isDark ? 'bg-gray-800 text-gray-300' : isSepia ? 'bg-amber-100 text-amber-900' : 'bg-gray-100 text-gray-700'}`}>
+                                &ldquo;{selectedText}&rdquo;
+                            </blockquote>
 
-                        <textarea
-                            value={annotationNote}
-                            onChange={(e) => setAnnotationNote(e.target.value)}
-                            placeholder={t('reader.addNotePlaceholder')}
-                            className={`w-full text-sm border rounded-lg p-2.5 mb-3 resize-none outline-none focus:ring-2 focus:ring-blue-500/40 ${inputCls}`}
-                            rows={2}
-                        />
+                            <textarea
+                                value={annotationNote}
+                                onChange={(e) => setAnnotationNote(e.target.value)}
+                                placeholder={t('reader.addNotePlaceholder')}
+                                className={`w-full text-sm border rounded-lg p-2.5 mb-3 resize-none outline-none focus:ring-2 focus:ring-blue-500/40 ${inputCls}`}
+                                rows={2}
+                            />
 
-                        <div className="flex items-center gap-2 mb-3">
-                            {ANNOTATION_COLORS.map((color) => (
+                            <div className="flex items-center gap-2 mb-3">
+                                {ANNOTATION_COLORS.map((color) => (
+                                    <button
+                                        key={color}
+                                        onClick={() => setActiveAnnotColor(color)}
+                                        className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 jr-btn-color-picker ${activeAnnotColor === color ? 'scale-125 border-gray-800 dark:border-white shadow-md' : 'border-transparent'
+                                            }`}
+                                        style={{ '--jr-swatch-bg': color } as React.CSSProperties}
+                                    />
+                                ))}
+                            </div>
+
+                            <div className="flex gap-2">
                                 <button
-                                    key={color}
-                                    onClick={() => setActiveAnnotColor(color)}
-                                    className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 jr-btn-color-picker ${activeAnnotColor === color ? 'scale-125 border-gray-800 dark:border-white shadow-md' : 'border-transparent'
+                                    onClick={addAnnotation}
+                                    className="flex-1 py-2 text-sm bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium jr-btn-annotation-save"
+                                >
+                                    {t('common.save')}
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setShowAnnotationInput(false);
+                                        setSelectedText('');
+                                        setAnnotationNote('');
+                                        window.getSelection()?.removeAllRanges();
+                                    }}
+                                    className={`flex-1 py-2 text-sm rounded-xl transition-colors font-medium jr-btn-annotation-cancel ${isDark ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : isSepia ? 'bg-amber-100 text-amber-900 hover:bg-amber-200' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                         }`}
-                                    style={{ '--jr-swatch-bg': color } as React.CSSProperties}
-                                />
-                            ))}
-                        </div>
-
-                        <div className="flex gap-2">
-                            <button
-                                onClick={addAnnotation}
-                                className="flex-1 py-2 text-sm bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium jr-btn-annotation-save"
-                            >
-                                {t('common.save')}
-                            </button>
-                            <button
-                                onClick={() => {
-                                    setShowAnnotationInput(false);
-                                    setSelectedText('');
-                                    setAnnotationNote('');
-                                    window.getSelection()?.removeAllRanges();
-                                }}
-                                className={`flex-1 py-2 text-sm rounded-xl transition-colors font-medium jr-btn-annotation-cancel ${isDark ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : isSepia ? 'bg-amber-100 text-amber-900 hover:bg-amber-200' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                    }`}
-                            >
-                                {t('reader.cancelAnnotation')}
-                            </button>
-                        </div>
-                    </motion.div>
+                                >
+                                    {t('reader.cancelAnnotation')}
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
                 )}
             </AnimatePresence>
         </motion.div>

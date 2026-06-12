@@ -167,14 +167,14 @@ const InfoModalInner: React.FC<{
                     aria-label="Close"
                     style={ {
                         position: 'absolute',
-                        top: '14px',
-                        right: '14px',
+                        top: '12px',
+                        right: '12px',
                         zIndex: 10,
-                        width: '32px',
-                        height: '32px',
+                        width: '36px',
+                        height: '36px',
                         borderRadius: '50%',
-                        border: 'none',
-                        background: 'rgba(0,0,0,0.12)',
+                        border: '1px solid rgba(255, 255, 255, 0.25)',
+                        background: 'rgba(15, 23, 42, 0.65)',
                         color: '#fff',
                         cursor: 'pointer',
                         display: 'flex',
@@ -182,10 +182,11 @@ const InfoModalInner: React.FC<{
                         justifyContent: 'center',
                         fontSize: '14px',
                         lineHeight: 1,
-                        transition: 'background 0.15s',
+                        transition: 'background 0.15s, transform 0.15s',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
                     } }
-                    onMouseEnter={ ( e ) => ( e.currentTarget.style.background = 'rgba(0,0,0,0.28)' ) }
-                    onMouseLeave={ ( e ) => ( e.currentTarget.style.background = 'rgba(0,0,0,0.12)' ) }
+                    onMouseEnter={ ( e ) => ( e.currentTarget.style.background = 'rgba(15, 23, 42, 0.8)' ) }
+                    onMouseLeave={ ( e ) => ( e.currentTarget.style.background = 'rgba(15, 23, 42, 0.65)' ) }
                 >✕</button>
 
                 { /* ── Body: image panel + content panel ── */ }
@@ -379,14 +380,16 @@ const InfoModalInner: React.FC<{
                         </div>
 
                         { /* ── Action bar ── */ }
-                        <div style={ {
-                            padding: '16px 28px 24px 28px',
-                            borderTop: '1px solid var(--jr-modal-divider, #e2e8f0)',
-                            display: 'flex',
-                            gap: '10px',
-                            flexWrap: 'wrap',
-                            alignItems: 'center',
-                        } }>
+                        <div
+                            className="jr-info-actions"
+                            style={ {
+                                padding: '16px 28px 24px 28px',
+                                borderTop: '1px solid var(--jr-modal-divider, #e2e8f0)',
+                                display: 'flex',
+                                gap: '10px',
+                                flexWrap: 'wrap',
+                                alignItems: 'center',
+                            } }>
                             { hasFile && item.type !== 'qa' && item.file_path.trim() !== '' && (
                                 <button
                                     onClick={ handleRead }
@@ -418,6 +421,7 @@ const InfoModalInner: React.FC<{
                         flex-shrink: 0 !important;
                     }
                     .jr-info-scroll { padding: 20px 18px 16px !important; }
+                    .jr-info-actions { padding: 12px 18px 18px !important; }
                 }
                 @media (prefers-color-scheme: dark) {
                     .jr-info-modal {
