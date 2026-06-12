@@ -1,5 +1,8 @@
 node_modules/
 vendor/
+docker-compose.yml
+docker-db-data/
+docker-lite-db-data/
 .DS_Store
 *.log
 npm-debug.log*

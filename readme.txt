@@ -75,8 +75,8 @@ No. Since bookmarks and annotations are saved in your database for a persistent 
 = Can I disable text copying? =
 Yes. Go to **JetReader → Settings** and toggle the "Copy Enabled" permission. This disables text selection, right-click, and copy hotkeys inside the reader interface.
 
-= How does the search indexer work? =
-Upon uploading a document, JetReader processes the file, splits it page-by-page, and indexes the raw text into the database. Index rebuilding runs asynchronously in the background.
+= How does search work in the Lite version? =
+JetReader allows visitors to search through uploaded documents in the library by their titles. For document-internal content search, the reader parses and searches document text directly in the visitor's browser (client-side), without requiring any server-side database indexing.
 
 = Will JetReader slow down my WordPress site? =
 No. Frontend assets (JavaScript and CSS bundles) are enqueued dynamically and only load on pages where a JetReader shortcode or block is present.
