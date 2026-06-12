@@ -187,7 +187,6 @@ class JetReader {
         JetReader_Database::maybe_add_categories_type_column();
         JetReader_Database::maybe_fix_categories_unique_key();
         JetReader_Database::maybe_add_categories_name_index();
-        JetReader_Database::maybe_upgrade_search_index();
         JetReader_Database::maybe_add_authors_table();
         JetReader_Database::maybe_add_publishers_table();
         update_option( 'jetreader_db_version', JETREADER_VERSION );

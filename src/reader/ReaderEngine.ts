@@ -5,6 +5,18 @@
  * @package JetReader
  */
 
+// Polyfill Promise.withResolvers for older browsers (e.g. iOS < 17.4 / Safari < 17.4)
+if (typeof (Promise as any).withResolvers === 'undefined') {
+    (Promise as any).withResolvers = function () {
+        let resolve: any, reject: any;
+        const promise = new Promise((res, rej) => {
+            resolve = res;
+            reject = rej;
+        });
+        return { promise, resolve, reject };
+    };
+}
+
 import * as pdfjsLib from 'pdfjs-dist';
 import { unzipSync, strFromU8 } from 'fflate';
 import mammoth from 'mammoth';

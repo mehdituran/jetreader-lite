@@ -934,7 +934,7 @@ html.jr-modal-open {
 .jr-pdf-text-layer {
     position: absolute;
     inset: 0;
-    overflow: clip;
+    overflow: hidden;
     opacity: 1;
     line-height: 1;
     z-index: 1;

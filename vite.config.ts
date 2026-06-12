@@ -1,9 +1,9 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import { copyFileSync, mkdirSync } from 'fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 
-// Custom plugin to copy PDF.js worker into dist/js/ during build.
+// Custom plugin to copy PDF.js worker into dist/js/ during build and prepend Promise.withResolvers polyfill.
 function copyPdfWorker() {
     return {
         name: 'copy-pdf-worker',
@@ -11,7 +11,20 @@ function copyPdfWorker() {
             const src  = path.resolve( __dirname, 'node_modules/pdfjs-dist/build/pdf.worker.min.mjs' );
             const dest = path.resolve( __dirname, 'dist/js/pdf.worker.min.mjs' );
             mkdirSync( path.dirname( dest ), { recursive: true } );
-            copyFileSync( src, dest );
+            
+            const polyfill = `if (typeof Promise.withResolvers === 'undefined') {
+    Promise.withResolvers = function () {
+        let resolve, reject;
+        const promise = new Promise((res, rej) => {
+            resolve = res;
+            reject = rej;
+        });
+        return { promise, resolve, reject };
+    };
+}
+`;
+            const originalCode = readFileSync( src, 'utf8' );
+            writeFileSync( dest, polyfill + originalCode, 'utf8' );
         },
     };
 }

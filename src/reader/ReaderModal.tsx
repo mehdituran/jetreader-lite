@@ -13,6 +13,18 @@
  * @package JetReader
  */
 
+// Polyfill Promise.withResolvers for older browsers (e.g. iOS < 17.4 / Safari < 17.4)
+if (typeof (Promise as any).withResolvers === 'undefined') {
+    (Promise as any).withResolvers = function () {
+        let resolve: any, reject: any;
+        const promise = new Promise((res, rej) => {
+            resolve = res;
+            reject = rej;
+        });
+        return { promise, resolve, reject };
+    };
+}
+
 import React, {
     useEffect,
     useState,
@@ -110,11 +122,11 @@ interface ReaderModalProps {
  */
 // Single quotes / apostrophes → ' (U+0027)
 // U+02BE = RIGHT HALF RING (Arabic romanization hamza), U+02BF = LEFT HALF RING (ʿain)
-const _READER_APOS_RE   = /[‘’‚‛ʼʻ＇`´ʾʿ]/g;
+const _READER_APOS_RE = /[‘’‚‛ʼʻ＇`´ʾʿ]/g;
 // Double quotes → " (U+0022)
 const _READER_DQUOTE_RE = /[“”„‟«»]/g;
 // Dashes → - (U+002D): hyphen, en-dash, em-dash, minus sign, fullwidth variants
-const _READER_DASH_RE   = /[‐‑‒–—―−﹣－]/g;
+const _READER_DASH_RE = /[‐‑‒–—―−﹣－]/g;
 // Full-width ASCII punctuation → ASCII  (U+FFxx − 0xFEE0 = ASCII code)
 const _READER_FWIDTH_RE = /[！？．，；：（）]/g;
 
@@ -131,9 +143,9 @@ const normalizeQuery = (str: string): string => {
         .replace(/[\r\n\t\u00A0\u2000-\u200A\u202F\u3000]/g, ' ')
         .replace(/\s+/g, ' ')
         .replace(/İ/g, 'i')
-        .replace(_READER_APOS_RE,   "'")
-        .replace(_READER_DQUOTE_RE, '"' )
-        .replace(_READER_DASH_RE,   '-')
+        .replace(_READER_APOS_RE, "'")
+        .replace(_READER_DQUOTE_RE, '"')
+        .replace(_READER_DASH_RE, '-')
         .replace(_READER_FWIDTH_RE, (m) => String.fromCodePoint(m.codePointAt(0)! - 0xFEE0))
         .toLowerCase()
         .replace(/ı/g, 'i')
@@ -196,14 +208,14 @@ const normalizeAndMap = (virt: string) => {
         } else {
             const normChar = char
                 .replace(/İ/g, 'i')
-                .replace(_READER_APOS_RE,   "'")
-                .replace(_READER_DQUOTE_RE, '"' )
-                .replace(_READER_DASH_RE,   '-')
+                .replace(_READER_APOS_RE, "'")
+                .replace(_READER_DQUOTE_RE, '"')
+                .replace(_READER_DASH_RE, '-')
                 .replace(_READER_FWIDTH_RE, (m) => String.fromCodePoint(m.codePointAt(0)! - 0xFEE0))
                 .toLowerCase()
                 .replace(/ı/g, 'i')
                 .replace(/i̇/g, 'i');
-            
+
             normalized += normChar;
             for (let j = 0; j < normChar.length; j++) {
                 indexMap.push(i);
@@ -302,7 +314,7 @@ function highlightHtml(html: string, query: string, activeMatchIndex?: number | 
 
             for (const r of hits) {
                 const ls = Math.max(r.start - ns, 0);
-                const le = Math.min(r.end   - ns, len);
+                const le = Math.min(r.end - ns, len);
                 if (ls > cursor) frag.appendChild(doc.createTextNode(raw.slice(cursor, ls)));
                 const mark = doc.createElement('mark');
                 mark.className = r.active ? 'jr-search-hl jr-search-hl-active' : 'jr-search-hl';
@@ -430,15 +442,15 @@ async function setCachedPdfText(key: string, texts: string[]): Promise<void> {
         const db = await openDB();
         const transaction = db.transaction(STORE_NAME, 'readwrite');
         const store = transaction.objectStore(STORE_NAME);
-        
+
         const MAX_DB_CACHE_SIZE = 20;
-        
+
         // Save the new entry
         store.put({ key, texts, timestamp: Date.now() });
-        
+
         // Clean up oldest items if limit is exceeded
         const allRequest = store.getAll();
-        allRequest.onerror = () => {};
+        allRequest.onerror = () => { };
         allRequest.onsuccess = () => {
             const records = allRequest.result as PdfDbCacheEntry[];
             if (records.length > MAX_DB_CACHE_SIZE) {
@@ -842,11 +854,12 @@ const PdfScrollPage = React.memo<{
     cpObserver: IntersectionObserver | null;  // current-page observer from parent
     onRef: (el: HTMLDivElement | null, index: number) => void;
     annotationEnabled: boolean;
+    copyEnabled: boolean;
     forceRender: boolean;
     containerEl: HTMLDivElement | null;
     currentPage: number;
     centerTrigger: number;
-}>(({ pdfDoc, pageNum, canvasW, canvasH, theme, searchQuery, activeMatchIndex, pageIndex, cpObserver, onRef, annotationEnabled, forceRender, containerEl, currentPage, centerTrigger }) => {
+}>(({ pdfDoc, pageNum, canvasW, canvasH, theme, searchQuery, activeMatchIndex, pageIndex, cpObserver, onRef, annotationEnabled, copyEnabled, forceRender, containerEl, currentPage, centerTrigger }) => {
     const divRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const hlCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -870,10 +883,10 @@ const PdfScrollPage = React.memo<{
 
     // Center highlight when currentPage/centerTrigger changes (for already-rendered pages)
     useEffect(() => {
-        if (pageIndex === currentPage && 
-            containerEl && 
-            centerTrigger > lastCenterTriggerRef.current && 
-            minYRef.current !== null && 
+        if (pageIndex === currentPage &&
+            containerEl &&
+            centerTrigger > lastCenterTriggerRef.current &&
+            minYRef.current !== null &&
             divRef.current) {
             const highlightTopInContainer = divRef.current.offsetTop + minYRef.current;
             const targetScrollTop = highlightTopInContainer - containerEl.clientHeight / 2;
@@ -892,9 +905,9 @@ const PdfScrollPage = React.memo<{
         if (!el) return;
         const obs = new IntersectionObserver(
             ([e]) => setIsNear(e.isIntersecting),
-            { 
+            {
                 root: containerEl,
-                rootMargin: '150% 0px' 
+                rootMargin: '600px 0px'
             }
         );
         obs.observe(el);
@@ -1061,9 +1074,9 @@ const PdfScrollPage = React.memo<{
         minYRef.current = minY !== Infinity ? minY : null;
 
         // Check if we need to center after drawing highlights
-        if (pageIndex === currentPageRef.current && 
-            containerElRef.current && 
-            centerTriggerRef.current > lastCenterTriggerRef.current && 
+        if (pageIndex === currentPageRef.current &&
+            containerElRef.current &&
+            centerTriggerRef.current > lastCenterTriggerRef.current &&
             minY !== Infinity) {
             const div = divRef.current;
             if (div) {
@@ -1113,7 +1126,7 @@ const PdfScrollPage = React.memo<{
 
                     // Text layer — transparent selectable spans for annotation.
                     // --scale-factor must be set before TextLayer constructor because
-                     // setLayerDimensions() uses it in calc() for width/height/font-size.
+                    // setLayerDimensions() uses it in calc() for width/height/font-size.
                     const textLayerDiv = textLayerRef.current;
                     if (textLayerDiv) {
                         textLayerDiv.innerHTML = '';
@@ -1166,7 +1179,7 @@ const PdfScrollPage = React.memo<{
                     />
                     <div
                         ref={textLayerRef}
-                        className={`jr-pdf-text-layer${annotationEnabled ? ' jr-select-enabled' : ''}`}
+                        className={`jr-pdf-text-layer${(annotationEnabled || copyEnabled) ? ' jr-select-enabled' : ''}`}
                     />
                 </>
             ) : (
@@ -1191,8 +1204,9 @@ const PdfScrollView: React.FC<{
     searchMatchIdx: number;
     searchScrollKey: number;
     annotationEnabled: boolean;
+    copyEnabled: boolean;
     onPageChange: (page: number) => void;
-}> = ({ pdfDoc, totalPages, currentPage, zoom, dualPage, theme, searchQuery, searchMatches, searchMatchIdx, searchScrollKey, annotationEnabled, onPageChange }) => {
+}> = ({ pdfDoc, totalPages, currentPage, zoom, dualPage, theme, searchQuery, searchMatches, searchMatchIdx, searchScrollKey, annotationEnabled, copyEnabled, onPageChange }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
     const internalPageRef = useRef(-1);
@@ -1254,9 +1268,9 @@ const PdfScrollView: React.FC<{
                 internalPageRef.current = maxPage;
                 onChangeRef.current(maxPage);
             }
-        }, { 
+        }, {
             root: containerEl,
-            threshold: [0, 0.1, 0.3, 0.5, 0.7, 1] 
+            threshold: [0, 0.1, 0.3, 0.5, 0.7, 1]
         });
         setCpObserver(obs);
         return () => { obs.disconnect(); setCpObserver(null); };
@@ -1269,17 +1283,17 @@ const PdfScrollView: React.FC<{
         isScrollingRef.current = true;
         const diff = Math.abs(page - Math.max(0, internalPageRef.current));
         const isInitial = !isInitialScrollDone.current;
-        const behavior = (isInitial || searchScrollActiveRef.current || diff > 5) 
-            ? 'instant' as ScrollBehavior 
+        const behavior = (isInitial || searchScrollActiveRef.current || diff > 5)
+            ? 'instant' as ScrollBehavior
             : 'smooth';
 
         el.scrollIntoView({ behavior, block: 'start' });
         internalPageRef.current = page;
-        
+
         setCenterTrigger(Date.now());
 
-        setTimeout(() => { 
-            isScrollingRef.current = false; 
+        setTimeout(() => {
+            isScrollingRef.current = false;
             isInitialScrollDone.current = true;
         }, 700);
         return true;
@@ -1355,6 +1369,7 @@ const PdfScrollView: React.FC<{
                 cpObserver={cpObserver}
                 onRef={onPageRef}
                 annotationEnabled={annotationEnabled}
+                copyEnabled={copyEnabled}
                 forceRender={forceRender}
                 containerEl={containerEl}
                 currentPage={currentPage}
@@ -1379,7 +1394,7 @@ const PdfScrollView: React.FC<{
                                         // Blank right half on odd-page books
                                         <div style={{ width: canvasW, height: canvasH }}
                                             className={`rounded ${theme === 'dark' ? 'bg-gray-800/40' : 'bg-gray-400/20'}`}
-                                            />
+                                        />
                                     )}
                                 </div>
                             );
@@ -1589,9 +1604,9 @@ const HtmlScrollView: React.FC<{
                     internalPageRef.current = maxPage;
                     onChangeRef.current(maxPage);
                 }
-            }, { 
+            }, {
                 root: containerEl,
-                threshold: [0, 0.1, 0.3, 0.5, 0.7, 1] 
+                threshold: [0, 0.1, 0.3, 0.5, 0.7, 1]
             });
 
             pageRefs.current.forEach((el) => { if (el) obs.observe(el); });
@@ -1637,8 +1652,8 @@ const HtmlScrollView: React.FC<{
                     isScrollingRef.current = true;
                     const scrollTarget = (hlElement: HTMLElement) => {
                         return hlElement.getBoundingClientRect().top
-                             - containerEl.getBoundingClientRect().top
-                             + containerEl.scrollTop;
+                            - containerEl.getBoundingClientRect().top
+                            + containerEl.scrollTop;
                     };
 
                     const hlTop = scrollTarget(hl as HTMLElement);
@@ -1672,7 +1687,7 @@ const HtmlScrollView: React.FC<{
             }, delay);
 
             return () => clearTimeout(timer);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+            // eslint-disable-next-line react-hooks/exhaustive-deps
         }, [searchScrollKey]);
 
         // TOC fragment jump: after page scroll, scroll to the specific id="..." element.
@@ -1685,12 +1700,12 @@ const HtmlScrollView: React.FC<{
                 const target = el.querySelector(`[id="${CSS.escape(jumpFragment)}"]`) as HTMLElement | null;
                 if (target && containerEl) {
                     const top = target.getBoundingClientRect().top
-                              - containerEl.getBoundingClientRect().top
-                              + containerEl.scrollTop;
+                        - containerEl.getBoundingClientRect().top
+                        + containerEl.scrollTop;
                     containerEl.scrollTo({ top: Math.max(0, top - 60), behavior: 'smooth' });
                 }
             }, 200);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+            // eslint-disable-next-line react-hooks/exhaustive-deps
         }, [jumpFragmentKey]);
 
         // Force repaint/reflow of content to prevent invisible text WebKit bug
@@ -1700,7 +1715,7 @@ const HtmlScrollView: React.FC<{
                 if (searchScrollActiveRef.current) return; // Arama esnasında smooth scroll'u bölmemek için es geç
                 // Reading offsetHeight triggers layout reflow
                 const _ = containerEl.offsetHeight;
-                
+
                 // Micro-scroll toggles to force paint/composite update
                 if (containerEl.scrollTop === 0) {
                     containerEl.scrollTop = 1;
@@ -1921,8 +1936,8 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
     const [showAnnotationInput, setShowAnnotationInput] = useState(false);
 
     /* ── Display prefs ── */
-    const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large' | 'xlarge'>( initialFontSize ?? 'medium' );
-    const [theme, setTheme] = useState<'light' | 'dark' | 'sepia'>( initialTheme ?? 'light' );
+    const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large' | 'xlarge'>(initialFontSize ?? 'medium');
+    const [theme, setTheme] = useState<'light' | 'dark' | 'sepia'>(initialTheme ?? 'light');
 
     /* ── Search ── */
     const [showSearch, setShowSearch] = useState(!!initialSearch);
@@ -2020,7 +2035,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
             method: 'POST',
             headers,
             keepalive: true,
-        }).catch(() => {});
+        }).catch(() => { });
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     /* ── Load public settings from API ── */
@@ -2029,9 +2044,11 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
             .then((r) => r.json())
             .then((data) => {
                 if (data && !data.code) {
+                    const annotVal = data.annotation_enabled;
+                    const copyVal = data.copy_enabled;
                     setSettings({
-                        annotation_enabled: data.annotation_enabled ?? true,
-                        copy_enabled: data.copy_enabled ?? true,
+                        annotation_enabled: annotVal === true || annotVal === 'true' || annotVal === 1 || annotVal === '1',
+                        copy_enabled: copyVal === true || copyVal === 'true' || copyVal === 1 || copyVal === '1',
                         logo_url: data.reader_logo_url ?? '',
                     });
                     // Apply theme and fontSize from fresh API response — this is the
@@ -2051,6 +2068,87 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
             })
             .catch(() => { });
     }, []);
+
+    // Global copy and context menu blocker when copy is disabled
+    useEffect(() => {
+        if (settings.copy_enabled) return;
+
+        const handleGlobalCopy = (e: ClipboardEvent) => {
+            e.preventDefault();
+            window.getSelection()?.removeAllRanges();
+        };
+
+        const handleGlobalContextMenu = (e: MouseEvent) => {
+            e.preventDefault();
+        };
+
+        const handleGlobalKeyDown = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key?.toLowerCase() === 'c') {
+                e.preventDefault();
+                window.getSelection()?.removeAllRanges();
+            }
+        };
+
+        document.addEventListener('copy', handleGlobalCopy);
+        document.addEventListener('contextmenu', handleGlobalContextMenu);
+        document.addEventListener('keydown', handleGlobalKeyDown, true);
+
+        return () => {
+            document.removeEventListener('copy', handleGlobalCopy);
+            document.removeEventListener('contextmenu', handleGlobalContextMenu);
+            document.removeEventListener('keydown', handleGlobalKeyDown, true);
+        };
+    }, [settings.copy_enabled]);
+
+    // Keep zoomRef in sync so pinch-to-zoom captures the correct starting zoom
+    const zoomRef = useRef(zoom);
+    useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+
+    // Pinch-to-zoom for PDF on mobile
+    // Critical: BOTH touchstart and touchmove must be passive:false so that
+    // iOS Safari receives the preventDefault() call before committing to its
+    // own native pinch-zoom gesture. passive:true on touchstart (old behaviour)
+    // caused iOS to ignore our preventDefault in touchmove entirely.
+    useEffect(() => {
+        const el = contentRef.current;
+        if (!el || activeFormat !== 'pdf') return;
+
+        let initialDist = 0;
+        let initialZoom = 1.0;
+
+        const dist2 = (t: TouchList) =>
+            Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+
+        const onTouchStart = (e: TouchEvent) => {
+            if (e.touches.length === 2) {
+                if (e.cancelable) e.preventDefault(); // stop iOS native pinch-zoom early
+                initialDist = dist2(e.touches);
+                initialZoom = zoomRef.current;
+            }
+        };
+
+        const onTouchMove = (e: TouchEvent) => {
+            if (e.touches.length === 2 && initialDist > 0) {
+                if (e.cancelable) e.preventDefault();
+                const raw = Math.max(0.3, Math.min(3.0, initialZoom * (dist2(e.touches) / initialDist)));
+                setZoom(Math.round(raw * 100) / 100);
+            }
+        };
+
+        const onTouchEnd = (e: TouchEvent) => {
+            if (e.touches.length < 2) initialDist = 0;
+        };
+
+        el.addEventListener('touchstart', onTouchStart, { passive: false });
+        el.addEventListener('touchmove', onTouchMove, { passive: false });
+        el.addEventListener('touchend', onTouchEnd, { passive: true });
+
+        return () => {
+            el.removeEventListener('touchstart', onTouchStart);
+            el.removeEventListener('touchmove', onTouchMove);
+            el.removeEventListener('touchend', onTouchEnd);
+        };
+    }, [activeFormat]);
 
     /* ── Load book ── */
     useEffect(() => {
@@ -2332,7 +2430,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
         if (!pdf) return;
 
         const cacheKey = `${itemId}-${activeFileUrl}`;
-        
+
         // 1. Bellek içi önbelleği kontrol et (anlık kapatıp açmalarda hız için)
         if (pdfTextGlobalCache.has(cacheKey)) {
             const cached = pdfTextGlobalCache.get(cacheKey)!;
@@ -2537,7 +2635,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                     if (exactTargetPage !== -1) {
                         nearestIdx = matches.reduce((best, _m, i) => {
                             const bestDist = Math.abs(matches[best].pageIndex - exactTargetPage);
-                            const curDist  = Math.abs(matches[i].pageIndex   - exactTargetPage);
+                            const curDist = Math.abs(matches[i].pageIndex - exactTargetPage);
                             return curDist < bestDist ? i : best;
                         }, 0);
                     }
@@ -2805,6 +2903,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                     searchMatchIdx={searchMatchIdx}
                     searchScrollKey={searchScrollKey}
                     annotationEnabled={settings.annotation_enabled}
+                    copyEnabled={settings.copy_enabled}
                     onPageChange={setCurrentPage}
                 />
             );
@@ -2842,7 +2941,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
             initial={false}
             animate={{ opacity: 1 }}
             data-jr-theme={theme}
-            className={`jetreader-modal-root fixed inset-0 z-[2147483647] flex flex-col ${containerBg}`}
+            className={`jetreader-modal-root fixed inset-0 z-[2147483647] flex flex-col ${containerBg}${isDark ? ' dark' : ''}`}
             style={{ backgroundColor: containerBgHex }}
         >
             {/* ══════════════════════════════════════════════════════ */}
@@ -2861,13 +2960,13 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                         >
                             {isDefaultLogo ? (
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 40" className="h-7 w-auto" style={{ maxHeight: '28px' }}>
-                                    <path d="M12 10v16a3 3 0 0 0 3 3h12a3 3 0 0 0 3-3V14a3 3 0 0 0-3-3H19" 
-                                          fill="none" 
-                                          stroke="#8A2BE2" 
-                                          strokeWidth="3.5" 
-                                          strokeLinecap="round" 
-                                          strokeLinejoin="round"/>
-                                    <path d="M18 19h6M18 23h4" stroke="#8A2BE2" strokeWidth="2.5" strokeLinecap="round" opacity="0.7"/>
+                                    <path d="M12 10v16a3 3 0 0 0 3 3h12a3 3 0 0 0 3-3V14a3 3 0 0 0-3-3H19"
+                                        fill="none"
+                                        stroke="#8A2BE2"
+                                        strokeWidth="3.5"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round" />
+                                    <path d="M18 19h6M18 23h4" stroke="#8A2BE2" strokeWidth="2.5" strokeLinecap="round" opacity="0.7" />
                                     <text x="45" y="26" fontFamily="system-ui, -apple-system, sans-serif" fontSize="21" fontWeight="800" fill={isDark ? "#FFFFFF" : "#111827"} letterSpacing="-0.5">
                                         Jet<tspan fontWeight="400" fill="#8A2BE2">Reader</tspan>
                                     </text>
@@ -2897,13 +2996,13 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                             >
                                 {isDefaultLogo ? (
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 40" className="h-9 w-auto" style={{ maxHeight: '36px' }}>
-                                        <path d="M12 10v16a3 3 0 0 0 3 3h12a3 3 0 0 0 3-3V14a3 3 0 0 0-3-3H19" 
-                                              fill="none" 
-                                              stroke="#8A2BE2" 
-                                              strokeWidth="3.5" 
-                                              strokeLinecap="round" 
-                                              strokeLinejoin="round"/>
-                                        <path d="M18 19h6M18 23h4" stroke="#8A2BE2" strokeWidth="2.5" strokeLinecap="round" opacity="0.7"/>
+                                        <path d="M12 10v16a3 3 0 0 0 3 3h12a3 3 0 0 0 3-3V14a3 3 0 0 0-3-3H19"
+                                            fill="none"
+                                            stroke="#8A2BE2"
+                                            strokeWidth="3.5"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round" />
+                                        <path d="M18 19h6M18 23h4" stroke="#8A2BE2" strokeWidth="2.5" strokeLinecap="round" opacity="0.7" />
                                         <text x="45" y="26" fontFamily="system-ui, -apple-system, sans-serif" fontSize="21" fontWeight="800" fill={isDark ? "#FFFFFF" : "#111827"} letterSpacing="-0.5">
                                             Jet<tspan fontWeight="400" fill="#8A2BE2">Reader</tspan>
                                         </text>
@@ -2960,13 +3059,12 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                 <select
                                     value={currentVolume}
                                     onChange={(e) => setCurrentVolume(Number(e.target.value))}
-                                    className={`jr-select-volume h-8 text-xs font-medium border rounded-lg pl-2 pr-6 cursor-pointer appearance-none transition-colors focus:outline-none focus:ring-2 ${
-                                        isDark
-                                            ? 'hover:border-gray-400 focus:ring-blue-500'
-                                            : isSepia
-                                                ? 'hover:border-amber-500 focus:ring-amber-400'
-                                                : 'hover:border-gray-400 focus:ring-blue-500'
-                                    } ${inputCls}`}
+                                    className={`jr-select-volume h-8 text-xs font-medium border rounded-lg pl-2 pr-6 cursor-pointer appearance-none transition-colors focus:outline-none focus:ring-2 ${isDark
+                                        ? 'hover:border-gray-400 focus:ring-blue-500'
+                                        : isSepia
+                                            ? 'hover:border-amber-500 focus:ring-amber-400'
+                                            : 'hover:border-gray-400 focus:ring-blue-500'
+                                        } ${inputCls}`}
                                     style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center' }}
                                 >
                                     {volumes.map((_, idx) => (
@@ -3080,13 +3178,12 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                             <select
                                 value={fontSize}
                                 onChange={(e) => setFontSize(e.target.value as typeof fontSize)}
-                                className={`jr-select-font h-8 text-xs font-medium border rounded-lg pl-2 pr-6 cursor-pointer appearance-none transition-colors focus:outline-none focus:ring-2 ${
-                                    isDark
-                                        ? 'hover:border-gray-400 focus:ring-blue-500'
-                                        : isSepia
-                                            ? 'hover:border-amber-500 focus:ring-amber-400'
-                                            : 'hover:border-gray-400 focus:ring-blue-500'
-                                } ${inputCls}`}
+                                className={`jr-select-font h-8 text-xs font-medium border rounded-lg pl-2 pr-6 cursor-pointer appearance-none transition-colors focus:outline-none focus:ring-2 ${isDark
+                                    ? 'hover:border-gray-400 focus:ring-blue-500'
+                                    : isSepia
+                                        ? 'hover:border-amber-500 focus:ring-amber-400'
+                                        : 'hover:border-gray-400 focus:ring-blue-500'
+                                    } ${inputCls}`}
                                 style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center' }}
                                 title={t('reader.fontSizeTitle')}
                             >
@@ -3101,13 +3198,12 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                         <select
                             value={theme}
                             onChange={(e) => setTheme(e.target.value as typeof theme)}
-                            className={`jr-select-theme h-8 text-xs font-medium border rounded-lg pl-2 pr-6 cursor-pointer appearance-none transition-colors focus:outline-none focus:ring-2 ${
-                                isDark
-                                    ? 'hover:border-gray-400 focus:ring-blue-500'
-                                    : isSepia
-                                        ? 'hover:border-amber-500 focus:ring-amber-400'
-                                        : 'hover:border-gray-400 focus:ring-blue-500'
-                            } ${inputCls}`}
+                            className={`jr-select-theme h-8 text-xs font-medium border rounded-lg pl-2 pr-6 cursor-pointer appearance-none transition-colors focus:outline-none focus:ring-2 ${isDark
+                                ? 'hover:border-gray-400 focus:ring-blue-500'
+                                : isSepia
+                                    ? 'hover:border-amber-500 focus:ring-amber-400'
+                                    : 'hover:border-gray-400 focus:ring-blue-500'
+                                } ${inputCls}`}
                             style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center' }}
                             title={t('reader.themeTitle')}
                         >

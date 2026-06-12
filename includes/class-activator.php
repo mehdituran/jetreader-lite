@@ -77,16 +77,11 @@ class JetReader_Activator {
      */
     private static function set_default_options() {
         $defaults = array(
-            'enabled_modules'      => array( 'books', 'articles', 'magazines', 'qa' ),
             'upload_max_size'      => 100, // MB
-            'allowed_file_types'   => array( 'epub', 'pdf', 'txt', 'docx' ),
             'reader_font_size'     => 'medium',
             'reader_theme'         => 'auto',
-            'reader_layout'        => 'paginated',
             'grid_columns'         => 4,
             'items_per_page'       => 20,
-            'search_engine'        => 'mysql',
-            'cache_enabled'        => true,
             'annotation_enabled'   => true,
             'copy_enabled'         => true,
             'plugin_language'      => 'en',
@@ -101,11 +96,12 @@ class JetReader_Activator {
             'show_filter_category' => true,
             'show_filter_language' => true,
             'show_filter_year'     => true,
-            'show_card_image'      => true,
-            'show_card_title'      => true,
-            'show_detail_image'    => true,
-            'show_detail_title'    => true,
-            'show_detail_author'   => true,
+            'show_card_image'         => true,
+            'show_card_title'         => true,
+            'show_detail_image'       => true,
+            'show_detail_title'       => true,
+            'show_detail_author'      => true,
+            'show_detail_description' => true,
         );
 
         add_option( 'jetreader_settings', $defaults, '', 'no' );

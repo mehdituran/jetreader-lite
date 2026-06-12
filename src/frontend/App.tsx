@@ -1,3 +1,15 @@
+// Polyfill Promise.withResolvers for older browsers (e.g. iOS < 17.4 / Safari < 17.4)
+if (typeof (Promise as any).withResolvers === 'undefined') {
+    (Promise as any).withResolvers = function () {
+        let resolve: any, reject: any;
+        const promise = new Promise((res, rej) => {
+            resolve = res;
+            reject = rej;
+        });
+        return { promise, resolve, reject };
+    };
+}
+
 import React, { useEffect, useState, lazy, Suspense } from 'react';
 import {
     QueryClient,
@@ -55,13 +67,7 @@ function getTypeLabel( key: ContentTypeKey | '', t: ( k: string ) => string ): s
     return map[ key ] ?? key;
 }
 
-const CARD_SIZE: Record<string, string> = {
-    small:  'h-24',
-    medium: 'h-36',
-    large:  'h-52',
-    xlarge: 'h-72',
-    xxlarge: 'h-[308px]',
-};
+
 
 
 function getNonce(): string {
@@ -133,48 +139,18 @@ interface Publisher { id: number; name: string; slug: string; }
 interface PublicSettings {
     annotation_enabled: boolean;
     copy_enabled: boolean;
-    download_enabled: boolean;
     items_per_page: number;
     grid_columns: number;
     show_sidebar: boolean;
     show_filter_category: boolean;
     show_filter_language: boolean;
     show_filter_year: boolean;
-    show_filter_author: boolean;
-    show_filter_publisher: boolean;
-    show_filter_translator: boolean;
-    show_filter_featured: boolean;
-    show_filter_type: boolean;
-    library_image_size:     string;
-    library_image_fit:      string;
-    library_card_min_width: number;
-    library_show_read_button: boolean;
-    library_show_info_button: boolean;
-    library_show_search: boolean;
     show_card_image: boolean;
     show_card_title: boolean;
-    show_card_author: boolean;
-    show_card_translator: boolean;
-    show_card_publisher: boolean;
-    show_card_year: boolean;
-    show_card_type: boolean;
-    show_card_language?: boolean;
-    show_card_page_count?: boolean;
-    library_card_radius?: string;
-    library_card_border?: string;
-    library_card_shadow?: string;
-    library_card_hover?: string;
-    library_card_align?: string;
-    library_card_layout?: string;
     show_detail_image?: boolean;
     show_detail_title?: boolean;
     show_detail_author?: boolean;
-    show_detail_translator?: boolean;
-    show_detail_publisher?: boolean;
-    show_detail_year?: boolean;
-    show_detail_type?: boolean;
-    show_detail_language?: boolean;
-    show_detail_page_count?: boolean;
+    show_detail_description?: boolean;
     reader_font_size?: string;
     reader_theme?: string;
 }
@@ -209,18 +185,18 @@ const DEFAULT_FILTERS: ActiveFilters = {
 
 function usePublicSettings() {
     return useQuery<PublicSettings>( {
-        queryKey: [ 'public-settings' ],
+        queryKey: [ 'jr-public-settings' ],
         queryFn: async () => {
             const res = await fetch( `${API_BASE}/public/settings` );
             return res.json();
         },
-        staleTime: 1000 * 60 * 10,
+        staleTime: 1000 * 10,
     } );
 }
 
 function useCategories( type?: string ) {
     return useQuery<Category[]>( {
-        queryKey: [ 'categories', type || '' ],
+        queryKey: [ 'jr-categories', type || '' ],
         queryFn: async () => {
             const url = type ? `${API_BASE}/categories?type=${ encodeURIComponent( type ) }` : `${API_BASE}/categories`;
             const res = await fetch( url );
@@ -232,7 +208,7 @@ function useCategories( type?: string ) {
 
 function useAuthors() {
     return useQuery<Author[]>( {
-        queryKey: [ 'authors' ],
+        queryKey: [ 'jr-authors' ],
         queryFn: async () => {
             const res = await fetch( `${API_BASE}/authors` );
             return res.json();
@@ -243,7 +219,7 @@ function useAuthors() {
 
 function usePublishers() {
     return useQuery<Publisher[]>( {
-        queryKey: [ 'publishers' ],
+        queryKey: [ 'jr-publishers' ],
         queryFn: async () => {
             const res = await fetch( `${API_BASE}/publishers` );
             return res.json();
@@ -403,85 +379,6 @@ const FilterSidebar: React.FC<SidebarProps> = ( {
                     </SidebarSection>
                 ) }
 
-                { /* Author multi-select */ }
-                { settings.show_filter_author && authors.length > 0 && (
-                    <SidebarSection title={ t( 'frontend.sidebarAuthor' ) }>
-                        <div className="scrollbar-palette" style={ { display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '180px', overflowY: 'auto', paddingRight: '4px' } }>
-                            { authors.map( ( a ) => {
-                                const isSelected = filters.authorNames.includes( a.name );
-                                return (
-                                    <label
-                                        key={ a.id }
-                                        style={ {
-                                            display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer',
-                                            padding: '5px 8px', borderRadius: '7px',
-                                            background: isSelected ? 'var(--jr-p50, #eef2ff)' : 'transparent',
-                                            border: isSelected ? '1px solid var(--jr-p200, #c7d2fe)' : '1px solid transparent',
-                                            transition: 'background 0.15s, border-color 0.15s',
-                                        } }
-                                    >
-                                        <input
-                                            type="checkbox"
-                                            checked={ isSelected }
-                                            onChange={ () => toggleAuthorName( a.name ) }
-                                            style={ { accentColor: 'var(--jr-p600, #4f46e5)', width: '14px', height: '14px', flexShrink: 0 } }
-                                        />
-                                        <span style={ { fontSize: '13px', fontWeight: isSelected ? 600 : 400, color: isSelected ? 'var(--jr-p700, #3730a3)' : 'inherit' } }>
-                                            { a.name }
-                                        </span>
-                                    </label>
-                                );
-                            } ) }
-                        </div>
-                    </SidebarSection>
-                ) }
-
-                { /* Publisher multi-select */ }
-                { settings.show_filter_publisher && publishers.length > 0 && (
-                    <SidebarSection title={ t( 'frontend.sidebarPublisher' ) }>
-                        <div className="scrollbar-palette" style={ { display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '180px', overflowY: 'auto', paddingRight: '4px' } }>
-                            { publishers.map( ( p ) => {
-                                const isSelected = filters.publisherNames.includes( p.name );
-                                return (
-                                    <label
-                                        key={ p.id }
-                                        style={ {
-                                            display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer',
-                                            padding: '5px 8px', borderRadius: '7px',
-                                            background: isSelected ? 'var(--jr-p50, #eef2ff)' : 'transparent',
-                                            border: isSelected ? '1px solid var(--jr-p200, #c7d2fe)' : '1px solid transparent',
-                                            transition: 'background 0.15s, border-color 0.15s',
-                                        } }
-                                    >
-                                        <input
-                                            type="checkbox"
-                                            checked={ isSelected }
-                                            onChange={ () => togglePublisherName( p.name ) }
-                                            style={ { accentColor: 'var(--jr-p600, #4f46e5)', width: '14px', height: '14px', flexShrink: 0 } }
-                                        />
-                                        <span style={ { fontSize: '13px', fontWeight: isSelected ? 600 : 400, color: isSelected ? 'var(--jr-p700, #3730a3)' : 'inherit' } }>
-                                            { p.name }
-                                        </span>
-                                    </label>
-                                );
-                            } ) }
-                        </div>
-                    </SidebarSection>
-                ) }
-
-                { /* Translator filter (text input — manually entered) */ }
-                { settings.show_filter_translator && (
-                    <SidebarSection title={ t( 'frontend.sidebarTranslator' ) } defaultOpen={ false }>
-                        <input
-                            type="text"
-                            placeholder={ t( 'frontend.translatorPlaceholder' ) }
-                            value={ filters.translator }
-                            onChange={ ( e ) => onFilterChange( { translator: e.target.value } ) }
-                            style={ inputStyle }
-                        />
-                    </SidebarSection>
-                ) }
-
                 { settings.show_filter_language && (
                     <SidebarSection title={ t( 'frontend.sidebarLanguage' ) } defaultOpen={ false }>
                         <LangCombobox
@@ -523,20 +420,6 @@ const FilterSidebar: React.FC<SidebarProps> = ( {
                     </SidebarSection>
                 ) }
 
-                { /* Featured filter */ }
-                { settings.show_filter_featured && (
-                    <SidebarSection title={ t( 'frontend.sidebarFeatured' ) } defaultOpen={ false }>
-                        <label style={ { display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' } }>
-                            <input
-                                type="checkbox"
-                                checked={ filters.featured }
-                                onChange={ ( e ) => onFilterChange( { featured: e.target.checked } ) }
-                                style={ { accentColor: 'var(--jr-p600, #4f46e5)', width: '14px', height: '14px' } }
-                            />
-                            { t( 'frontend.featuredOnly' ) }
-                        </label>
-                    </SidebarSection>
-                ) }
             </div>
         </div>
     );
@@ -615,59 +498,16 @@ const ItemCard: React.FC<{
     imageFit?:  string;
     showReadButton?: boolean;
     showInfoButton?: boolean;
-    showCardImage?: boolean;
-    showCardTitle?: boolean;
-    showCardAuthor?: boolean;
-    showCardTranslator?: boolean;
-    showCardPublisher?: boolean;
-    showCardYear?: boolean;
-    showCardType?: boolean;
-    showCardLanguage?: boolean;
-    showCardPageCount?: boolean;
-    cardRadius?: string;
-    cardBorder?: string;
-    cardShadow?: string;
-    cardHover?: string;
-    cardAlign?: string;
-    cardLayout?: string;
+    showImage?: boolean;
+    showTitle?: boolean;
 }> = ( {
     item, onRead, onInfo,
-    imageSize = 'large', imageFit = 'cover',
-    showReadButton = true, showInfoButton = true,
-    showCardImage = true, showCardTitle = true,
-    showCardAuthor = true, showCardTranslator = false,
-    showCardPublisher = false, showCardYear = true, showCardType = true,
-    showCardLanguage = false, showCardPageCount = true,
-    cardRadius = 'medium', cardBorder = 'subtle', cardShadow = 'subtle',
-    cardHover = 'zoom', cardAlign = 'left', cardLayout = 'vertical',
+    showImage = true, showTitle = true,
 } ) => {
-    const { t, locale } = useTranslation();
+    const { t } = useTranslation();
     const isQA    = item.type === 'qa';
     const hasFile = !! item.file_path;
     const typeIcon = { book: '📖', article: '📄', magazine: '🗞️', qa: '💬' }[ item.type ] ?? '📖';
-    const coverH   = CARD_SIZE[ imageSize ] ?? 'h-52';
-    const fitClass   = imageFit === 'contain' ? 'object-contain' : imageFit === 'fill' ? 'object-fill' : 'object-cover';
-    const scaleClass = imageFit === 'cover' ? 'group-hover:scale-[1.03] transition-transform duration-500 ease-out' : '';
-
-    // Collect visible meta badges
-    const metaBadges: { label: string; key: string }[] = [];
-    if ( showCardType && item.file_type ) {
-        metaBadges.push( { label: item.file_type.toUpperCase(), key: 'format' } );
-    }
-    if ( showCardYear && item.publication_year > 0 ) {
-        metaBadges.push( { label: String( item.publication_year ), key: 'year' } );
-    }
-    if ( showCardLanguage && item.language ) {
-        metaBadges.push( { label: getLangDisplayName( item.language, locale ), key: 'lang' } );
-    }
-    if ( showCardPageCount && item.page_count && item.page_count > 0 ) {
-        metaBadges.push( { label: `${ item.page_count } ${ t( 'reader.pages' ) }`, key: 'page_count' } );
-    }
-    if ( item.volumes && item.volumes.length > 1 ) {
-        metaBadges.push( { label: `${ item.volumes.length } ${ item.type === 'magazine' ? t( 'frontend.volumeMagazine' ) : t( 'frontend.volumeBook' ) }`, key: 'volumes' } );
-    }
-    const hasSubtitleLine = showCardPublisher && item.publisher || showCardTranslator && item.translator;
-    const hasReadingTime  = item.reading_time > 0;
 
     const prefetchRef = React.useRef<NodeJS.Timeout | null>( null );
 
@@ -694,7 +534,6 @@ const ItemCard: React.FC<{
         };
     }, [] );
 
-    // Navigate to CPT permalink if available; fall back to modal.
     const handleRead = () => {
         if ( item.cpt_url ) {
             window.location.href = item.cpt_url;
@@ -703,16 +542,6 @@ const ItemCard: React.FC<{
         }
     };
 
-    const radiusClass = `jr-radius-${ cardRadius }`;
-    const borderClass = `jr-border-${ cardBorder }`;
-    const shadowClass = `jr-shadow-${ cardShadow }`;
-    const hoverClass  = `jr-hover-${ cardHover }`;
-    const alignClass  = `jr-align-${ cardAlign }`;
-    const layoutClass = cardLayout === 'horizontal' ? 'flex flex-row items-stretch' : 'flex flex-col';
-
-    const isHorizontal = cardLayout === 'horizontal';
-    const coverW = imageSize === 'small' ? 'w-20 min-w-[80px]' : imageSize === 'medium' ? 'w-28 min-w-[112px]' : imageSize === 'xlarge' ? 'w-48 min-w-[192px]' : imageSize === 'xxlarge' ? 'w-56 min-w-[224px]' : 'w-36 min-w-[144px]';
-
     return (
         <motion.div
             layout
@@ -720,14 +549,14 @@ const ItemCard: React.FC<{
             animate={ { opacity: 1, y: 0 } }
             exit={ { opacity: 0, scale: 0.96 } }
             transition={ { duration: 0.22 } }
-            className={ `jr-card group h-full transition-all duration-300 ${ layoutClass } ${ radiusClass } ${ borderClass } ${ shadowClass } ${ hoverClass } ${ alignClass }`.replace(/\s+/g, ' ').trim() }
+            className="jr-card group h-full transition-all duration-300 flex flex-col jr-radius-medium jr-border-subtle jr-shadow-subtle jr-hover-zoom jr-align-left"
             onMouseEnter={ handleMouseEnter }
             onMouseLeave={ handleMouseLeave }
         >
             { /* ── Cover / Image Section ── */ }
-            { showCardImage && (
+            { showImage && (
                 isQA ? (
-                    <div className={ `${ isHorizontal ? `${ coverW } h-auto min-h-full` : 'h-24' } bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shrink-0 relative overflow-hidden` }>
+                    <div className="h-24 bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shrink-0 relative overflow-hidden">
                         <span className="text-3xl opacity-80">💬</span>
                         { item.featured && (
                             <span className="absolute top-1.5 right-1.5 bg-yellow-400/90 backdrop-blur-sm text-yellow-900 text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm flex items-center gap-0.5">
@@ -736,13 +565,13 @@ const ItemCard: React.FC<{
                         ) }
                     </div>
                 ) : (
-                    <div className={ `relative ${ isHorizontal ? `${ coverW } h-auto min-h-full` : coverH } bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 overflow-hidden flex items-center justify-center shrink-0` }>
+                    <div className="relative h-52 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 overflow-hidden flex items-center justify-center shrink-0">
                         { item.cover_image ? (
                             <img
                                 src={ item.cover_image }
                                 alt={ item.title }
                                 loading="lazy"
-                                className={ `w-full h-full ${ fitClass } ${ scaleClass }`.trim() }
+                                className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500 ease-out"
                             />
                         ) : (
                             <div className="text-slate-400 dark:text-slate-300 text-center p-3 select-none">
@@ -750,16 +579,7 @@ const ItemCard: React.FC<{
                                 <p className="mt-1.5 text-[11px] font-medium line-clamp-2 opacity-70">{ item.title }</p>
                             </div>
                         ) }
-                        { /* Overlay on hover */ }
                         <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
-                        { /* Top type badge */ }
-                        { showCardType && (
-                            <div className="absolute top-2 left-2">
-                                <span className="bg-white/90 dark:bg-black/60 backdrop-blur-sm text-slate-700 dark:text-slate-200 text-[10px] font-semibold px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1">
-                                    <span className="text-[11px] leading-none">{ typeIcon }</span>
-                                </span>
-                            </div>
-                        ) }
                         { item.featured && (
                             <span className="absolute top-2 right-2 bg-yellow-400/90 backdrop-blur-sm text-yellow-900 text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm flex items-center gap-0.5">
                                 ⭐
@@ -771,96 +591,16 @@ const ItemCard: React.FC<{
 
             { /* ── Card Body ── */ }
             <div className="p-3.5 flex flex-col gap-2 flex-1 bg-transparent min-w-0">
-                { /* Type badge if image hidden */ }
-                { showCardType && ! showCardImage && (
-                    <div className={ `flex items-center gap-1.5 ${ cardAlign === 'center' ? 'justify-center' : '' }` }>
-                        <span className="text-[10px] bg-primary-100 dark:bg-primary-900/50 text-primary-700 dark:text-primary-300 px-2 py-0.5 rounded-full font-semibold uppercase tracking-wide flex items-center gap-1">
-                            <span className="text-[11px] leading-none">{ typeIcon }</span>
-                            <span>{ item.type }</span>
-                        </span>
-                        { item.featured && (
-                            <span className="text-[10px] bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300 px-1.5 py-0.5 rounded-full font-medium">⭐</span>
-                        ) }
-                    </div>
-                ) }
-
                 { /* Title */ }
-                { showCardTitle && (
-                    <h3 className={ `font-bold text-gray-900 dark:text-white line-clamp-2 text-[14px] leading-tight tracking-tight ${ cardAlign === 'center' ? 'text-center' : '' }` }>
+                { showTitle && (
+                    <h3 className="font-bold text-gray-900 dark:text-white line-clamp-2 text-[14px] leading-tight tracking-tight">
                         { item.title }
                     </h3>
                 ) }
 
-                { /* Author */ }
-                { showCardAuthor && item.author && (
-                    <p className={ `text-[12px] text-gray-500 dark:text-gray-400 truncate flex items-center gap-1 ${ cardAlign === 'center' ? 'justify-center' : '' }` }>
-                        <svg className="w-3 h-3 shrink-0 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                        </svg>
-                        <span className="truncate">{ item.author }</span>
-                    </p>
-                ) }
-
-                { /* Publisher + Translator combo */ }
-                { hasSubtitleLine && (
-                    <p className={ `text-[11px] text-gray-400 dark:text-gray-500 truncate flex items-center gap-1.5 flex-wrap ${ cardAlign === 'center' ? 'justify-center' : '' }` }>
-                        { showCardPublisher && item.publisher && (
-                            <span className="truncate italic flex items-center gap-0.5">
-                                <svg className="w-2.5 h-2.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                                </svg>
-                                { item.publisher }
-                            </span>
-                        ) }
-                        { showCardPublisher && item.publisher && showCardTranslator && item.translator && (
-                            <span className="text-gray-300 dark:text-gray-600 select-none">·</span>
-                        ) }
-                        { showCardTranslator && item.translator && (
-                            <span className="truncate flex items-center gap-0.5">
-                                <svg className="w-2.5 h-2.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
-                                </svg>
-                                { item.translator }
-                            </span>
-                        ) }
-                    </p>
-                ) }
-
-                { /* Meta Badges Row */ }
-                { metaBadges.length > 0 && (
-                    <div className={ `flex items-center gap-1.5 flex-wrap ${ cardAlign === 'center' ? 'justify-center' : '' }` }>
-                        { metaBadges.map( ( b ) => (
-                            <span
-                                key={ b.key }
-                                className={ `
-                                    text-[10px] font-semibold px-1.5 py-0.5 rounded-md
-                                    ${ b.key === 'format'
-                                        ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/50'
-                                        : b.key === 'year'
-                                        ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50'
-                                        : b.key === 'lang'
-                                        ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50'
-                                        : 'bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800/50'
-                                    }
-                                `.replace(/\s+/g, ' ').trim() }
-                            >
-                                { b.label }
-                            </span>
-                        ) ) }
-                        { hasReadingTime && (
-                            <span className={ `text-[10px] font-medium text-gray-400 dark:text-gray-500 flex items-center gap-0.5 ${ cardAlign === 'center' ? '' : 'ml-auto' }` }>
-                                <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                { item.reading_time }m
-                            </span>
-                        ) }
-                    </div>
-                ) }
-
                 { /* QA description */ }
                 { isQA && item.description && (
-                    <p className={ `text-[11px] text-gray-500 dark:text-gray-400 line-clamp-2 leading-relaxed mt-0.5 ${ cardAlign === 'center' ? 'text-center' : '' }` }>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400 line-clamp-2 leading-relaxed mt-0.5">
                         { item.description }
                     </p>
                 ) }
@@ -869,58 +609,54 @@ const ItemCard: React.FC<{
                 <div className="flex-1 min-h-0" />
 
                 { /* Action Buttons */ }
-                { ( showReadButton || showInfoButton ) && (
-                    <div className={ `flex gap-1.5 mt-1 ${ cardAlign === 'center' ? 'justify-center w-full' : '' }` }>
-                        { showReadButton && hasFile && ! isQA && item.file_path.trim() !== '' && (
-                            <button
-                                onClick={ handleRead }
-                                className="jrc-btn-read flex-1 inline-flex items-center justify-center gap-1 text-xs font-semibold py-2 px-3 rounded-xl transition-all duration-200 active:scale-95"
-                                style={ {
-                                    background: 'var(--jr-p600, #4f46e5)',
-                                    color: '#fff',
-                                    boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-                                } }
-                                onMouseEnter={ ( e ) => {
-                                    e.currentTarget.style.background = 'var(--jr-p700, #4338ca)';
-                                    e.currentTarget.style.boxShadow = '0 4px 14px rgba(99,102,241,0.35)';
-                                } }
-                                onMouseLeave={ ( e ) => {
-                                    e.currentTarget.style.background = 'var(--jr-p600, #4f46e5)';
-                                    e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.08)';
-                                } }
-                            >
-                                <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                                </svg>
-                                { isQA ? t( 'frontend.cardView' ) : t( 'frontend.cardRead' ) }
-                            </button>
-                        ) }
-                        { showInfoButton && (
-                            <button
-                                onClick={ onInfo }
-                                className="jrc-btn-info flex-1 inline-flex items-center justify-center gap-1 text-xs font-semibold py-2 px-3 rounded-xl transition-all duration-200 active:scale-95"
-                                style={ {
-                                    background: 'transparent',
-                                    color: 'var(--jr-p600, #4f46e5)',
-                                    border: '1.5px solid var(--jr-p200, #c7d2fe)',
-                                } }
-                                onMouseEnter={ ( e ) => {
-                                    e.currentTarget.style.background = 'var(--jr-p50, #eef2ff)';
-                                    e.currentTarget.style.borderColor = 'var(--jr-p200, #c7d2fe)';
-                                } }
-                                onMouseLeave={ ( e ) => {
-                                    e.currentTarget.style.background = 'transparent';
-                                    e.currentTarget.style.borderColor = 'var(--jr-p200, #c7d2fe)';
-                                } }
-                            >
-                                <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                { isQA ? t( 'frontend.cardView' ) : t( 'frontend.cardInfo' ) }
-                            </button>
-                        ) }
-                    </div>
-                ) }
+                <div className="flex gap-1.5 mt-1">
+                    { hasFile && ! isQA && item.file_path.trim() !== '' && (
+                        <button
+                            onClick={ handleRead }
+                            className="jrc-btn-read flex-1 inline-flex items-center justify-center gap-1 text-xs font-semibold py-2 px-3 rounded-xl transition-all duration-200 active:scale-95"
+                            style={ {
+                                background: 'var(--jr-p600, #4f46e5)',
+                                color: '#fff',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                            } }
+                            onMouseEnter={ ( e ) => {
+                                e.currentTarget.style.background = 'var(--jr-p700, #4338ca)';
+                                e.currentTarget.style.boxShadow = '0 4px 14px rgba(99,102,241,0.35)';
+                            } }
+                            onMouseLeave={ ( e ) => {
+                                e.currentTarget.style.background = 'var(--jr-p600, #4f46e5)';
+                                e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.08)';
+                            } }
+                        >
+                            <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                            </svg>
+                            { isQA ? t( 'frontend.cardView' ) : t( 'frontend.cardRead' ) }
+                        </button>
+                    ) }
+                    <button
+                        onClick={ onInfo }
+                        className="jrc-btn-info flex-1 inline-flex items-center justify-center gap-1 text-xs font-semibold py-2 px-3 rounded-xl transition-all duration-200 active:scale-95"
+                        style={ {
+                            background: 'transparent',
+                            color: 'var(--jr-p600, #4f46e5)',
+                            border: '1.5px solid var(--jr-p200, #c7d2fe)',
+                        } }
+                        onMouseEnter={ ( e ) => {
+                            e.currentTarget.style.background = 'var(--jr-p50, #eef2ff)';
+                            e.currentTarget.style.borderColor = 'var(--jr-p200, #c7d2fe)';
+                        } }
+                        onMouseLeave={ ( e ) => {
+                            e.currentTarget.style.background = 'transparent';
+                            e.currentTarget.style.borderColor = 'var(--jr-p200, #c7d2fe)';
+                        } }
+                    >
+                        <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        { isQA ? t( 'frontend.cardView' ) : t( 'frontend.cardInfo' ) }
+                    </button>
+                </div>
             </div>
         </motion.div>
     );
@@ -962,10 +698,8 @@ const InfoModal: React.FC<{
     item: LibraryItem;
     onClose: () => void;
     onRead: ( selectedVolumeIdx?: number ) => void;
-    showReadButton?: boolean;
-    downloadEnabled?: boolean;
     settings?: PublicSettings;
-}> = ( { item, onClose, onRead, showReadButton = true, downloadEnabled = false, settings } ) => {
+}> = ( { item, onClose, onRead, settings } ) => {
     const { t, locale } = useTranslation();
     const [ selectedVolIdx, setSelectedVolIdx ] = React.useState<number | null>( null );
 
@@ -1007,20 +741,14 @@ const InfoModal: React.FC<{
     };
 
     const metaFields = ( [
-        settings?.show_detail_year !== false ? [ t( 'frontend.infoModalYear' ),      item.publication_year > 0 ? String( item.publication_year ) : null ] : null,
-        settings?.show_detail_type !== false ? [ t( 'frontend.infoModalFormat' ),     item.file_type ? item.file_type.toUpperCase() : null ] : null,
-        settings?.show_detail_language !== false ? [ t( 'frontend.infoModalLanguage' ),   item.language ? getLangDisplayName( item.language, locale ) : null ] : null,
-        settings?.show_detail_publisher !== false ? [ t( 'frontend.infoModalPublisher' ),  item.publisher || null ] : null,
-        settings?.show_detail_page_count !== false ? [ t( 'frontend.infoModalPages' ),  item.page_count && item.page_count > 0 ? `${ item.page_count } ${ t( 'reader.pages' ) }` : null ] : null,
+        [ t( 'frontend.infoModalPages' ),     item.page_count && item.page_count > 0 ? `${ item.page_count } ${ t( 'reader.pages' ) }` : null ],
         item.volumes && item.volumes.length > 1
             ? [ t( 'frontend.infoModalVolumes' ), `${ item.volumes.length } ${ t( 'frontend.infoModalVolumesCount' ) }` ]
             : null,
     ] as ( [ string, string | null ] | null )[] )
         .filter( ( p ): p is [ string, string ] => !! p && !! p[1] );
 
-    const hasFile    = !! item.file_path;
-    const showDl     = downloadEnabled && ( isMultiVol ? ( selectedVolIdx !== null && !! item.volumes?.[selectedVolIdx]?.file_path ) : hasFile );
-    const dlHref     = isMultiVol && selectedVolIdx !== null ? ( item.volumes?.[selectedVolIdx]?.file_path ?? '' ) : item.file_path;
+    const hasFile = !! item.file_path;
 
     return (
         <motion.div
@@ -1149,7 +877,7 @@ const InfoModal: React.FC<{
                             ) }
 
                             { /* Author + Translator */ }
-                            { ( ( item.author && settings?.show_detail_author !== false ) || ( item.translator && settings?.show_detail_translator !== false ) ) && (
+                            { ( ( item.author && settings?.show_detail_author !== false ) || item.translator ) && (
                                 <div style={ { marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '4px' } }>
                                     { item.author && settings?.show_detail_author !== false && (
                                         <p style={ { margin: 0, fontSize: '14px', color: 'var(--jr-modal-meta, #64748b)', display: 'flex', alignItems: 'center', gap: '6px' } }>
@@ -1157,7 +885,7 @@ const InfoModal: React.FC<{
                                             <span>{ t( 'frontend.infoModalBy' ) } <strong style={ { fontWeight: 600, color: 'var(--jr-modal-text, #334155)' } }>{ item.author }</strong></span>
                                         </p>
                                     ) }
-                                    { item.translator && settings?.show_detail_translator !== false && (
+                                    { item.translator && (
                                         <p style={ { margin: 0, fontSize: '13px', color: 'var(--jr-modal-meta, #64748b)', display: 'flex', alignItems: 'center', gap: '6px' } }>
                                             <span style={ { fontSize: '12px' } }>🌐</span>
                                             <span>{ t( 'frontend.infoModalTranslator' ) }: <strong style={ { fontWeight: 600, color: 'var(--jr-modal-text, #334155)' } }>{ item.translator }</strong></span>
@@ -1196,11 +924,6 @@ const InfoModal: React.FC<{
                                 <div style={ { marginBottom: '20px' } }>
                                     <p style={ { margin: '0 0 8px 0', fontSize: '11px', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--jr-modal-meta, #94a3b8)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' } }>
                                         <span>{ item.type === 'magazine' ? t( 'frontend.infoModalVolumesListMagazine' ) : t( 'frontend.infoModalVolumesListBook' ) }</span>
-                                        { downloadEnabled && (
-                                            <span style={ { fontSize: '11px', fontWeight: 500, letterSpacing: 0, textTransform: 'none', color: 'var(--jr-p400, #818cf8)' } }>
-                                                { t( 'frontend.infoModalDownloadHint' ) }
-                                            </span>
-                                        ) }
                                     </p>
                                     <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '8px' } }>
                                         { item.volumes.map( ( vol, idx ) => {
@@ -1256,12 +979,12 @@ const InfoModal: React.FC<{
                             ) }
 
                             { /* Separator */ }
-                            { item.description && ( metaFields.length > 0 || item.author || item.translator ) && (
+                            { settings?.show_detail_description !== false && item.description && ( metaFields.length > 0 || ( item.author && settings?.show_detail_author !== false ) || item.translator ) && (
                                 <hr style={ { border: 'none', borderTop: '1px solid var(--jr-modal-divider, #e2e8f0)', margin: '0 0 16px 0' } } />
                             ) }
 
                             { /* Description — pre-line preserves paragraph/line breaks */ }
-                            { item.description && (
+                            { settings?.show_detail_description !== false && item.description && (
                                 <p style={ {
                                     margin: 0,
                                     fontSize: '14px',
@@ -1281,30 +1004,12 @@ const InfoModal: React.FC<{
                             flexWrap: 'wrap',
                             alignItems: 'center',
                         } }>
-                            { showReadButton && hasFile && item.type !== 'qa' && item.file_path.trim() !== '' && (
+                            { hasFile && item.type !== 'qa' && item.file_path.trim() !== '' && (
                                 <button
                                     onClick={ handleRead }
                                     className="jr-btn-primary"
                                     style={ { flex: '0 0 auto' } }
                                 >{ t( 'frontend.infoModalReadNow' ) }</button>
-                            ) }
-                            { downloadEnabled && (
-                                isMultiVol && selectedVolIdx === null ? (
-                                    <button
-                                        disabled
-                                        className="jr-btn-secondary"
-                                        style={ { flex: '0 0 auto', opacity: 0.4, cursor: 'not-allowed' } }
-                                    >{ t( 'frontend.infoModalDownload' ) }</button>
-                                ) : showDl ? (
-                                    <a
-                                        href={ dlHref }
-                                        download
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="jr-btn-secondary"
-                                        style={ { flex: '0 0 auto', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' } }
-                                    >{ t( 'frontend.infoModalDownload' ) }</a>
-                                ) : null
                             ) }
                             <button
                                 onClick={ onClose }
@@ -1323,8 +1028,11 @@ const InfoModal: React.FC<{
                     .jr-info-cover {
                         width: 100% !important;
                         min-width: unset !important;
-                        min-height: 260px !important;
+                        height: 200px !important;
+                        min-height: 200px !important;
+                        max-height: 200px !important;
                         border-radius: 20px 20px 0 0 !important;
+                        flex-shrink: 0 !important;
                     }
                     .jr-info-scroll { padding: 20px 18px 16px !important; }
                 }
@@ -1456,7 +1164,7 @@ const LibraryContent: React.FC<LibraryContentProps> = ( {
     useEffect( () => { setPage( 1 ); }, [ effectiveType, filters, searchTerm ] );
 
     const { data, isLoading, isError } = useQuery<PaginatedResponse>( {
-        queryKey: [ 'items', effectiveType, filters, page, settings.items_per_page ],
+        queryKey: [ 'jr-items', effectiveType, filters, page, settings.items_per_page, searchTerm ],
         queryFn: async () => {
             const params = new URLSearchParams( {
                 per_page: String( settings.items_per_page ),
@@ -1479,29 +1187,17 @@ const LibraryContent: React.FC<LibraryContentProps> = ( {
         keepPreviousData: true,
     } as any );
 
-    const gridCols         = settings.grid_columns ?? 4;
-    const cardMinWidth     = settings.library_card_min_width ?? 180;
-    const imageSize        = settings.library_image_size ?? 'large';
-    const imageFit         = settings.library_image_fit  ?? 'cover';
-    const showReadButton   = settings.library_show_read_button !== false;
-    const showInfoButton   = settings.library_show_info_button !== false;
-    const showCardImage    = settings.show_card_image      !== false;
-    const showCardTitle    = settings.show_card_title      !== false;
-    const showCardAuthor   = settings.show_card_author     !== false;
-    const showCardTranslator = !! settings.show_card_translator;
-    const showCardPublisher  = !! settings.show_card_publisher;
-    const showCardYear     = settings.show_card_year       !== false;
-    const showCardType     = settings.show_card_type       !== false;
-    const showCardLanguage = !! settings.show_card_language;
-    const showCardPageCount = settings.show_card_page_count !== false;
+    const gridCols      = settings.grid_columns ?? 4;
+    const showCardImage = settings.show_card_image !== false;
+    const showCardTitle = settings.show_card_title !== false;
     const gap = 20;
     const gridStyle: React.CSSProperties = {
         display: 'grid',
-        gridTemplateColumns: `repeat(auto-fill, minmax(max(${ cardMinWidth }px, calc((100% - ${ ( gridCols - 1 ) * gap }px) / ${ gridCols })), 1fr))`,
+        gridTemplateColumns: `repeat(auto-fill, minmax(max(180px, calc((100% - ${ ( gridCols - 1 ) * gap }px) / ${ gridCols })), 1fr))`,
         gap: '1.25rem',
     };
 
-    if ( isLoading ) return <SkeletonGrid cols={ gridCols } cardMinWidth={ cardMinWidth } />;
+    if ( isLoading ) return <SkeletonGrid cols={ gridCols } cardMinWidth={ 180 } />;
 
     if ( isError ) return (
         <div className="text-center py-20">
@@ -1532,25 +1228,8 @@ const LibraryContent: React.FC<LibraryContentProps> = ( {
                                     item={ item }
                                     onRead={ () => setReaderItem( item ) }
                                     onInfo={ () => setInfoItem( item ) }
-                                    imageSize={ imageSize }
-                                    imageFit={ imageFit }
-                                    showReadButton={ showReadButton }
-                                    showInfoButton={ showInfoButton }
-                                    showCardImage={ showCardImage }
-                                    showCardTitle={ showCardTitle }
-                                    showCardAuthor={ showCardAuthor }
-                                    showCardTranslator={ showCardTranslator }
-                                    showCardPublisher={ showCardPublisher }
-                                    showCardYear={ showCardYear }
-                                    showCardType={ showCardType }
-                                    showCardLanguage={ showCardLanguage }
-                                    showCardPageCount={ showCardPageCount }
-                                    cardRadius={ settings.library_card_radius }
-                                    cardBorder={ settings.library_card_border }
-                                    cardShadow={ settings.library_card_shadow }
-                                    cardHover={ settings.library_card_hover }
-                                    cardAlign={ settings.library_card_align }
-                                    cardLayout={ settings.library_card_layout }
+                                    showImage={ showCardImage }
+                                    showTitle={ showCardTitle }
                                 />
                             ) ) }
                         </div>
@@ -1595,8 +1274,6 @@ const LibraryContent: React.FC<LibraryContentProps> = ( {
                             setReaderItem( infoItem );
                             setInfoItem( null );
                         } }
-                        showReadButton={ showReadButton }
-                        downloadEnabled={ settings.download_enabled === true }
                         settings={ settings }
                     />
                 ) }
@@ -1722,7 +1399,7 @@ const AppInner: React.FC<AppProps> = ( { libraryType, libraryTypes = '' } ) => {
 
     const cfg = settings!;
     const showSidebar       = cfg.show_sidebar;
-    const showLibrarySearch = cfg.library_show_search !== false;
+
 
     return (
         <div dir={ direction } className="jetreader-frontend w-full">
@@ -1763,7 +1440,7 @@ const AppInner: React.FC<AppProps> = ( { libraryType, libraryTypes = '' } ) => {
                 ) }
 
                 { /* Search */ }
-                { showLibrarySearch && (
+                { (
                     <div className="flex gap-2 flex-1">
                         <input
                             type="text"

@@ -63,23 +63,7 @@ class JetReader_Database {
             KEY visibility (visibility),
             KEY featured (featured),
             KEY created_at (created_at),
-            KEY visibility_type_created (visibility, type, created_at),
-            FULLTEXT KEY ft_title_description (title, description)
-        ) ENGINE=InnoDB $charset_collate;";
-
-        // 2. Chapters table.
-        $sql[] = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}jetreader_chapters (
-            id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-            item_id BIGINT(20) UNSIGNED NOT NULL,
-            title VARCHAR(500) NOT NULL,
-            content LONGTEXT DEFAULT NULL,
-            order_index INT(10) UNSIGNED NOT NULL DEFAULT 0,
-            page_start INT(10) UNSIGNED DEFAULT 0,
-            page_end INT(10) UNSIGNED DEFAULT 0,
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (id),
-            KEY item_id (item_id),
-            KEY order_index (order_index)
+            KEY visibility_type_created (visibility, type, created_at)
         ) ENGINE=InnoDB $charset_collate;";
 
         // 3. Categories table.

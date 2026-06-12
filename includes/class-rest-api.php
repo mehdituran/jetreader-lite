@@ -15,7 +15,7 @@ if ( ! defined( 'WPINC' ) ) {
  *
  * Handles all REST API endpoint registrations and callbacks.
  */
-// phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
+// phpcs:disable WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
 class JetReader_REST_API {
 
     /**
@@ -584,7 +584,7 @@ class JetReader_REST_API {
             $safe_names = array_values( array_filter( array_map( 'trim', $raw_names ) ) );
             if ( ! empty( $safe_names ) ) {
                 $placeholders = implode( ', ', array_fill( 0, count( $safe_names ), '%s' ) );
-                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
                 $where[] = $wpdb->prepare( "i.author IN ({$placeholders})", $safe_names );
             }
         }
@@ -599,7 +599,7 @@ class JetReader_REST_API {
             $safe_names = array_values( array_filter( array_map( 'trim', $raw_names ) ) );
             if ( ! empty( $safe_names ) ) {
                 $placeholders = implode( ', ', array_fill( 0, count( $safe_names ), '%s' ) );
-                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
                 $where[] = $wpdb->prepare( "i.publisher IN ({$placeholders})", $safe_names );
             }
         }
@@ -635,7 +635,7 @@ class JetReader_REST_API {
             $safe_cat_ids = array_values( array_filter( array_map( 'intval', $raw_cat_ids ) ) );
             if ( ! empty( $safe_cat_ids ) ) {
                 $cat_placeholders = implode( ',', $safe_cat_ids ); // intval-safe; no user data
-                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
                 $where[] = "i.id IN (SELECT DISTINCT item_id FROM {$wpdb->prefix}jetreader_item_categories WHERE category_id IN ({$cat_placeholders}))";
             }
         }
@@ -656,6 +656,11 @@ class JetReader_REST_API {
         // Multi-volume filter (admin).
         if ( ! empty( $params['has_volumes'] ) ) {
             $where[] = "i.volumes IS NOT NULL AND i.volumes != '' AND JSON_LENGTH(i.volumes) > 1";
+        }
+
+        // Search filter (searches items by title for visitor library).
+        if ( ! empty( $params['search'] ) ) {
+            $where[] = $wpdb->prepare( 'i.title LIKE %s', '%' . $wpdb->esc_like( sanitize_text_field( $params['search'] ) ) . '%' );
         }
 
         // Visibility: admins see all by default; public only sees published.
@@ -682,7 +687,7 @@ class JetReader_REST_API {
             }
             if ( ! empty( $include_ids ) ) {
                 $placeholders = implode( ',', array_fill( 0, count( $include_ids ), '%d' ) );
-                // phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+                // phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
                 $where[] = $wpdb->prepare( "i.id IN ($placeholders)", ...$include_ids );
             }
         }
@@ -748,7 +753,7 @@ class JetReader_REST_API {
             $id_list_str = esc_sql( implode( ',', array_map( function( $item ) { return "'" . intval( $item->id ) . "'"; }, $items ) ) );
 
             // One query for all category associations. Query kept on a single line immediately following phpcs:ignore to ensure suppression is parsed correctly.
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter
             $cat_rows = $wpdb->get_results( "SELECT item_id, category_id FROM {$wpdb->prefix}jetreader_item_categories WHERE item_id IN ({$id_list})" );
             foreach ( $cat_rows as $row ) {
                 $cat_map[ intval( $row->item_id ) ][] = intval( $row->category_id );
@@ -820,14 +825,14 @@ class JetReader_REST_API {
         $like = '%' . $wpdb->esc_like( $q ) . '%';
         
         $where_clause = $wpdb->prepare(
-            "(i.title LIKE %s OR i.author LIKE %s OR i.publisher LIKE %s OR i.translator LIKE %s OR i.description LIKE %s OR i.isbn LIKE %s)",
-            $like, $like, $like, $like, $like, $like
+            "(i.title LIKE %s)",
+            $like
         );
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         $total = $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}jetreader_items i WHERE {$where_clause}" );
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         $items = $wpdb->get_results( $wpdb->prepare( "SELECT i.* FROM {$wpdb->prefix}jetreader_items i WHERE {$where_clause} ORDER BY i.created_at DESC LIMIT %d OFFSET %d", 50, 0 ) );
 
         $cat_map       = array();
@@ -838,7 +843,7 @@ class JetReader_REST_API {
             $id_list     = esc_sql( implode( ',', array_map( 'intval', wp_list_pluck( $items, 'id' ) ) ) );
             $id_list_str = esc_sql( implode( ',', array_map( function( $item ) { return "'" . intval( $item->id ) . "'"; }, $items ) ) );
 
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter
             $cat_rows = $wpdb->get_results( "SELECT item_id, category_id FROM {$wpdb->prefix}jetreader_item_categories WHERE item_id IN ({$id_list})" );
             foreach ( $cat_rows as $row ) {
                 $cat_map[ intval( $row->item_id ) ][] = intval( $row->category_id );
@@ -928,7 +933,7 @@ class JetReader_REST_API {
         $item_id = intval( $request['id'] );
 
         // Transient-based rate limit: IP + Item ID + View
-        $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+        $ip = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
         if ( ! empty( $ip ) ) {
             $transient_key = 'jr_rate_limit_' . md5( $ip . '_' . $item_id . '_view' );
             if ( get_transient( $transient_key ) ) {
@@ -962,7 +967,7 @@ class JetReader_REST_API {
         $item_id = intval( $request['id'] );
 
         // Transient-based rate limit: IP + Item ID + Read
-        $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+        $ip = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
         if ( ! empty( $ip ) ) {
             $transient_key = 'jr_rate_limit_' . md5( $ip . '_' . $item_id . '_read' );
             if ( get_transient( $transient_key ) ) {
@@ -1611,7 +1616,6 @@ class JetReader_REST_API {
             }
         }
 
-        $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}jetreader_chapters WHERE item_id IN ({$placeholders})", $ids ) );
         $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}jetreader_item_categories WHERE item_id IN ({$placeholders})", $ids ) );
         $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}jetreader_item_tags WHERE item_id IN ({$placeholders})", $ids ) );
         $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}jetreader_bookmarks WHERE item_id IN ({$placeholders})", $ids ) );
@@ -1697,7 +1701,6 @@ class JetReader_REST_API {
         }
 
         // Delete all related records in cascade (bookmarks, notes, annotations included).
-        $wpdb->delete( "{$wpdb->prefix}jetreader_chapters", array( 'item_id' => $item_id ) );
         $wpdb->delete( "{$wpdb->prefix}jetreader_item_categories", array( 'item_id' => $item_id ) );
         $wpdb->delete( "{$wpdb->prefix}jetreader_item_tags", array( 'item_id' => $item_id ) );
         $wpdb->delete( "{$wpdb->prefix}jetreader_bookmarks", array( 'item_id' => $item_id ) );
@@ -1718,29 +1721,8 @@ class JetReader_REST_API {
     }
 
     /**
-     * Get chapters for an item.
-     */
     public function get_chapters( $request ) {
-        global $wpdb;
-
-        $item_id = intval( $request['item_id'] );
-
-        if ( ! $this->can_read_item( $item_id ) ) {
-            return new WP_Error(
-                'jetreader_not_found',
-                __( 'Item not found.', 'jetreader' ),
-                array( 'status' => 404 )
-            );
-        }
-
-        $chapters = $wpdb->get_results(
-            $wpdb->prepare(
-                "SELECT * FROM {$wpdb->prefix}jetreader_chapters WHERE item_id = %d ORDER BY order_index ASC",
-                $item_id
-            )
-        );
-
-        return rest_ensure_response( $chapters );
+        return rest_ensure_response( array() );
     }
 
     /**
@@ -2198,7 +2180,17 @@ class JetReader_REST_API {
         $settings = get_option( 'jetreader_settings', array() );
 
         $bool = function( $key, $default ) use ( $settings ) {
-            return isset( $settings[ $key ] ) ? boolval( $settings[ $key ] ) : $default;
+            if ( ! isset( $settings[ $key ] ) ) {
+                return $default;
+            }
+            $val = $settings[ $key ];
+            if ( is_bool( $val ) ) {
+                return $val;
+            }
+            if ( $val === 'false' || $val === '0' || $val === 0 || $val === '' ) {
+                return false;
+            }
+            return boolval( $val );
         };
         $int = function( $key, $default ) use ( $settings ) {
             return isset( $settings[ $key ] ) ? intval( $settings[ $key ] ) : $default;
@@ -2208,19 +2200,20 @@ class JetReader_REST_API {
         };
 
         return rest_ensure_response( array(
-            'annotation_enabled'   => true,
-            'copy_enabled'         => true,
-            'items_per_page'       => $int( 'items_per_page', 24 ),
-            'grid_columns'         => $int( 'grid_columns', 4 ),
-            'show_sidebar'         => $bool( 'show_sidebar', true ),
-            'show_filter_category' => $bool( 'show_filter_category', true ),
-            'show_filter_language' => $bool( 'show_filter_language', true ),
-            'show_filter_year'     => $bool( 'show_filter_year', true ),
-            'show_card_image'      => $bool( 'show_card_image', true ),
-            'show_card_title'      => true,
-            'show_detail_image'    => $bool( 'show_detail_image', true ),
-            'show_detail_title'    => true,
-            'show_detail_author'   => $bool( 'show_detail_author', true ),
+            'annotation_enabled'      => $bool( 'annotation_enabled', true ),
+            'copy_enabled'            => $bool( 'copy_enabled', true ),
+            'items_per_page'          => $int( 'items_per_page', 24 ),
+            'grid_columns'            => $int( 'grid_columns', 4 ),
+            'show_sidebar'            => $bool( 'show_sidebar', true ),
+            'show_filter_category'    => $bool( 'show_filter_category', true ),
+            'show_filter_language'    => $bool( 'show_filter_language', true ),
+            'show_filter_year'        => $bool( 'show_filter_year', true ),
+            'show_card_image'         => $bool( 'show_card_image', true ),
+            'show_card_title'         => $bool( 'show_card_title', true ),
+            'show_detail_image'       => $bool( 'show_detail_image', true ),
+            'show_detail_title'       => $bool( 'show_detail_title', true ),
+            'show_detail_author'      => $bool( 'show_detail_author', true ),
+            'show_detail_description' => $bool( 'show_detail_description', true ),
             'reader_font_size'     => $str( 'reader_font_size', 'medium' ),
             'reader_theme'         => $str( 'reader_theme', 'auto' ),
             'plugin_language'      => $str( 'plugin_language', 'en' ),
@@ -2247,7 +2240,6 @@ class JetReader_REST_API {
             }
         }
 
-        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $rows = $wpdb->get_results(
             "SELECT `type`, COUNT(*) AS cnt FROM {$wpdb->prefix}jetreader_items GROUP BY `type`"
         );
@@ -2266,7 +2258,6 @@ class JetReader_REST_API {
         $totals = $wpdb->get_row(
             "SELECT SUM(view_count) AS views, SUM(read_count) AS reads FROM {$wpdb->prefix}jetreader_items"
         );
-        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         $total_views = ( $totals && isset( $totals->views ) ) ? intval( $totals->views ) : 0;
         $total_reads = ( $totals && isset( $totals->reads ) ) ? intval( $totals->reads ) : 0;
@@ -2364,7 +2355,6 @@ class JetReader_REST_API {
             'jetreader_qa'       => 'jetreader-qa',
         );
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.NoCaching
         $rows = $wpdb->get_results( $wpdb->prepare(
             "SELECT p.post_name, p.post_type, pm.meta_value AS item_id
              FROM {$wpdb->posts} p
@@ -2424,6 +2414,7 @@ class JetReader_REST_API {
             return true;
         }
         global $wpdb;
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $visibility = $wpdb->get_var(
             $wpdb->prepare(
                 "SELECT visibility FROM {$wpdb->prefix}jetreader_items WHERE id = %d",
@@ -2447,7 +2438,7 @@ class JetReader_REST_API {
             $where .= $wpdb->prepare( ' AND item_id = %d', $item_id );
         }
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         $bookmarks = $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}jetreader_bookmarks WHERE {$where} ORDER BY created_at DESC" );
 
         return rest_ensure_response( array_map( function( $bm ) {
@@ -2481,6 +2472,7 @@ class JetReader_REST_API {
             'color'      => sanitize_hex_color( $params['color'] ?? '#FFD700' ),
         );
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $wpdb->insert(
             "{$wpdb->prefix}jetreader_bookmarks",
             $data,
@@ -2504,6 +2496,7 @@ class JetReader_REST_API {
         $user_id    = get_current_user_id();
         $bookmark_id = intval( $request['id'] );
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $deleted = $wpdb->delete(
             "{$wpdb->prefix}jetreader_bookmarks",
             array(
@@ -2540,7 +2533,7 @@ class JetReader_REST_API {
             $where .= $wpdb->prepare( ' AND item_id = %d', $item_id );
         }
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         $notes = $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}jetreader_notes WHERE {$where} ORDER BY created_at DESC" );
 
         return rest_ensure_response( array_map( function( $note ) {
@@ -2577,6 +2570,7 @@ class JetReader_REST_API {
             'is_public'  => ! empty( $params['is_public'] ) ? 1 : 0,
         );
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $wpdb->insert(
             "{$wpdb->prefix}jetreader_notes",
             $data,
@@ -2601,6 +2595,7 @@ class JetReader_REST_API {
         $note_id = intval( $request['id'] );
         $params  = $request->get_params();
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $existing = $wpdb->get_row( $wpdb->prepare(
             "SELECT * FROM {$wpdb->prefix}jetreader_notes WHERE id = %d AND user_id = %d",
             $note_id,
@@ -2641,6 +2636,7 @@ class JetReader_REST_API {
             );
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $wpdb->update(
             "{$wpdb->prefix}jetreader_notes",
             $data,
@@ -2663,6 +2659,7 @@ class JetReader_REST_API {
         $user_id = get_current_user_id();
         $note_id = intval( $request['id'] );
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $deleted = $wpdb->delete(
             "{$wpdb->prefix}jetreader_notes",
             array(
@@ -2690,22 +2687,23 @@ class JetReader_REST_API {
      */
     private function get_items_args() {
         return array(
-            'page'        => array( 'default' => 1,  'sanitize_callback' => 'absint' ),
-            'per_page'    => array( 'default' => 24, 'sanitize_callback' => 'absint' ),
-            'type'        => array( 'default' => '', 'sanitize_callback' => 'sanitize_text_field' ),
+            'page'            => array( 'default' => 1,  'sanitize_callback' => 'absint' ),
+            'per_page'        => array( 'default' => 24, 'sanitize_callback' => 'absint' ),
+            'type'            => array( 'default' => '', 'sanitize_callback' => 'sanitize_text_field' ),
             'author'          => array( 'sanitize_callback' => 'sanitize_text_field' ),
             'author_names'    => array( 'sanitize_callback' => 'sanitize_text_field' ),
             'publisher_names' => array( 'sanitize_callback' => 'sanitize_text_field' ),
             'language'        => array( 'sanitize_callback' => 'sanitize_text_field' ),
-            'year_from'   => array( 'sanitize_callback' => 'absint' ),
-            'year_to'     => array( 'sanitize_callback' => 'absint' ),
-            'category_id' => array( 'sanitize_callback' => 'absint' ),
-            'featured'    => array( 'sanitize_callback' => 'sanitize_text_field' ),
-            'visibility'  => array( 'sanitize_callback' => 'sanitize_text_field' ),
-            'file_type'   => array( 'sanitize_callback' => 'sanitize_text_field' ),
-            'view_min'    => array( 'sanitize_callback' => 'absint' ),
-            'view_max'    => array( 'sanitize_callback' => 'absint' ),
-            'has_volumes' => array( 'sanitize_callback' => 'absint' ),
+            'year_from'       => array( 'sanitize_callback' => 'absint' ),
+            'year_to'         => array( 'sanitize_callback' => 'absint' ),
+            'category_id'     => array( 'sanitize_callback' => 'absint' ),
+            'featured'        => array( 'sanitize_callback' => 'sanitize_text_field' ),
+            'visibility'      => array( 'sanitize_callback' => 'sanitize_text_field' ),
+            'file_type'       => array( 'sanitize_callback' => 'sanitize_text_field' ),
+            'view_min'        => array( 'sanitize_callback' => 'absint' ),
+            'view_max'        => array( 'sanitize_callback' => 'absint' ),
+            'has_volumes'     => array( 'sanitize_callback' => 'absint' ),
+            'search'          => array( 'sanitize_callback' => 'sanitize_text_field' ),
         );
     }
 
@@ -2725,6 +2723,7 @@ class JetReader_REST_API {
             return rest_ensure_response( $cached );
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $rows = $wpdb->get_results(
             "SELECT * FROM {$wpdb->prefix}jetreader_authors ORDER BY name ASC"
         );
@@ -2751,6 +2750,7 @@ class JetReader_REST_API {
         }
 
         $slug     = sanitize_title( $name );
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $existing = $wpdb->get_var( $wpdb->prepare(
             "SELECT id FROM {$wpdb->prefix}jetreader_authors WHERE slug = %s", $slug
         ) );
@@ -2758,6 +2758,7 @@ class JetReader_REST_API {
             $slug .= '-' . time();
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $inserted = $wpdb->insert(
             "{$wpdb->prefix}jetreader_authors",
             array(
@@ -2775,6 +2776,7 @@ class JetReader_REST_API {
         $insert_id = $wpdb->insert_id;
         $this->invalidate_authors_cache();
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $new_row = $wpdb->get_row( $wpdb->prepare(
             "SELECT * FROM {$wpdb->prefix}jetreader_authors WHERE id = %d", $insert_id
         ) );
@@ -2793,6 +2795,7 @@ class JetReader_REST_API {
         global $wpdb;
 
         $id      = intval( $request['id'] );
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $existing = $wpdb->get_row( $wpdb->prepare(
             "SELECT * FROM {$wpdb->prefix}jetreader_authors WHERE id = %d", $id
         ) );
@@ -2816,6 +2819,7 @@ class JetReader_REST_API {
             return new WP_Error( 'jetreader_no_data', __( 'No data to update.', 'jetreader' ), array( 'status' => 400 ) );
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $wpdb->update( "{$wpdb->prefix}jetreader_authors", $data, array( 'id' => $id ) );
         $this->invalidate_authors_cache();
 
@@ -2829,6 +2833,7 @@ class JetReader_REST_API {
         global $wpdb;
 
         $id      = intval( $request['id'] );
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $existing = $wpdb->get_row( $wpdb->prepare(
             "SELECT id FROM {$wpdb->prefix}jetreader_authors WHERE id = %d", $id
         ) );
@@ -2837,6 +2842,7 @@ class JetReader_REST_API {
             return new WP_Error( 'jetreader_not_found', __( 'Author not found.', 'jetreader' ), array( 'status' => 404 ) );
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $wpdb->delete( "{$wpdb->prefix}jetreader_authors", array( 'id' => $id ), array( '%d' ) );
         $this->invalidate_authors_cache();
 
@@ -2856,6 +2862,7 @@ class JetReader_REST_API {
             return rest_ensure_response( $cached );
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $rows = $wpdb->get_results(
             "SELECT * FROM {$wpdb->prefix}jetreader_publishers ORDER BY name ASC"
         );
@@ -2882,6 +2889,7 @@ class JetReader_REST_API {
         }
 
         $slug     = sanitize_title( $name );
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $existing = $wpdb->get_var( $wpdb->prepare(
             "SELECT id FROM {$wpdb->prefix}jetreader_publishers WHERE slug = %s", $slug
         ) );
@@ -2889,6 +2897,7 @@ class JetReader_REST_API {
             $slug .= '-' . time();
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $inserted = $wpdb->insert(
             "{$wpdb->prefix}jetreader_publishers",
             array(
@@ -2906,6 +2915,7 @@ class JetReader_REST_API {
         $insert_id = $wpdb->insert_id;
         $this->invalidate_publishers_cache();
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $new_row = $wpdb->get_row( $wpdb->prepare(
             "SELECT * FROM {$wpdb->prefix}jetreader_publishers WHERE id = %d", $insert_id
         ) );
@@ -2924,6 +2934,7 @@ class JetReader_REST_API {
         global $wpdb;
 
         $id      = intval( $request['id'] );
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $existing = $wpdb->get_row( $wpdb->prepare(
             "SELECT * FROM {$wpdb->prefix}jetreader_publishers WHERE id = %d", $id
         ) );
@@ -2947,6 +2958,7 @@ class JetReader_REST_API {
             return new WP_Error( 'jetreader_no_data', __( 'No data to update.', 'jetreader' ), array( 'status' => 400 ) );
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $wpdb->update( "{$wpdb->prefix}jetreader_publishers", $data, array( 'id' => $id ) );
         $this->invalidate_publishers_cache();
 
@@ -2960,6 +2972,7 @@ class JetReader_REST_API {
         global $wpdb;
 
         $id      = intval( $request['id'] );
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $existing = $wpdb->get_row( $wpdb->prepare(
             "SELECT id FROM {$wpdb->prefix}jetreader_publishers WHERE id = %d", $id
         ) );
@@ -2968,6 +2981,7 @@ class JetReader_REST_API {
             return new WP_Error( 'jetreader_not_found', __( 'Publisher not found.', 'jetreader' ), array( 'status' => 404 ) );
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $wpdb->delete( "{$wpdb->prefix}jetreader_publishers", array( 'id' => $id ), array( '%d' ) );
         $this->invalidate_publishers_cache();
 
@@ -3186,7 +3200,7 @@ class JetReader_REST_API {
             // - nosniff + CSP sandbox provide defense-in-depth.
             // - esc_html() / wp_kses() would corrupt binary files.
             header( 'Content-Disposition: attachment; filename="document.' . esc_attr( pathinfo( wp_parse_url( $url, PHP_URL_PATH ) ?: 'document', PATHINFO_EXTENSION ) ?: 'bin' ) . '"' );
-            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- binary content, cannot be escaped without corruption.
+            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- binary content,cannot be escaped without corruption.
             echo $body;
         }
         exit;
@@ -3219,6 +3233,7 @@ class JetReader_REST_API {
         $url_json     = trim( wp_json_encode( $url_clean ), '"' );
         $url_json_esc = trim( wp_json_encode( $url_esc ), '"' );
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $items = $wpdb->get_results(
             $wpdb->prepare(
                 "SELECT id, visibility FROM {$wpdb->prefix}jetreader_items 
@@ -3274,15 +3289,18 @@ class JetReader_REST_API {
      */
     private function import_ensure_author( $name ) {
         global $wpdb;
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $exists = $wpdb->get_var( $wpdb->prepare(
             "SELECT id FROM {$wpdb->prefix}jetreader_authors WHERE name = %s LIMIT 1", $name
         ) );
         if ( $exists ) return;
         $slug        = sanitize_title( $name );
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $slug_exists = $wpdb->get_var( $wpdb->prepare(
             "SELECT id FROM {$wpdb->prefix}jetreader_authors WHERE slug = %s", $slug
         ) );
         if ( $slug_exists ) { $slug .= '-' . time(); }
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $wpdb->insert(
             "{$wpdb->prefix}jetreader_authors",
             array( 'name' => $name, 'slug' => $slug ),
@@ -3295,15 +3313,18 @@ class JetReader_REST_API {
      */
     private function import_ensure_publisher( $name ) {
         global $wpdb;
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $exists = $wpdb->get_var( $wpdb->prepare(
             "SELECT id FROM {$wpdb->prefix}jetreader_publishers WHERE name = %s LIMIT 1", $name
         ) );
         if ( $exists ) return;
         $slug        = sanitize_title( $name );
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $slug_exists = $wpdb->get_var( $wpdb->prepare(
             "SELECT id FROM {$wpdb->prefix}jetreader_publishers WHERE slug = %s", $slug
         ) );
         if ( $slug_exists ) { $slug .= '-' . time(); }
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $wpdb->insert(
             "{$wpdb->prefix}jetreader_publishers",
             array( 'name' => $name, 'slug' => $slug ),
@@ -3330,6 +3351,7 @@ class JetReader_REST_API {
         foreach ( $names as $name ) {
             if ( '' === $name ) continue;
 
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
             $id = $wpdb->get_var( $wpdb->prepare(
                 "SELECT id FROM {$wpdb->prefix}jetreader_categories WHERE name = %s AND type = %s LIMIT 1",
                 $name,
@@ -3338,12 +3360,14 @@ class JetReader_REST_API {
 
             if ( ! $id ) {
                 $slug        = sanitize_title( $name );
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
                 $slug_exists = $wpdb->get_var( $wpdb->prepare(
                     "SELECT id FROM {$wpdb->prefix}jetreader_categories WHERE slug = %s AND type = %s",
                     $slug,
                     $type
                 ) );
                 if ( $slug_exists ) { $slug .= '-' . time(); }
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
                 $wpdb->insert(
                     "{$wpdb->prefix}jetreader_categories",
                     array( 'name' => $name, 'slug' => $slug, 'type' => $type ),
@@ -3396,6 +3420,7 @@ class JetReader_REST_API {
             }
 
             $slug = sanitize_title( $title );
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
             $existing_slug = $wpdb->get_var( $wpdb->prepare(
                 "SELECT id FROM {$wpdb->prefix}jetreader_items WHERE slug = %s",
                 $slug
@@ -3534,6 +3559,7 @@ class JetReader_REST_API {
                 $formats[] = is_null( $value ) ? '%s' : ( is_int( $value ) ? '%d' : '%s' );
             }
 
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
             $result = $wpdb->insert( "{$wpdb->prefix}jetreader_items", $data, $formats );
 
             if ( false === $result ) {
@@ -3688,7 +3714,7 @@ class JetReader_REST_API {
 
         // Fetch all items from the database to map linkages
         global $wpdb;
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $items = $wpdb->get_results(
             "SELECT id, title, type, file_path, cover_image, volumes FROM {$wpdb->prefix}jetreader_items",
             ARRAY_A
@@ -3823,7 +3849,8 @@ class JetReader_REST_API {
             return new WP_REST_Response(
                 array(
                     'success' => $success_count > 0,
-                    'message' => sprintf( __( 'Deleted %d files, failed to delete %d files.', 'jetreader' ), $success_count, count( $failed_files ) ),
+                    /* translators: 1: number of deleted files, 2: number of files that failed to delete */
+                    'message' => sprintf( __( 'Deleted %1$d files, failed to delete %2$d files.', 'jetreader' ), $success_count, count( $failed_files ) ),
                     'failed'  => $failed_files
                 ),
                 207 // Multi-Status
@@ -3889,11 +3916,13 @@ class JetReader_REST_API {
         $new_url = $upload_dir['baseurl'] . '/jetreader/' . $new_name;
 
         // 1. Update items table file_path and cover_image
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $wpdb->query( $wpdb->prepare(
             "UPDATE {$wpdb->prefix}jetreader_items SET file_path = %s WHERE file_path = %s",
             $new_url,
             $old_url
         ) );
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $wpdb->query( $wpdb->prepare(
             "UPDATE {$wpdb->prefix}jetreader_items SET cover_image = %s WHERE cover_image = %s",
             $new_url,
@@ -3901,6 +3930,7 @@ class JetReader_REST_API {
         ) );
 
         // 2. Fetch all items with volumes to check inside JSON fields
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $items_with_vols = $wpdb->get_results(
             "SELECT id, volumes FROM {$wpdb->prefix}jetreader_items WHERE volumes IS NOT NULL AND volumes != ''",
             ARRAY_A
@@ -3925,6 +3955,7 @@ class JetReader_REST_API {
             }
 
             if ( $updated ) {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
                 $wpdb->query( $wpdb->prepare(
                     "UPDATE {$wpdb->prefix}jetreader_items SET volumes = %s WHERE id = %d",
                     wp_json_encode( $volumes ),
@@ -3934,11 +3965,13 @@ class JetReader_REST_API {
         }
 
         // 3. Update related CPT posts meta if any
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $wpdb->query( $wpdb->prepare(
             "UPDATE {$wpdb->postmeta} SET meta_value = %s WHERE meta_key = '_jetreader_file_url' AND meta_value = %s",
             $new_url,
             $old_url
         ) );
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $wpdb->query( $wpdb->prepare(
             "UPDATE {$wpdb->postmeta} SET meta_value = %s WHERE meta_key = '_jetreader_cover_url' AND meta_value = %s",
             $new_url,

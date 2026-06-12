@@ -1776,12 +1776,9 @@ const ItemsPage: React.FC = () => {
 
     // Fetch categories for filter dropdown + table column display
     const { data: adminCategories = [] } = useQuery<CategoryExtended[]>( {
-        queryKey: [ 'categories', 'admin', typeFilter ],
+        queryKey: [ 'categories', 'admin' ],
         queryFn: async () => {
-            const url = typeFilter
-                ? `${API_BASE}/categories?type=${ encodeURIComponent( typeFilter ) }`
-                : `${API_BASE}/categories`;
-            const res = await fetch( url, { headers: { 'X-WP-Nonce': getNonce() } } );
+            const res = await fetch( `${API_BASE}/categories`, { headers: { 'X-WP-Nonce': getNonce() } } );
             const json = await res.json();
             return Array.isArray( json ) ? json : [];
         },
@@ -2093,7 +2090,7 @@ const ItemsPage: React.FC = () => {
                                 onChange={ ( e ) => setPendingFilters( ( p ) => ( { ...p, category_id: e.target.value } ) ) }
                                 className="jr-input w-full text-sm"
                             >
-                                <option value="">{t('allCategories')}</option>
+                                <option value="">{t('common.allCategories')}</option>
                                 { adminCategories.map( ( cat ) => (
                                     <option key={ cat.id } value={ String( cat.id ) }>{ cat.name }</option>
                                 ) ) }
@@ -2116,7 +2113,7 @@ const ItemsPage: React.FC = () => {
                                 onChange={ ( e ) => setPendingFilters( ( p ) => ( { ...p, file_type: e.target.value } ) ) }
                                 className="jr-input w-full text-sm"
                             >
-                                <option value="">{t('allFormats')}</option>
+                                <option value="">{t('common.allFormats')}</option>
                                 { FORMATS_ADMIN.map( ( f ) => <option key={ f } value={ f }>{ f.toUpperCase() }</option> ) }
                             </select>
                         </div>
@@ -2127,7 +2124,7 @@ const ItemsPage: React.FC = () => {
                                 onChange={ ( e ) => setPendingFilters( ( p ) => ( { ...p, visibility: e.target.value } ) ) }
                                 className="jr-input w-full text-sm"
                             >
-                                <option value="">{t('all')}</option>
+                                <option value="">{t('common.all')}</option>
                                 <option value="publish">{t('items.filterVisibilityPublished')}</option>
                                 <option value="draft">{t('items.filterVisibilityDraft')}</option>
                                 <option value="private">{t('items.filterVisibilityPrivate')}</option>
@@ -2140,7 +2137,7 @@ const ItemsPage: React.FC = () => {
                                 onChange={ ( e ) => setPendingFilters( ( p ) => ( { ...p, featured: e.target.value } ) ) }
                                 className="jr-input w-full text-sm"
                             >
-                                <option value="">{t('all')}</option>
+                                <option value="">{t('common.all')}</option>
                                 <option value="1">{t('items.filterFeaturedYes')}</option>
                                 <option value="0">{t('items.filterFeaturedNo')}</option>
                             </select>
@@ -2373,6 +2370,8 @@ const ItemsPage: React.FC = () => {
                     setEditingItem( null );
                     setCreating( false );
                     queryClient.invalidateQueries( { queryKey: [ 'items' ] } );
+                    queryClient.invalidateQueries( { queryKey: [ 'dashboard-stats' ] } );
+                    queryClient.invalidateQueries( { queryKey: [ 'categories' ] } );
                 } }
                 flashMessage={ flashMessage }
             />
@@ -2384,6 +2383,7 @@ const ItemsPage: React.FC = () => {
                 onSaved={ () => {
                     queryClient.invalidateQueries( { queryKey: [ 'items' ] } );
                     queryClient.invalidateQueries( { queryKey: [ 'dashboard-stats' ] } );
+                    queryClient.invalidateQueries( { queryKey: [ 'categories' ] } );
                 } }
                 flashMessage={ flashMessage }
             />
@@ -2911,14 +2911,7 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
                 featured: editingItem.featured || false,
             } );
             setSelectedCategoryIds( editingItem.category_ids || [] );
-            if ( editingItem.category_ids && formCategories.length > 0 ) {
-                const names = formCategories
-                    .filter( ( c ) => editingItem.category_ids?.includes( c.id ) )
-                    .map( ( c ) => c.name );
-                setFormCategoriesText( names.join( ', ' ) );
-            } else {
-                setFormCategoriesText( '' );
-            }
+            setFormCategoriesText( '' );
             if ( editingItem.volumes && editingItem.volumes.length > 0 ) {
                 setVolumes( editingItem.volumes );
                 const allSame = editingItem.volumes.every( ( v ) => v.cover_image === editingItem.volumes![0].cover_image );
@@ -2938,6 +2931,16 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
             setSelectedCategoryIds( [] );
             setFormCategoriesText( '' );
             resetVolumes();
+        }
+    }, [ editingItem ] );
+
+    // Populate category text when editing and categories have loaded
+    useEffect( () => {
+        if ( editingItem && editingItem.category_ids && formCategories.length > 0 ) {
+            const names = formCategories
+                .filter( ( c ) => editingItem.category_ids?.includes( c.id ) )
+                .map( ( c ) => c.name );
+            setFormCategoriesText( names.join( ', ' ) );
         }
     }, [ editingItem, formCategories ] );
 
@@ -4072,20 +4075,8 @@ const ToggleSwitch: React.FC<{ checked: boolean; onChange: ( v: boolean ) => voi
 /* ------------------------------------------------------------------ */
 
 const JR_PALETTES = [
-    { slug: 'green',  hex: '#8cbc67' },
-    { slug: 'blue',   hex: '#2563eb' },
-    { slug: 'amber',  hex: '#d97706' },
-    { slug: 'red',    hex: '#dc2626' },
-    { slug: 'pink',   hex: '#db2777' },
-    { slug: 'purple', hex: '#7c3aed' },
     { slug: 'gray',   hex: '#4b5563' },
-    { slug: 'yellow', hex: '#facc15' },
-    { slug: 'tan',    hex: '#d4a373' },
-    { slug: 'cream',  hex: '#fdf0d5' },
-    { slug: 'cyan',   hex: '#00b4d8' },
-    { slug: 'rose',   hex: '#a53860' },
-    { slug: 'silver', hex: '#ced4da' },
-    { slug: 'teal',   hex: '#34a0a4' },
+    { slug: 'purple', hex: '#7c3aed' },
 ] as const;
 
 const sanitizeSlug = ( val: string ) => {
@@ -4221,41 +4212,6 @@ const SettingsPage: React.FC = () => {
                     />
                 </div>
 
-                {/* Reader Font Size + Theme */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                🔤 Default Reader Font Size
-                            </label>
-                            <select
-                                value={ String( settings.reader_font_size || 'medium' ) }
-                                onChange={ ( e ) => updateSetting( 'reader_font_size', e.target.value ) }
-                                className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 w-full"
-                            >
-                                <option value="small">{ t( 'settings.fontSizeSmall' ) }</option>
-                                <option value="medium">{ t( 'settings.fontSizeMedium' ) }</option>
-                                <option value="large">{ t( 'settings.fontSizeLarge' ) }</option>
-                                <option value="xlarge">{ t( 'settings.fontSizeXLarge' ) }</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                🎨 Default Reader Theme
-                            </label>
-                            <select
-                                value={ String( settings.reader_theme || 'auto' ) }
-                                onChange={ ( e ) => updateSetting( 'reader_theme', e.target.value ) }
-                                className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 w-full"
-                            >
-                                <option value="auto">{ t( 'settings.themeAuto' ) }</option>
-                                <option value="light">{ t( 'settings.themeLight' ) }</option>
-                                <option value="dark">{ t( 'settings.themeDark' ) }</option>
-                                <option value="sepia">{ t( 'settings.themeSepia' ) }</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
 
                 {/* Primary Color Palette */}
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
@@ -4267,7 +4223,7 @@ const SettingsPage: React.FC = () => {
                     </p>
                     <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
                         { JR_PALETTES.map( ( p ) => {
-                            const isSelected = ( settings.primary_palette || 'green' ) === p.slug;
+                            const isSelected = ( settings.primary_palette || 'gray' ) === p.slug;
                             return (
                                 <button
                                     key={ p.slug }
@@ -4373,6 +4329,8 @@ const SettingsPage: React.FC = () => {
                         ) ) }
                     </div>
 
+                    
+
                     { /* ── Card field visibility ── */ }
                     <div className="border-t-2 border-indigo-100 dark:border-indigo-900/40 mt-6 pt-5 mb-3">
                         <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
@@ -4411,6 +4369,66 @@ const SettingsPage: React.FC = () => {
                             { key: 'show_detail_image',       label: '🖼️ Cover Image',       desc: 'Show the cover image in the detail modal',       def: true },
                             { key: 'show_detail_title',       label: '📝 Item Title',       desc: 'Show the item title in the detail modal',       def: true },
                             { key: 'show_detail_author',      label: '✍️ Author',      desc: 'Show the author name in the detail modal',      def: true },
+                            { key: 'show_detail_description', label: '📝 Description', desc: 'Show the description in the detail modal', def: true },
+                        ].map( ( f ) => (
+                            <div key={ f.key } className="flex items-center justify-between py-2.5 border-t border-gray-100 dark:border-gray-700">
+                                <div className="min-w-0 mr-3">
+                                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                                        { f.label }
+                                    </p>
+                                    <p className="text-xs text-gray-500 mt-0.5">{ f.desc }</p>
+                                </div>
+                                <ToggleSwitch
+                                    checked={ Boolean( settings[ f.key ] ?? f.def ) }
+                                    onChange={ ( v ) => updateSetting( f.key, v ) }
+                                />
+                            </div>
+                        ) ) }
+                    </div>
+
+                    { /* ── Reader options ── */ }
+                    <div className="border-t-2 border-indigo-100 dark:border-indigo-900/40 mt-6 pt-5 mb-3">
+                        <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+                            Reader Options
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-5 pb-5 border-b border-gray-100 dark:border-gray-700">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                🔤 Default Reader Font Size
+                            </label>
+                            <select
+                                value={ String( settings.reader_font_size || 'medium' ) }
+                                onChange={ ( e ) => updateSetting( 'reader_font_size', e.target.value ) }
+                                className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 w-full"
+                            >
+                                <option value="small">{ t( 'settings.fontSizeSmall' ) }</option>
+                                <option value="medium">{ t( 'settings.fontSizeMedium' ) }</option>
+                                <option value="large">{ t( 'settings.fontSizeLarge' ) }</option>
+                                <option value="xlarge">{ t( 'settings.fontSizeXLarge' ) }</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                🎨 Default Reader Theme
+                            </label>
+                            <select
+                                value={ String( settings.reader_theme || 'auto' ) }
+                                onChange={ ( e ) => updateSetting( 'reader_theme', e.target.value ) }
+                                className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 w-full"
+                            >
+                                <option value="auto">{ t( 'settings.themeAuto' ) }</option>
+                                <option value="light">{ t( 'settings.themeLight' ) }</option>
+                                <option value="dark">{ t( 'settings.themeDark' ) }</option>
+                                <option value="sepia">{ t( 'settings.themeSepia' ) }</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
+                        { [
+                            { key: 'annotation_enabled', label: '🖊️ Annotations',  desc: 'Allow users to highlight and annotate text in the reader', def: true },
+                            { key: 'copy_enabled',       label: '📋 Text Copying', desc: 'Allow users to copy text from the reader',                def: true },
                         ].map( ( f ) => (
                             <div key={ f.key } className="flex items-center justify-between py-2.5 border-t border-gray-100 dark:border-gray-700">
                                 <div className="min-w-0 mr-3">

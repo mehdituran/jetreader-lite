@@ -1,6 +1,11 @@
 import type { Config } from 'tailwindcss';
 
 const config: Config = {
+    // 'class' strategy: dark: variants only activate when a .dark class is
+    // explicitly present in the DOM. This prevents the library UI from
+    // switching to dark background when the visitor's OS has dark mode on —
+    // the color palette set by the admin should always be respected.
+    darkMode: 'class',
     content: [
         './src/**/*.{ts,tsx,js,jsx}',
         './includes/**/*.php',

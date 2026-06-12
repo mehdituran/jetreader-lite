@@ -41,16 +41,6 @@ define( 'JETREADER_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
 define( 'JETREADER_MINIMUM_WP_VERSION', '6.4' );
 define( 'JETREADER_MINIMUM_PHP_VERSION', '8.2' );
 
-// Load Composer autoloader.
-if ( file_exists( JETREADER_PLUGIN_DIR . 'vendor/autoload.php' ) ) {
-    require_once JETREADER_PLUGIN_DIR . 'vendor/autoload.php';
-}
-
-// Load Action Scheduler.
-if ( file_exists( JETREADER_PLUGIN_DIR . 'vendor/woocommerce/action-scheduler/action-scheduler.php' ) ) {
-    require_once JETREADER_PLUGIN_DIR . 'vendor/woocommerce/action-scheduler/action-scheduler.php';
-}
-
 /**
  * The code that runs during plugin activation.
  */

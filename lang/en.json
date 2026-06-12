@@ -616,7 +616,6 @@
         "sectionDesc": "Choose the primary color palette for the library frontend.",
         "libraryLabel": "Library",
         "gray": "Gray",
-        "amber": "Amber",
         "purple": "Purple"
     },
     "files": {
