@@ -46,7 +46,6 @@ class JetReader {
         $this->define_admin_hooks();
         $this->define_public_hooks();
         $this->define_rest_api_hooks();
-        $this->define_gutenberg_hooks();
     }
 
     /**
@@ -198,13 +197,6 @@ class JetReader {
     private function define_rest_api_hooks() {
         $rest_api = new JetReader_REST_API();
         add_action( 'rest_api_init', array( $rest_api, 'register_routes' ) );
-    }
-
-    private function define_gutenberg_hooks() {
-        if ( class_exists( 'JetReader_Gutenberg_Blocks' ) ) {
-            add_action( 'init', array( 'JetReader_Gutenberg_Blocks', 'register' ), 20 );
-            add_action( 'enqueue_block_editor_assets', array( 'JetReader_Gutenberg_Blocks', 'enqueue_block_editor_assets' ) );
-        }
     }
 
     /**

@@ -71,7 +71,6 @@ export default defineConfig( {
                 admin: path.resolve( __dirname, 'src/admin/main.tsx' ),
                 frontend: path.resolve( __dirname, 'src/frontend/main.tsx' ),
                 reader: path.resolve( __dirname, 'src/reader/main.tsx' ),
-                blocks: path.resolve( __dirname, 'src/blocks/main.tsx' ),
             },
             output: {
                 entryFileNames: 'js/[name].js',
