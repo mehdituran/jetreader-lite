@@ -64,8 +64,7 @@ export interface ReaderLoadResult {
     pages: ReaderPage[];
     metadata: ReaderMetadata;
     toc: TocEntry[];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    pdfDoc?: any; // PDFDocumentProxy — kept as any to avoid deep pdfjs type imports in the modal
+    pdfDoc?: pdfjsLib.PDFDocumentProxy;
 }
 
 interface EpubManifestItem {
@@ -227,7 +226,9 @@ export class ReaderEngine {
                         this.memoryCache.set( cacheKey, result );
                         return result;
                     } catch ( err ) {
-                        console.warn( 'Failed to load cached PDF document, falling back to network', err );
+                        if ( ( window as any ).jetreaderSettings?.debug ) {
+                            console.warn( 'Failed to load cached PDF document, falling back to network', err );
+                        }
                     }
                 } else if ( activeFormat !== 'pdf' ) {
                     const result: ReaderLoadResult = {
@@ -418,7 +419,7 @@ export class ReaderEngine {
         // references can be resolved without hitting the network.
         const IMG_MIME: Record<string, string> = {
             jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
-            gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
+            gif: 'image/gif', webp: 'image/webp',
         };
         // Use data URLs (base64) instead of blob URLs — blob URLs become invalid after
         // page reload, which would break images loaded from IndexedDB cache.

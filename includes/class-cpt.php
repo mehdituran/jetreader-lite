@@ -97,16 +97,38 @@ class JetReader_CPT {
      * registered before we compare.
      */
      public static function maybe_flush_rewrites(): void {
-         $current = array();
-         foreach ( self::$type_map as $type => $def ) {
-              $current[ $type ] = $def['rewrite'];
-         }
+          $current = array();
+          foreach ( self::$type_map as $type => $def ) {
+               $current[ $type ] = $def['rewrite'];
+          }
 
-         $stored = get_option( 'jetreader_cpt_slugs', array() );
-         if ( $stored !== $current ) {
-             flush_rewrite_rules( false );
-             update_option( 'jetreader_cpt_slugs', $current, false );
-         }
+          $stored = get_option( 'jetreader_cpt_slugs', array() );
+
+          // Check if rewrite rules are actually registered in WordPress.
+          $permalink_structure = get_option( 'permalink_structure' );
+          $rules_exist         = false;
+          if ( ! empty( $permalink_structure ) ) {
+              $rules = get_option( 'rewrite_rules' );
+              if ( is_array( $rules ) ) {
+                  $first_slug = reset( $current );
+                  if ( $first_slug ) {
+                      foreach ( $rules as $rule => $rewrite ) {
+                          if ( str_contains( $rule, $first_slug ) ) {
+                              $rules_exist = true;
+                              break;
+                          }
+                      }
+                  }
+              }
+          } else {
+              // Plain permalinks are active, pretty rules don't exist by design.
+              $rules_exist = true;
+          }
+
+          if ( $stored !== $current || ! $rules_exist ) {
+              flush_rewrite_rules( false );
+              update_option( 'jetreader_cpt_slugs', $current, false );
+          }
      }
 
     // -------------------------------------------------------------------------
@@ -135,15 +157,12 @@ class JetReader_CPT {
 
         $post_data = array(
             'post_title'   => wp_strip_all_tags( $item->title ),
-            'post_name'    => sanitize_title( $item->title ),
+            'post_name'    => $item->slug,
             'post_status'  => $status,
             'post_type'    => $cpt_slug,
             'post_content' => wp_kses_post( $item->description ?? '' ),
             'post_excerpt' => wp_trim_words( wp_strip_all_tags( $item->description ?? '' ), 30 ),
         );
-
-        // Prevent infinite loops if WP hooks fire during wp_insert/update_post.
-        remove_filter( 'save_post', array( __CLASS__, 'on_save_post' ) );
 
         if ( $post_id ) {
             $post_data['ID'] = $post_id;
@@ -182,8 +201,6 @@ class JetReader_CPT {
             self::maybe_set_thumbnail_from_url( $post_id, $item->cover_image );
         }
 
-        add_filter( 'save_post', array( __CLASS__, 'on_save_post' ) );
-
         return $post_id;
     }
 
@@ -204,6 +221,7 @@ class JetReader_CPT {
         // phpcs:disable WordPress.DB.SlowDBQuery.slow_db_query_meta_key, WordPress.DB.SlowDBQuery.slow_db_query_meta_value
         $posts = get_posts( array(
             'post_type'      => array_column( self::$type_map, 'slug' ),
+            'post_status'    => array( 'publish', 'draft', 'private', 'pending', 'future', 'trash' ),
             'meta_key'       => '_jetreader_item_id',
             'meta_value'     => $item_id,
             'meta_compare'   => '=',

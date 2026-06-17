@@ -46,6 +46,15 @@ import {
 import { useTranslation } from '../i18n/I18nContext';
 import { TextLayer } from 'pdfjs-dist';
 
+// Strip external url() references from inline style attributes so EPUB content
+// cannot trigger outbound requests via CSS (e.g. background-image tracking).
+// Runs once at module load; DOMPurify hooks are global and cumulative.
+DOMPurify.addHook('uponSanitizeAttribute', (_node, data) => {
+    if (data.attrName === 'style') {
+        data.attrValue = data.attrValue.replace(/url\s*\([^)]*\)/gi, '');
+    }
+});
+
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Types                                                                  */
 /* ═══════════════════════════════════════════════════════════════════════ */
@@ -84,6 +93,41 @@ interface VolumeEntry {
     page_count?: number;
     encoding?: string;
 }
+
+/* ─── ErrorBoundary ─────────────────────────────────────────────────────── */
+
+interface ReaderErrorBoundaryState { error: Error | null }
+
+export class ReaderErrorBoundary extends React.Component<
+    { children: React.ReactNode; fallback?: React.ReactNode },
+    ReaderErrorBoundaryState
+> {
+    state: ReaderErrorBoundaryState = { error: null };
+
+    static getDerivedStateFromError( err: Error ): ReaderErrorBoundaryState {
+        return { error: err };
+    }
+
+    componentDidCatch( err: Error ) {
+        if ( ( window as any ).jetreaderSettings?.debug ) {
+            console.error( '[JetReader] reader render error:', err );
+        }
+    }
+
+    render() {
+        if ( this.state.error ) {
+            return this.props.fallback ?? (
+                <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
+                    <p style={{ fontSize: '1rem', fontWeight: 600 }}>⚠️</p>
+                    <p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>{ String( this.state.error.message ) }</p>
+                </div>
+            );
+        }
+        return this.props.children;
+    }
+}
+
+/* ─── ReaderModalProps ───────────────────────────────────────────────────── */
 
 interface ReaderModalProps {
     itemId: number;
@@ -191,12 +235,13 @@ const findAnchorPage = (
  * into a single standard space.
  */
 const normalizeAndMap = (virt: string) => {
+    const src = virt.normalize('NFC'); // NFC first so combining chars collapse to single code units
     let normalized = '';
     const indexMap: number[] = [];
     let inWhitespace = false;
 
-    for (let i = 0; i < virt.length; i++) {
-        const char = virt[i];
+    for (let i = 0; i < src.length; i++) {
+        const char = src[i];
         const isSpace = /[\s\u00A0]/.test(char);
 
         if (isSpace) {
@@ -228,31 +273,17 @@ const normalizeAndMap = (virt: string) => {
 };
 
 /**
- * Helper to perform Unicode-safe whole-word matching.
+ * Find all (possibly overlapping) substring match positions of query in text.
+ * Substring matching — no word-boundary checks — so "kitap" finds "kitaplar".
  */
 const findMatchPositions = (text: string, query: string): number[] => {
-    const q = query;
-    const qLen = q.length;
+    const qLen = query.length;
     if (qLen < 2) return [];
-
-    const isWordChar = (char: string) => /[\p{L}\p{N}]/u.test(char);
-    const qStartsWord = isWordChar(q.charAt(0));
-    const qEndsWord = isWordChar(q.charAt(qLen - 1));
-
     const positions: number[] = [];
-    let pos = text.indexOf(q);
+    let pos = text.indexOf(query);
     while (pos !== -1) {
-        let isValid = true;
-        if (qStartsWord && pos > 0 && isWordChar(text.charAt(pos - 1))) {
-            isValid = false;
-        }
-        if (qEndsWord && pos + qLen < text.length && isWordChar(text.charAt(pos + qLen))) {
-            isValid = false;
-        }
-        if (isValid) {
-            positions.push(pos);
-        }
-        pos = text.indexOf(q, pos + qLen);
+        positions.push(pos);
+        pos = text.indexOf(query, pos + qLen);
     }
     return positions;
 };
@@ -277,7 +308,7 @@ function highlightHtml(html: string, query: string, activeMatchIndex?: number | 
         let virt = '';
         const collect = (node: Node) => {
             if (node.nodeType === Node.TEXT_NODE) {
-                const text = node.textContent ?? '';
+                const text = (node.textContent ?? '').normalize('NFC');
                 textNodes.push({ node: node as Text, start: virt.length, len: text.length });
                 virt += text;
             } else if (node.nodeName.toLowerCase() !== 'mark' || !(node as HTMLElement).classList.contains('jr-search-hl')) {
@@ -308,7 +339,7 @@ function highlightHtml(html: string, query: string, activeMatchIndex?: number | 
             const hits = ranges.filter(r => r.start < ne && r.end > ns);
             if (!hits.length) continue;
 
-            const raw = node.textContent ?? '';
+            const raw = (node.textContent ?? '').normalize('NFC'); // must match how virt was built
             const frag = doc.createDocumentFragment();
             let cursor = 0;
 
@@ -352,10 +383,24 @@ const getNonce = (): string =>
     '';
 
 /* ═══════════════════════════════════════════════════════════════════════ */
+/*  Zoom Presets & Constants                                               */
+/* ═══════════════════════════════════════════════════════════════════════ */
+const ZOOM_PRESETS_MOBILE  = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0];
+const ZOOM_PRESETS_DESKTOP = [0.3, 0.4, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0, 5.0];
+const PINCH_RESET_DELAY     = 350; // ms — CSS transition süresiyle uyumlu
+const PINCH_MIN_VISUAL      = 0.5;
+const PINCH_MAX_VISUAL      = 5.0;
+const PINCH_MIN_DESKTOP_PDF  = 0.3;
+const PINCH_MAX_DESKTOP_PDF  = 5.0;
+const PINCH_MIN_DESKTOP_TEXT = 0.8;
+const PINCH_MAX_DESKTOP_TEXT = 2.0;
+const VISUAL_ZOOM_SNAP_THRESHOLD = 1.05; // bunun altında → 1.0'a snap
+
+/* ═══════════════════════════════════════════════════════════════════════ */
 /*  Global PDF Text Cache (LRU cache of size 10)                           */
 /* ═══════════════════════════════════════════════════════════════════════ */
 const pdfTextGlobalCache = new Map<string, string[]>();
-const MAX_CACHE_SIZE = 10;
+const MAX_CACHE_SIZE = 2;
 
 function setGlobalPdfCache(key: string, value: string[]) {
     if (pdfTextGlobalCache.has(key)) {
@@ -368,6 +413,50 @@ function setGlobalPdfCache(key: string, value: string[]) {
             pdfTextGlobalCache.delete(oldestKey);
         }
     }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/*  Augmented ReaderPage type for in-memory search cache                   */
+/*  _virtualText / _virtNorm / _indexMap are lazily computed and mutated   */
+/*  only inside the search handler — never persisted or passed as props.   */
+/* ═══════════════════════════════════════════════════════════════════════ */
+interface CachedReaderPage extends ReaderPage {
+    _virtualText?: string;
+    _virtNorm?: string;
+    _indexMap?: number[];
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/*  EPUB Image Memory Optimization                                         */
+/*  Converts base64 data URLs → blob URLs for in-memory rendering.        */
+/*  ReaderEngine keeps data URLs in IndexedDB (blob URLs can't be cached). */
+/*  The returned blobUrls array must be revoked when the component unloads.*/
+/* ═══════════════════════════════════════════════════════════════════════ */
+function convertEpubPagesToBlobUrls(pages: ReaderPage[]): { pages: ReaderPage[]; blobUrls: string[] } {
+    const blobUrls: string[] = [];
+    const seen = new Map<string, string>(); // data URL → blob URL (dedup repeated images)
+    const DATA_IMG_RE = /data:([^;]+);base64,([A-Za-z0-9+/=]+)/g;
+
+    const converted = pages.map((page) => {
+        if (!page.htmlContent) return page;
+        const html = page.htmlContent.replace(DATA_IMG_RE, (_match, mime: string, b64: string) => {
+            const key = b64.slice(0, 64); // use prefix as dedup key
+            if (seen.has(key)) return `data:${mime};base64,${b64}`.replace(seen.get(key)!, '') || seen.get(key)!;
+            try {
+                const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+                const blob = new Blob([bytes], { type: mime });
+                const url = URL.createObjectURL(blob);
+                seen.set(key, url);
+                blobUrls.push(url);
+                return url;
+            } catch {
+                return `data:${mime};base64,${b64}`; // fallback: keep data URL on error
+            }
+        });
+        return { ...page, htmlContent: html };
+    });
+
+    return { pages: converted, blobUrls };
 }
 
 /* ═══════════════════════════════════════════════════════════════════════ */
@@ -511,27 +600,43 @@ const PdfCanvas: React.FC<{
         const tc = await page.getTextContent();
         ctx.fillStyle = 'rgba(255, 213, 0, 0.45)';
 
-        for (const item of tc.items as any[]) {
-            if (typeof item.str !== 'string' || !item.str) continue;
+        // Concatenate items exactly like the extraction cache so cross-item matches work.
+        const items = (tc.items as any[]).filter((it) => typeof it.str === 'string' && it.str);
+        let charIdx = 0;
+        let fullText = '';
+        const itemRanges: [number, number][] = [];
+        for (const item of items) {
+            const s = item.str + (item.hasEOL ? ' ' : '');
+            itemRanges.push([charIdx, charIdx + s.length]);
+            fullText += s;
+            charIdx += s.length;
+        }
+        const normFull = normalizeQuery(fullText);
+        const matchedPositions = findMatchPositions(normFull, q);
+        if (matchedPositions.length === 0) return;
 
-            const lowerStr = normalizeQuery(item.str);
-            const matchedPositions = findMatchPositions(lowerStr, q);
-            if (matchedPositions.length === 0) continue;
+        for (const pos of matchedPositions) {
+            const matchEnd = pos + q.length;
+            for (let ii = 0; ii < items.length; ii++) {
+                const [s, e] = itemRanges[ii];
+                if (s >= matchEnd || e <= pos) continue;
 
-            const [a, b, , , tx, ty] = item.transform as number[];
-            const w = item.width as number;
-            const h = (item.height as number) > 0 ? item.height : Math.hypot(a, b);
-            const charWidth = w / item.str.length;
+                const item = items[ii];
+                const [a, b, , , tx, ty] = item.transform as number[];
+                const w = item.width as number;
+                const h = (item.height as number) > 0 ? item.height : Math.hypot(a, b);
+                const itemLen = item.str.length;
+                if (itemLen === 0) continue;
+                const charWidth = w / itemLen;
 
-            for (const pos of matchedPositions) {
-                const startX = tx + charWidth * pos;
-                const matchW = charWidth * q.length;
+                // Character offsets within THIS item for the highlighted portion
+                const localStart = Math.max(0, pos - s);
+                const localEnd = Math.min(itemLen, matchEnd - s);
+                const startX = tx + charWidth * localStart;
+                const matchW = charWidth * (localEnd - localStart);
 
-                // Convert PDF user-space coordinates (bottom-left origin) to viewport CSS pixels.
-                // ty is baseline; ty + h is the top of the glyph box.
                 const [x1, y1] = viewport.convertToViewportPoint(startX, ty + h);
                 const [x2, y2] = viewport.convertToViewportPoint(startX + matchW, ty);
-
                 const rx = Math.min(x1, x2) * dpr;
                 const ry = Math.min(y1, y2) * dpr;
                 const rw = Math.abs(x2 - x1) * dpr;
@@ -562,7 +667,13 @@ const PdfCanvas: React.FC<{
                 const baseScale = Math.min(availW / unscaled.width, availH / unscaled.height);
                 const scale = Math.max(0.1, Math.min(baseScale * zoom, 5.0));
                 const viewport = page.getViewport({ scale });
-                const dpr = Math.min(window.devicePixelRatio ?? 1, 2);
+                // Scale down DPR at very high zoom levels to prevent exceeding max browser canvas limits (e.g. 12 megapixels)
+                let dpr = Math.min(window.devicePixelRatio ?? 1, 2);
+                const maxArea = 12 * 1024 * 1024;
+                const area = viewport.width * viewport.height;
+                if (area * dpr * dpr > maxArea) {
+                    dpr = Math.max(0.5, Math.sqrt(maxArea / area));
+                }
                 const canvas = canvasRef.current!;
 
                 canvas.width = Math.floor(viewport.width * dpr);
@@ -812,8 +923,8 @@ const PdfSidebar: React.FC<{
                                     className={`reader-sidebar-list-item text-left py-2.5 pr-4 transition-all border-b border-transparent jr-border ${i === activeOutlineIdx ? 'jr-item-active' : 'jr-item-idle'}`}
                                     style={{
                                         paddingLeft: `${depth * 16 + 16}px`,
-                                        ['--jr-toc-depth-padding' as any]: `${depth * 16 + 16}px`
-                                    }}
+                                        '--jr-toc-depth-padding': `${depth * 16 + 16}px`,
+                                    } as React.CSSProperties}
                                     data-depth={depth}
                                     title={`${entry.label} — s.${entry.pageIndex + 1}`}
                                 >
@@ -874,6 +985,7 @@ const PdfScrollPage = React.memo<{
     const centerTriggerRef = useRef(centerTrigger);
     const containerElRef = useRef(containerEl);
     const activeMatchIndexRef = useRef(activeMatchIndex);
+    const textLayerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => { sqRef.current = searchQuery; }, [searchQuery]);
     useEffect(() => { currentPageRef.current = currentPage; }, [currentPage]);
@@ -903,8 +1015,19 @@ const PdfScrollPage = React.memo<{
     useEffect(() => {
         const el = divRef.current;
         if (!el) return;
+        let timer: ReturnType<typeof setTimeout>;
         const obs = new IntersectionObserver(
-            ([e]) => setIsNear(e.isIntersecting),
+            ([e]) => {
+                clearTimeout(timer);
+                if (e.isIntersecting) {
+                    // 150ms debounced render for fast scrolling
+                    timer = setTimeout(() => {
+                        setIsNear(true);
+                    }, 150);
+                } else {
+                    setIsNear(false);
+                }
+            },
             {
                 root: containerEl,
                 // Use px instead of % — % rootMargin with custom root is buggy on iOS < 16
@@ -912,7 +1035,10 @@ const PdfScrollPage = React.memo<{
             }
         );
         obs.observe(el);
-        return () => obs.disconnect();
+        return () => {
+            obs.disconnect();
+            clearTimeout(timer);
+        };
     }, [containerEl]);
 
     // Register with the parent's current-page observer
@@ -1098,10 +1224,25 @@ const PdfScrollPage = React.memo<{
         if (!shouldRender) {
             try { renderRef.current?.cancel(); } catch { /* noop */ }
             stateRef.current = null;
+            // Deallocate canvas memory when off-screen to cap memory usage
+            if (canvasRef.current) {
+                const wgl = canvasRef.current.getContext('webgl2') ?? canvasRef.current.getContext('webgl');
+                wgl?.getExtension('WEBGL_lose_context')?.loseContext();
+                canvasRef.current.width = 0;
+                canvasRef.current.height = 0;
+            }
+            if (hlCanvasRef.current) {
+                hlCanvasRef.current.width = 0;
+                hlCanvasRef.current.height = 0;
+            }
             return;
         }
         if (!canvasRef.current) return;
         let cancelled = false;
+        if (textLayerTimerRef.current) {
+            clearTimeout(textLayerTimerRef.current);
+            textLayerTimerRef.current = null;
+        }
         (async () => {
             try { renderRef.current?.cancel(); } catch { /* noop */ }
             try {
@@ -1110,7 +1251,13 @@ const PdfScrollPage = React.memo<{
                 const unscaled = page.getViewport({ scale: 1 });
                 const scale = canvasW / unscaled.width;
                 const viewport = page.getViewport({ scale });
-                const dpr = Math.min(window.devicePixelRatio ?? 1, 2);
+                // Scale down DPR at very high zoom levels to prevent exceeding max browser canvas limits (e.g. 12 megapixels)
+                let dpr = Math.min(window.devicePixelRatio ?? 1, 2);
+                const maxArea = 12 * 1024 * 1024;
+                const area = viewport.width * viewport.height;
+                if (area * dpr * dpr > maxArea) {
+                    dpr = Math.max(0.5, Math.sqrt(maxArea / area));
+                }
                 const canvas = canvasRef.current!;
                 canvas.width = Math.round(viewport.width * dpr);
                 canvas.height = Math.round(viewport.height * dpr);
@@ -1121,27 +1268,36 @@ const PdfScrollPage = React.memo<{
                 const task = page.render({ canvasContext: ctx, viewport });
                 renderRef.current = task;
                 await task.promise;
-                if (!cancelled) {
-                    stateRef.current = { page, viewport, dpr };
-                    await drawHighlights(sqRef.current);
 
-                    // Text layer — transparent selectable spans for annotation.
-                    // --scale-factor must be set before TextLayer constructor because
-                    // setLayerDimensions() uses it in calc() for width/height/font-size.
-                    const textLayerDiv = textLayerRef.current;
-                    if (textLayerDiv) {
-                        textLayerDiv.innerHTML = '';
-                        textLayerDiv.style.setProperty('--scale-factor', String(viewport.scale));
-                        try {
-                            const layer = new TextLayer({
-                                textContentSource: page.streamTextContent(),
-                                container: textLayerDiv,
-                                viewport,
-                            });
-                            await layer.render();
-                        } catch (e) {
-                            dbg(`PDF text layer p${pageNum}:`, e);
-                        }
+                // Thread yielding: yield execution thread to let the browser paint the page before CPU intensive tasks
+                await new Promise((resolve) => setTimeout(resolve, 0));
+                if (cancelled) return;
+
+                stateRef.current = { page, viewport, dpr };
+                await drawHighlights(sqRef.current);
+
+                // Text layer — transparent selectable spans for annotation.
+                // --scale-factor must be set before TextLayer constructor because
+                // setLayerDimensions() uses it in calc() for width/height/font-size.
+                const textLayerDiv = textLayerRef.current;
+                if (textLayerDiv) {
+                    textLayerDiv.innerHTML = '';
+                    if (copyEnabled || annotationEnabled) {
+                        // Debounce text layer rendering by 150ms to yield thread during scroll
+                        textLayerTimerRef.current = setTimeout(async () => {
+                            if (cancelled || !textLayerDiv) return;
+                            textLayerDiv.style.setProperty('--scale-factor', String(viewport.scale));
+                            try {
+                                const layer = new TextLayer({
+                                    textContentSource: page.streamTextContent(),
+                                    container: textLayerDiv,
+                                    viewport,
+                                });
+                                await layer.render();
+                            } catch (e) {
+                                dbg(`PDF text layer p${pageNum}:`, e);
+                            }
+                        }, 150);
                     }
                 }
             } catch (e: any) {
@@ -1152,9 +1308,23 @@ const PdfScrollPage = React.memo<{
         return () => {
             cancelled = true;
             try { renderRef.current?.cancel(); } catch { /* noop */ }
+            if (textLayerTimerRef.current) {
+                clearTimeout(textLayerTimerRef.current);
+                textLayerTimerRef.current = null;
+            }
             if (textLayerRef.current) textLayerRef.current.innerHTML = '';
+            if (canvasRef.current) {
+                const wgl = canvasRef.current.getContext('webgl2') ?? canvasRef.current.getContext('webgl');
+                wgl?.getExtension('WEBGL_lose_context')?.loseContext();
+                canvasRef.current.width = 0;
+                canvasRef.current.height = 0;
+            }
+            if (hlCanvasRef.current) {
+                hlCanvasRef.current.width = 0;
+                hlCanvasRef.current.height = 0;
+            }
         };
-    }, [shouldRender, pdfDoc, pageNum, canvasW, drawHighlights]);
+    }, [shouldRender, pdfDoc, pageNum, canvasW, drawHighlights, copyEnabled, annotationEnabled]);
 
     // Highlight-only effect (no re-render of PDF)
     useEffect(() => {
@@ -1169,7 +1339,7 @@ const PdfScrollPage = React.memo<{
             ref={setRef}
             data-page-index={pageIndex}
             style={{ width: canvasW, height: canvasH, position: 'relative', flexShrink: 0, overflow: 'hidden' }}
-            className={`rounded shadow-md ${isDark ? 'shadow-black/60' : 'shadow-gray-500/30'}`}
+            className={`rounded shadow-md jr-pdf-scroll-page ${isDark ? 'shadow-black/60' : 'shadow-gray-500/30'}`}
         >
             {shouldRender ? (
                 <>
@@ -1203,11 +1373,13 @@ const PdfScrollView: React.FC<{
     searchQuery: string;
     searchMatches: { pageIndex: number; matchIndex: number }[];
     searchMatchIdx: number;
-    searchScrollKey: number;
+    searchScrollTriggerRef: React.MutableRefObject<(() => void) | null>;
     annotationEnabled: boolean;
     copyEnabled: boolean;
     onPageChange: (page: number) => void;
-}> = ({ pdfDoc, totalPages, currentPage, zoom, dualPage, theme, searchQuery, searchMatches, searchMatchIdx, searchScrollKey, annotationEnabled, copyEnabled, onPageChange }) => {
+    suppressZoomSnapRef?: React.MutableRefObject<boolean>;
+    isVisuallyZoomed?: boolean;
+}> = ({ pdfDoc, totalPages, currentPage, zoom, dualPage, theme, searchQuery, searchMatches, searchMatchIdx, searchScrollTriggerRef, annotationEnabled, copyEnabled, onPageChange, suppressZoomSnapRef, isVisuallyZoomed }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
     const internalPageRef = useRef(-1);
@@ -1267,7 +1439,7 @@ const PdfScrollView: React.FC<{
                 const idx = parseInt((e.target as HTMLElement).dataset.pageIndex ?? '0', 10);
                 ratioMap.set(idx, e.intersectionRatio);
             });
-            if (isScrollingRef.current || !isInitialScrollDone.current) return;
+            if (isScrollingRef.current || !isInitialScrollDone.current || suppressZoomSnapRef?.current) return;
             let maxRatio = 0, maxPage = internalPageRef.current;
             ratioMap.forEach((r, p) => { if (r > maxRatio) { maxRatio = r; maxPage = p; } });
             if (maxPage !== internalPageRef.current && maxRatio > 0.05) {
@@ -1319,9 +1491,11 @@ const PdfScrollView: React.FC<{
     // Zoom / dual-page anchor: when zoom or dualPage changes, all page heights change.
     // The browser keeps the pixel scroll position, so the wrong page ends up in view.
     // One rAF after the layout settles we snap back to the correct page instantly.
+    // Skip when suppressZoomSnapRef is set — pinch-zoom handles its own focal-point restoration.
     useEffect(() => {
         if (!isInitialScrollDone.current) return;
         const raf = requestAnimationFrame(() => {
+            if (suppressZoomSnapRef?.current) return; // parent's [zoom, textScale] effect owns scroll
             const el = pageRefs.current[internalPageRef.current];
             if (!el) return;
             isScrollingRef.current = true;
@@ -1338,19 +1512,21 @@ const PdfScrollView: React.FC<{
         }
     }, [searchQuery]);
 
-    // Center highlight when search scroll key changes
+    // Register search scroll trigger callback
     useEffect(() => {
-        if (searchScrollKey > 0) {
+        searchScrollTriggerRef.current = () => {
             searchScrollActiveRef.current = true;
             isScrollingRef.current = true; // Block IntersectionObserver
             setCenterTrigger(Date.now());
-            const timer = setTimeout(() => {
+            setTimeout(() => {
                 searchScrollActiveRef.current = false;
                 isScrollingRef.current = false;
             }, 800);
-            return () => clearTimeout(timer);
-        }
-    }, [searchScrollKey]);
+        };
+        return () => {
+            searchScrollTriggerRef.current = null;
+        };
+    }, [searchScrollTriggerRef]);
 
     // Keep a ref so onPageRef never closes over a stale currentPage.
     // Without this, changing currentPage recreates onPageRef → setRef recreates → React
@@ -1405,7 +1581,7 @@ const PdfScrollView: React.FC<{
     };
 
     return (
-        <div ref={containerRef} className={`absolute inset-0 overflow-y-auto overflow-x-auto ${bg}`}>
+        <div ref={containerRef} className={`absolute inset-0 ${isVisuallyZoomed ? 'overflow-hidden' : 'overflow-y-auto overflow-x-auto'} ${bg}`}>
             {containerWidth > 0 && canvasW > 0 && (
                 <div className={`flex flex-col items-center gap-3 py-4 px-4 min-w-max`}>
                     {dualPage ? (
@@ -1514,8 +1690,8 @@ const TocSidebar: React.FC<{
                             className={`reader-sidebar-list-item text-left py-2.5 pr-4 transition-all border-b border-transparent jr-border ${i === activeIdx ? 'jr-item-active' : 'jr-item-idle'}`}
                             style={{
                                 paddingLeft: `${depth * 16 + 16}px`,
-                                ['--jr-toc-depth-padding' as any]: `${depth * 16 + 16}px`
-                            }}
+                                '--jr-toc-depth-padding': `${depth * 16 + 16}px`,
+                            } as React.CSSProperties}
                             data-depth={depth}
                             title={`${entry.label} — s.${entry.pageIndex + 1}`}
                         >
@@ -1545,13 +1721,122 @@ const TocSidebar: React.FC<{
 /*  updates the page counter, external currentPage changes scroll to page. */
 /* ──────────────────────────────────────────────────────────────────── */
 
+const HtmlScrollPage = React.memo<{
+    pageData: ReaderPage;
+    pageIndex: number;
+    searchQuery: string;
+    isMatch: boolean;
+    activeMatchIndex: number | null;
+    annotationEnabled: boolean;
+    pageAnnotations: ReaderAnnotation[];
+    isDark: boolean;
+    isSepia: boolean;
+    fontSizeClass: string;
+    onPageRef: (el: HTMLDivElement | null, index: number) => void;
+    onLinkClick: (e: React.MouseEvent<HTMLDivElement>) => void;
+    onRemoveAnnotation: (id: string) => void;
+    notesHeader: string;
+    showDivider: boolean;
+}>(({ pageData, pageIndex, searchQuery, isMatch, activeMatchIndex, annotationEnabled, pageAnnotations, isDark, isSepia, fontSizeClass, onPageRef, onLinkClick, onRemoveAnnotation, notesHeader, showDivider }) => {
+
+    const html = useMemo(() => {
+        const rawHtml = isMatch
+            ? highlightHtml(pageData.htmlContent ?? '', searchQuery, activeMatchIndex)
+            : (pageData.htmlContent ?? '');
+        return DOMPurify.sanitize(rawHtml, {
+            ALLOWED_TAGS: [
+                'p', 'div', 'span', 'section', 'article',
+                'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+                'a', 'img', 'figure', 'figcaption',
+                'ul', 'ol', 'li', 'dl', 'dt', 'dd',
+                'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'caption',
+                'strong', 'em', 'b', 'i', 'u', 's', 'del', 'ins', 'mark',
+                'sup', 'sub', 'abbr', 'cite', 'q', 'blockquote', 'pre', 'code',
+                'br', 'hr', 'wbr',
+            ],
+            ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'class', 'id', 'lang', 'dir', 'style'],
+            ALLOW_DATA_ATTR: false,
+        });
+    }, [pageData.htmlContent, searchQuery, activeMatchIndex, isMatch]);
+
+    const cardBg = isDark
+        ? 'bg-gray-900 border-gray-800 text-gray-100 shadow-md my-4 rounded-lg border'
+        : isSepia
+            ? 'bg-[#fdf9f0] border-[#ecd9b2] text-[#433422] shadow-sm my-4 rounded-lg border'
+            : 'bg-white border-gray-200 text-gray-900 shadow-sm my-4 rounded-lg border';
+
+    return (
+        <div
+            ref={el => onPageRef(el, pageIndex)}
+            data-page-index={pageIndex}
+            className={`max-w-2xl mx-auto w-full px-6 md:px-10 py-10 jr-html-scroll-page transition-colors duration-200 ${cardBg}`}
+        >
+            {pageData.label && (
+                <p className={`text-xs font-medium uppercase tracking-widest mb-6 ${isDark ? 'text-gray-600' : isSepia ? 'text-amber-500' : 'text-gray-400'}`}>
+                    {pageData.label}
+                </p>
+            )}
+
+            {pageData.htmlContent ? (
+                <div
+                    className={`jr-epub ${fontSizeClass} font-serif`}
+                    dangerouslySetInnerHTML={{ __html: html }}
+                    onClick={onLinkClick}
+                />
+            ) : (
+                <div className={`${fontSizeClass} whitespace-pre-wrap font-serif`}>
+                    {pageData.content}
+                </div>
+            )}
+
+            {pageAnnotations.length > 0 && (
+                <div className="mt-10 pt-6 border-t border-gray-200/60 dark:border-gray-700/60">
+                    <h4 className={`text-xs font-semibold uppercase tracking-widest mb-3 ${isDark ? 'text-gray-500' : isSepia ? 'text-amber-600' : 'text-gray-400'}`}>
+                        {notesHeader}
+                    </h4>
+                    <div className="space-y-3">
+                        {pageAnnotations.map(annot => (
+                            <div
+                                key={annot.id}
+                                className="p-3 rounded-lg border-l-4 text-sm"
+                                style={{ borderLeftColor: annot.color, backgroundColor: `${annot.color}18` }}
+                            >
+                                <div className="flex justify-between items-start gap-2">
+                                    <blockquote className={`italic text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                        &ldquo;{annot.text}&rdquo;
+                                    </blockquote>
+                                    <button
+                                        onClick={() => onRemoveAnnotation(annot.id)}
+                                        className="text-red-400 hover:text-red-600 text-xs shrink-0 mt-0.5 jr-btn-annotation-remove"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                                {annot.note && (
+                                    <p className={`text-sm mt-1 ${isDark ? 'text-gray-200' : isSepia ? 'text-amber-900' : 'text-gray-800'}`}>
+                                        {annot.note}
+                                    </p>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {showDivider && (
+                <hr className={`mt-10 ${isDark ? 'border-gray-700' : isSepia ? 'border-amber-200' : 'border-gray-200'}`} />
+            )}
+        </div>
+    );
+});
+
 const HtmlScrollView: React.FC<{
     pages: ReaderPage[];
     currentPage: number;
     searchQuery: string;
     searchMatches: { pageIndex: number; matchIndex: number }[];
     searchMatchIdx: number;
-    searchScrollKey: number;
+    searchScrollTriggerRef: React.MutableRefObject<(() => void) | null>;
     jumpFragment: string;
     jumpFragmentKey: number;
     fontSizeClass: string;
@@ -1562,8 +1847,11 @@ const HtmlScrollView: React.FC<{
     onLinkClick: (e: React.MouseEvent<HTMLDivElement>) => void;
     onRemoveAnnotation: (id: string) => void;
     notesHeader: (count: number) => string;
-}> = ({ pages, currentPage, searchQuery, searchMatches, searchMatchIdx, searchScrollKey, jumpFragment, jumpFragmentKey, fontSizeClass, theme,
-    annotations, annotationEnabled, onPageChange, onLinkClick, onRemoveAnnotation, notesHeader }) => {
+    textScale: number;
+    isVisuallyZoomed?: boolean;
+    suppressZoomSnapRef?: React.MutableRefObject<boolean>;
+}> = ({ pages, currentPage, searchQuery, searchMatches, searchMatchIdx, searchScrollTriggerRef, jumpFragment, jumpFragmentKey, fontSizeClass, theme,
+    annotations, annotationEnabled, onPageChange, onLinkClick, onRemoveAnnotation, notesHeader, textScale, isVisuallyZoomed, suppressZoomSnapRef }) => {
 
         const containerRef = useRef<HTMLDivElement>(null);
         const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
@@ -1623,7 +1911,7 @@ const HtmlScrollView: React.FC<{
                     const idx = parseInt((e.target as HTMLElement).dataset.pageIndex ?? '0', 10);
                     ratioMap.set(idx, e.intersectionRatio);
                 });
-                if (isScrollingRef.current || !isInitialScrollDone.current) return;
+                if (isScrollingRef.current || !isInitialScrollDone.current || suppressZoomSnapRef?.current) return;
                 let maxRatio = 0, maxPage = internalPageRef.current;
                 ratioMap.forEach((r, p) => { if (r > maxRatio) { maxRatio = r; maxPage = p; } });
                 if (maxPage !== internalPageRef.current && maxRatio > 0.05) {
@@ -1651,70 +1939,69 @@ const HtmlScrollView: React.FC<{
             scrollToPage(currentPage);
         }, [currentPage, containerEl, scrollToPage]);
 
-        // searchScrollKey artışı = kullanıcı "›" veya "‹" tıkladı veya deep-link ile açıldı.
-        // searchScrollActiveRef = true → currentPage effect's scrollToPage is skipped.
-        // Ayrıca isScrollingRef = true yapılarak IntersectionObserver geçici olarak bloke edilir.
+        // Register search scroll trigger callback
         useEffect(() => {
-            if (searchScrollKey === 0) return;
-            searchScrollActiveRef.current = true;
+            searchScrollTriggerRef.current = () => {
+                searchScrollActiveRef.current = true;
 
-            const el = pageRefs.current[currentPage];
-            if (!el || !containerEl) {
-                searchScrollActiveRef.current = false;
-                return;
-            }
+                const el = pageRefs.current[currentPage];
+                if (!el || !containerEl) {
+                    searchScrollActiveRef.current = false;
+                    return;
+                }
 
-            const isDifferentPage = currentPage !== internalPageRef.current || !isInitialScrollDone.current;
-            if (isDifferentPage) {
-                isScrollingRef.current = true;
-                containerEl.scrollTo({ top: el.offsetTop, behavior: 'auto' });
-                internalPageRef.current = currentPage;
-            }
-
-            const delay = !isInitialScrollDone.current ? 250 : (isDifferentPage ? 150 : 50);
-            const timer = setTimeout(() => {
-                const hl = el.querySelector('.jr-search-hl-active') || el.querySelector('.jr-search-hl');
-                if (hl && containerEl) {
+                const isDifferentPage = currentPage !== internalPageRef.current || !isInitialScrollDone.current;
+                if (isDifferentPage) {
                     isScrollingRef.current = true;
-                    const scrollTarget = (hlElement: HTMLElement) => {
-                        return hlElement.getBoundingClientRect().top
-                            - containerEl.getBoundingClientRect().top
-                            + containerEl.scrollTop;
-                    };
+                    containerEl.scrollTo({ top: el.offsetTop, behavior: 'auto' });
+                    internalPageRef.current = currentPage;
+                }
 
-                    const hlTop = scrollTarget(hl as HTMLElement);
-                    containerEl.scrollTo({ top: Math.max(0, hlTop - 100), behavior: 'smooth' });
+                const delay = !isInitialScrollDone.current ? 250 : (isDifferentPage ? 150 : 50);
+                const timer = setTimeout(() => {
+                    const hl = el.querySelector('.jr-search-hl-active') || el.querySelector('.jr-search-hl');
+                    if (hl && containerEl) {
+                        isScrollingRef.current = true;
+                        const scrollTarget = (hlElement: HTMLElement) => {
+                            return hlElement.getBoundingClientRect().top
+                                - containerEl.getBoundingClientRect().top
+                                + containerEl.scrollTop;
+                        };
 
-                    // İlk yüklemede, resim/font yerleşimi sonrası olası kaymaları düzeltmek için 200ms sonra kontrol et.
-                    if (!isInitialScrollDone.current) {
-                        setTimeout(() => {
-                            const reHl = el.querySelector('.jr-search-hl-active') || el.querySelector('.jr-search-hl');
-                            if (reHl && containerEl) {
-                                const newHlTop = scrollTarget(reHl as HTMLElement);
-                                if (Math.abs(newHlTop - hlTop) > 5) {
-                                    containerEl.scrollTo({ top: Math.max(0, newHlTop - 100), behavior: 'smooth' });
+                        const hlTop = scrollTarget(hl as HTMLElement);
+                        containerEl.scrollTo({ top: Math.max(0, hlTop - 100), behavior: 'smooth' });
+
+                        // İlk yüklemede, resim/font yerleşimi sonrası olası kaymaları düzeltmek için 200ms sonra kontrol et.
+                        if (!isInitialScrollDone.current) {
+                            setTimeout(() => {
+                                const reHl = el.querySelector('.jr-search-hl-active') || el.querySelector('.jr-search-hl');
+                                if (reHl && containerEl) {
+                                    const newHlTop = scrollTarget(reHl as HTMLElement);
+                                    if (Math.abs(newHlTop - hlTop) > 5) {
+                                        containerEl.scrollTo({ top: Math.max(0, newHlTop - 100), behavior: 'smooth' });
+                                    }
                                 }
-                            }
+                                searchScrollActiveRef.current = false;
+                                setTimeout(() => {
+                                    isScrollingRef.current = false;
+                                }, 800);
+                            }, 200);
+                        } else {
                             searchScrollActiveRef.current = false;
                             setTimeout(() => {
                                 isScrollingRef.current = false;
                             }, 800);
-                        }, 200);
+                        }
                     } else {
                         searchScrollActiveRef.current = false;
-                        setTimeout(() => {
-                            isScrollingRef.current = false;
-                        }, 800);
+                        isScrollingRef.current = false;
                     }
-                } else {
-                    searchScrollActiveRef.current = false;
-                    isScrollingRef.current = false;
-                }
-            }, delay);
-
-            return () => clearTimeout(timer);
-            // eslint-disable-next-line react-hooks/exhaustive-deps
-        }, [searchScrollKey]);
+                }, delay);
+            };
+            return () => {
+                searchScrollTriggerRef.current = null;
+            };
+        }, [currentPage, containerEl, searchScrollTriggerRef]);
 
         // TOC fragment jump: after page scroll, scroll to the specific id="..." element.
         useEffect(() => {
@@ -1749,97 +2036,38 @@ const HtmlScrollView: React.FC<{
         }, [scrollToPage]); // stable — never recreated on page change
 
         return (
-            <div ref={containerRef} className="absolute inset-0 overflow-y-auto overscroll-contain jr-html-scroll-container" style={{ willChange: 'transform' }}>
-                {pages.map((pageData, i) => {
-                    const isMatch = searchMatches.some(m => m.pageIndex === i) && searchQuery.length >= 2;
-                    const activeMatch = searchMatches[searchMatchIdx];
-                    const activeMatchIndex = activeMatch && activeMatch.pageIndex === i ? activeMatch.matchIndex : null;
-                    const rawHtml = isMatch
-                        ? highlightHtml(pageData.htmlContent ?? '', searchQuery, activeMatchIndex)
-                        : (pageData.htmlContent ?? '');
-                    const html = DOMPurify.sanitize(rawHtml, {
-                        ALLOWED_TAGS: [
-                            'p', 'div', 'span', 'section', 'article',
-                            'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-                            'a', 'img', 'figure', 'figcaption',
-                            'ul', 'ol', 'li', 'dl', 'dt', 'dd',
-                            'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'caption',
-                            'strong', 'em', 'b', 'i', 'u', 's', 'del', 'ins', 'mark',
-                            'sup', 'sub', 'abbr', 'cite', 'q', 'blockquote', 'pre', 'code',
-                            'br', 'hr', 'wbr',
-                        ],
-                        ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'class', 'id', 'lang', 'dir', 'style'],
-                        ALLOW_DATA_ATTR: false,
-                    });
-                    const pageAnnotations = annotationEnabled
-                        ? annotations.filter(a => a.pageIndex === i)
-                        : [];
+            <div ref={containerRef} className={`absolute inset-0 ${isVisuallyZoomed ? 'overflow-hidden' : 'overflow-y-auto overflow-x-auto'} overscroll-contain jr-html-scroll-container`} style={{ willChange: 'transform' }}>
+                <div className="jr-html-scroll-content flex flex-col" style={{ '--jr-text-scale': textScale } as React.CSSProperties}>
+                    {pages.map((pageData, i) => {
+                        const isMatch = searchMatches.some(m => m.pageIndex === i) && searchQuery.length >= 2;
+                        const activeMatch = searchMatches[searchMatchIdx];
+                        const activeMatchIndex = activeMatch && activeMatch.pageIndex === i ? activeMatch.matchIndex : null;
+                        const pageAnnotations = annotationEnabled
+                            ? annotations.filter(a => a.pageIndex === i)
+                            : [];
 
-                    return (
-                        <div
-                            key={i}
-                            ref={el => onPageRef(el, i)}
-                            data-page-index={i}
-                            className="max-w-2xl mx-auto w-full px-6 md:px-10 py-10 jr-html-scroll-page"
-                        >
-                            {pageData.label && (
-                                <p className={`text-xs font-medium uppercase tracking-widest mb-6 ${isDark ? 'text-gray-600' : isSepia ? 'text-amber-500' : 'text-gray-400'}`}>
-                                    {pageData.label}
-                                </p>
-                            )}
-
-                            {pageData.htmlContent ? (
-                                <div
-                                    className={`jr-epub ${fontSizeClass} font-serif`}
-                                    dangerouslySetInnerHTML={{ __html: html }}
-                                    onClick={onLinkClick}
-                                />
-                            ) : (
-                                <div className={`${fontSizeClass} whitespace-pre-wrap font-serif`}>
-                                    {pageData.content}
-                                </div>
-                            )}
-
-                            {pageAnnotations.length > 0 && (
-                                <div className="mt-10 pt-6 border-t border-gray-200/60 dark:border-gray-700/60">
-                                    <h4 className={`text-xs font-semibold uppercase tracking-widest mb-3 ${isDark ? 'text-gray-500' : isSepia ? 'text-amber-600' : 'text-gray-400'}`}>
-                                        {notesHeader(pageAnnotations.length)}
-                                    </h4>
-                                    <div className="space-y-3">
-                                        {pageAnnotations.map(annot => (
-                                            <div
-                                                key={annot.id}
-                                                className="p-3 rounded-lg border-l-4 text-sm"
-                                                style={{ borderLeftColor: annot.color, backgroundColor: `${annot.color}18` }}
-                                            >
-                                                <div className="flex justify-between items-start gap-2">
-                                                    <blockquote className={`italic text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                                        &ldquo;{annot.text}&rdquo;
-                                                    </blockquote>
-                                                    <button
-                                                        onClick={() => onRemoveAnnotation(annot.id)}
-                                                        className="text-red-400 hover:text-red-600 text-xs shrink-0 mt-0.5 jr-btn-annotation-remove"
-                                                    >
-                                                        ✕
-                                                    </button>
-                                                </div>
-                                                {annot.note && (
-                                                    <p className={`text-sm mt-1 ${isDark ? 'text-gray-200' : isSepia ? 'text-amber-900' : 'text-gray-800'}`}>
-                                                        {annot.note}
-                                                    </p>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {i < pages.length - 1 && (
-                                <hr className={`mt-10 ${isDark ? 'border-gray-700' : isSepia ? 'border-amber-200' : 'border-gray-200'}`} />
-                            )}
-                        </div>
-                    );
-                })}
+                        return (
+                            <HtmlScrollPage
+                                key={i}
+                                pageData={pageData}
+                                pageIndex={i}
+                                searchQuery={searchQuery}
+                                isMatch={isMatch}
+                                activeMatchIndex={activeMatchIndex}
+                                annotationEnabled={annotationEnabled}
+                                pageAnnotations={pageAnnotations}
+                                isDark={isDark}
+                                isSepia={isSepia}
+                                fontSizeClass={fontSizeClass}
+                                onPageRef={onPageRef}
+                                onLinkClick={onLinkClick}
+                                onRemoveAnnotation={onRemoveAnnotation}
+                                notesHeader={notesHeader(pageAnnotations.length)}
+                                showDivider={i < pages.length - 1}
+                            />
+                        );
+                    })}
+                </div>
             </div>
         );
     };
@@ -1923,30 +2151,72 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
 
     /* ── PDF doc ref + zoom + dual page ── */
     const pdfDocRef = useRef<any>(null);
+    const epubBlobUrlsRef = useRef<string[]>([]); // blob URLs created for current EPUB — revoked on unload
     const [pdfDocVer, setPdfDocVer] = useState(0);
     const [zoom, setZoom] = useState(() => window.innerWidth >= 640 ? 0.75 : 1.0);
     const [dualPage, setDualPage] = useState(false);
     const dualPageRef = useRef(false); // readable inside event closures
-    const touchStartY = useRef(0);
 
     // Keep ref in sync with state
     useEffect(() => { dualPageRef.current = dualPage; }, [dualPage]);
 
+    // textScale: font-size multiplier for EPUB/DOCX/TXT pinch zoom (independent of PDF zoom)
+    const [textScale, setTextScale] = useState(1.0);
+    const textScaleRef = useRef(1.0);
+    useEffect(() => { textScaleRef.current = textScale; }, [textScale]);
+
+    // Keep activeFormat accessible inside touch event closures without re-registering the handler
+    const activeFormatRef = useRef<ReaderFormat>(activeFormat);
+    useEffect(() => { activeFormatRef.current = activeFormat; }, [activeFormat]);
+
+    // Viewport width ref — stays current after device rotation so pinch min-zoom is correct
+    const viewportWidthRef = useRef(window.innerWidth);
+    useEffect(() => {
+        const update = () => { viewportWidthRef.current = window.innerWidth; };
+        window.addEventListener('resize', update);
+        window.addEventListener('orientationchange', update);
+        return () => {
+            window.removeEventListener('resize', update);
+            window.removeEventListener('orientationchange', update);
+        };
+    }, []);
+
+    // While true, PdfScrollView's zoom-snap rAF is suppressed so our focal-point restore wins
+    const suppressPdfZoomSnapRef = useRef(false);
+    // Single timeout ref for all pinch-reset delays — prevents race conditions
+    const pinchResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Mobile/tablet visual zoom: CSS transform only, no canvas redraw on < 1024px devices
+    const [mobileVisualScale, setMobileVisualScale] = useState(1.0);
+    const [showVisualZoom, setShowVisualZoom] = useState(false);
+    const mobileVisualScaleRef = useRef(1.0);
+    const mobileTranslateXRef  = useRef(0);
+    const mobileTranslateYRef  = useRef(0);
+    const zoomPillTextRef      = useRef<HTMLSpanElement>(null);
+
     /* ── Settings & annotations ── */
-    const [settings, setSettings] = useState<ReaderPublicSettings>({
-        annotation_enabled: true,
-        copy_enabled: true,
-        logo_url: '',
+    // Initialise from the inlined jetreaderSettings so the correct access-control
+    // values are active on the very first render — no async-API race window.
+    const [settings, setSettings] = useState<ReaderPublicSettings>(() => {
+        const js = (window as any).jetreaderSettings;
+        return {
+            annotation_enabled: js?.annotationEnabled !== false,
+            copy_enabled: js?.copyEnabled !== false,
+            logo_url: '',
+        };
     });
     const [annotations, setAnnotations] = useState<ReaderAnnotation[]>([]);
     const [bookmarks, setBookmarks] = useState<ReaderBookmark[]>([]);
-    const isDefaultLogo = !!(settings.logo_url && settings.logo_url.includes('assets/logo/jetreader.svg'));
+    const hardcodedLogoUrl = `${((window as any).jetreaderSettings?.pluginUrl ?? '').replace(/\/$/, '')}/assets/logo/jetreader.png`;
 
     /* ── Annotation UI ── */
     const [selectedText, setSelectedText] = useState('');
     const [annotationNote, setAnnotationNote] = useState('');
     const [activeAnnotColor, setActiveAnnotColor] = useState(ANNOTATION_COLORS[0]);
     const [showAnnotationInput, setShowAnnotationInput] = useState(false);
+    const [showAddNoteBtn, setShowAddNoteBtn] = useState(false);
+    const [addNoteBtnPos, setAddNoteBtnPos] = useState({ x: 0, y: 0 });
+    const addNoteBtnRef = useRef<HTMLButtonElement>(null);
 
     /* ── Display prefs ── */
     const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large' | 'xlarge'>(initialFontSize ?? 'medium');
@@ -1958,14 +2228,47 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
     const [searchMatches, setSearchMatches] = useState<{ pageIndex: number; matchIndex: number }[]>([]);
     const [searchDone, setSearchDone] = useState(false);
     const [searchMatchIdx, setSearchMatchIdx] = useState(0);
-    // searchScrollKey: her next/prev tıklamasında artar; currentPage değişmese bile
-    // HtmlScrollView'in highlight'a scroll yapmasını zorlar (IntersectionObserver race'ini bypass eder)
-    const [searchScrollKey, setSearchScrollKey] = useState(0);
+    // searchScrollTriggerRef: callback pointer structure to trigger scroll/highlight alignments
+    // without triggering unnecessary re-renders in ReaderModal.
+    const searchScrollTriggerRef = useRef<(() => void) | null>(null);
     const [tocJumpFragment, setTocJumpFragment] = useState('');
     const [tocJumpKey, setTocJumpKey] = useState(0);
     const [pdfTextCache, setPdfTextCache] = useState<string[] | null>(null);
     const [pdfTextExtracting, setPdfTextExtracting] = useState(false);
     const searchInputRef = useRef<HTMLInputElement>(null);
+    const annotationPopupRef = useRef<HTMLDivElement>(null);
+
+    // Click outside handler for annotation input popup to prevent accidental closes on mobile layout shifts
+    useEffect(() => {
+        if (!showAnnotationInput) return;
+        const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
+            const popup = annotationPopupRef.current;
+            if (popup && !popup.contains(e.target as Node)) {
+                setShowAnnotationInput(false);
+                setSelectedText('');
+                setAnnotationNote('');
+                window.getSelection()?.removeAllRanges();
+            }
+        };
+        document.addEventListener('mousedown', handleOutsideClick, { passive: true });
+        document.addEventListener('touchstart', handleOutsideClick, { passive: true });
+        return () => {
+            document.removeEventListener('mousedown', handleOutsideClick);
+            document.removeEventListener('touchstart', handleOutsideClick);
+        };
+    }, [showAnnotationInput]);
+
+    // Dismiss "Add Note" floating button on left-click outside it
+    useEffect(() => {
+        if (!showAddNoteBtn) return;
+        const dismiss = (e: MouseEvent) => {
+            if (e.button !== 0) return; // ignore right-click / middle-click
+            if (addNoteBtnRef.current?.contains(e.target as Node)) return;
+            setShowAddNoteBtn(false);
+        };
+        document.addEventListener('mousedown', dismiss);
+        return () => { document.removeEventListener('mousedown', dismiss); };
+    }, [showAddNoteBtn]);
 
     /* ── Bottom panel ── */
     const [bottomTab, setBottomTab] = useState<'bookmarks' | 'annotations' | null>(null);
@@ -1974,6 +2277,19 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
     const [pageInputVal, setPageInputVal] = useState('');
 
     const contentRef = useRef<HTMLDivElement>(null);
+
+    // Block browser-level native pinch-zoom while the reader is mounted.
+    // Without this, iOS Safari's viewport zoom competes with our CSS-transform zoom,
+    // causing WebContent crashes when both try to reset to 100% simultaneously.
+    useEffect(() => {
+        const prevent = (e: Event) => e.preventDefault();
+        window.addEventListener('gesturestart',  prevent, { passive: false });
+        window.addEventListener('gesturechange', prevent, { passive: false });
+        return () => {
+            window.removeEventListener('gesturestart',  prevent);
+            window.removeEventListener('gesturechange', prevent);
+        };
+    }, []);
 
     /* ── Inject EPUB content styles once ── */
     useEffect(() => {
@@ -2064,19 +2380,8 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                         copy_enabled: copyVal === true || copyVal === 'true' || copyVal === 1 || copyVal === '1',
                         logo_url: data.reader_logo_url ?? '',
                     });
-                    // Apply theme and fontSize from fresh API response — this is the
-                    // authoritative source, overriding any stale React Query cache in the parent.
-                    const rawTheme = data.reader_theme ?? 'auto';
-                    const freshTheme: 'light' | 'dark' | 'sepia' =
-                        rawTheme === 'auto'
-                            ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-                            : (rawTheme === 'dark' || rawTheme === 'sepia' ? rawTheme : 'light');
-                    setTheme(freshTheme);
-
-                    const rawFont = data.reader_font_size ?? 'medium';
-                    const freshFont: 'small' | 'medium' | 'large' | 'xlarge' =
-                        (['small', 'large', 'xlarge'] as const).includes(rawFont as any) ? rawFont as any : 'medium';
-                    setFontSize(freshFont);
+                    // theme and fontSize come from initialTheme/initialFontSize props (admin settings).
+                    // No override here — props are already the authoritative source.
                 }
             })
             .catch(() => { });
@@ -2117,63 +2422,344 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
     const zoomRef = useRef(zoom);
     useEffect(() => { zoomRef.current = zoom; }, [zoom]);
 
-    // Pinch-to-zoom for PDF on mobile
-    // Critical: BOTH touchstart and touchmove must be passive:false so that
-    // iOS Safari receives the preventDefault() call before committing to its
-    // own native pinch-zoom gesture. passive:true on touchstart (old behaviour)
-    // caused iOS to ignore our preventDefault in touchmove entirely.
+    // ── Helper: schedule a pinch-reset cleanup, canceling any previous one ──
+    const schedulePinchReset = useCallback((fn: () => void, delay: number) => {
+        if (pinchResetTimeoutRef.current) clearTimeout(pinchResetTimeoutRef.current);
+        pinchResetTimeoutRef.current = setTimeout(() => {
+            pinchResetTimeoutRef.current = null;
+            fn();
+        }, delay);
+    }, []);
+
+    const resetVisualZoom = useCallback(() => {
+        const el = contentRef.current;
+        if (el) {
+            el.style.transition = `transform ${PINCH_RESET_DELAY}ms ease-out`;
+            el.style.transform  = 'none';
+        }
+        mobileVisualScaleRef.current = 1.0;
+        mobileTranslateXRef.current  = 0;
+        mobileTranslateYRef.current  = 0;
+        schedulePinchReset(() => {
+            if (contentRef.current) {
+                contentRef.current.style.transition  = '';
+                contentRef.current.style.touchAction = '';
+            }
+            suppressPdfZoomSnapRef.current = false;
+            setMobileVisualScale(1.0);
+            setShowVisualZoom(false);
+        }, PINCH_RESET_DELAY);
+    }, [schedulePinchReset]);
+
+    // Auto-reset visual zoom when page, format, or content changes
+    useEffect(() => {
+        if (mobileVisualScaleRef.current === 1.0) return;
+        const el = contentRef.current;
+        if (el) {
+            el.style.transition = 'transform 200ms ease';
+            el.style.transform  = 'none';
+        }
+        mobileVisualScaleRef.current = 1.0;
+        mobileTranslateXRef.current  = 0;
+        mobileTranslateYRef.current  = 0;
+        schedulePinchReset(() => {
+            if (contentRef.current) {
+                contentRef.current.style.transition  = '';
+                contentRef.current.style.touchAction = '';
+            }
+            suppressPdfZoomSnapRef.current = false;
+            setMobileVisualScale(1.0);
+            setShowVisualZoom(false);
+        }, 250);
+    }, [currentPage, activeFormat, activeFileUrl, activeEncoding, schedulePinchReset]);
+
+    // ── Pinch-to-zoom — unified for ALL devices and formats ──
+    //   • Pinch while active: CSS transform on contentRef (GPU, no re-render)
+    //   • On release: commit final scale to state (zoom / textScale / mobileVisualScale)
+    //   • Focal point: pinch merkezi ekranda SABİT kalır
     useEffect(() => {
         const el = contentRef.current;
-        if (!el || activeFormat !== 'pdf') return;
+        if (!el) return;
 
-        let initialDist = 0;
-        let initialZoom = 1.0;
-        let rafId: number | null = null;
+        let initialDist    = 0;
+        let initialScale   = 1.0;
+        let initialTx      = 0;
+        let initialTy      = 0;
+        let isPdfPinch     = false;
+
+        // Incremental per-frame pinch tracking (updated every touchmove)
+        let prevDist = 0;  // touch distance at previous frame
+        let prevMidX = 0;  // pinch midpoint X at previous frame
+        let prevMidY = 0;  // pinch midpoint Y at previous frame
+        let natLeft  = 0;  // element's natural (untransformed) left viewport position
+        let natTop   = 0;  // element's natural (untransformed) top viewport position
+
+        // mobile pan state
+        let singleTouchStartX  = 0, singleTouchStartY  = 0;
+        let singleTouchStartTx = 0, singleTouchStartTy = 0;
+        let isSinglePan        = false;
+        // mobile pinch live values (written to DOM every frame)
+        let liveScale = 1.0;
+        let liveTx    = 0, liveTy = 0;
+        // double-tap zoom prevention
+        let lastTapTime = 0;
 
         const dist2 = (t: TouchList) =>
             Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
 
+        // Block iOS Safari's native pinch-zoom on the content element
+        const onGestureStart  = (e: Event) => e.preventDefault();
+        const onGestureChange = (e: Event) => e.preventDefault();
+        el.addEventListener('gesturestart',  onGestureStart,  false);
+        el.addEventListener('gesturechange', onGestureChange, false);
+
         const onTouchStart = (e: TouchEvent) => {
+            // Block double-tap-to-zoom on all screen sizes
+            if (e.touches.length === 1) {
+                const now = Date.now();
+                if (now - lastTapTime < 300) e.preventDefault();
+                lastTapTime = now;
+            }
+
             if (e.touches.length === 2) {
-                if (e.cancelable) e.preventDefault(); // stop iOS native pinch-zoom early
+                if (e.cancelable) e.preventDefault();
+                isPdfPinch = activeFormatRef.current === 'pdf';
+
+                // Cancel any running CSS transition so getBoundingClientRect() returns the
+                // final (committed) position, not a mid-animation one. Without this, when
+                // resetVisualZoom() resets refs to 0/1.0 but the snap-back animation is still
+                // running, the focal-point calculation uses stale refs → wrong zoom origin.
+                el.style.transition = '';
+
+                if (viewportWidthRef.current < 1024) {
+                    // Reconcile refs with actual DOM transform state. Handles race condition
+                    // where refs were reset but the CSS transition hasn't finished yet.
+                    try {
+                        const computedT = window.getComputedStyle(el).transform;
+                        if (computedT && computedT !== 'none') {
+                            const m = new DOMMatrix(computedT);
+                            mobileTranslateXRef.current  = m.e;
+                            mobileTranslateYRef.current  = m.f;
+                            mobileVisualScaleRef.current = m.a;
+                            // Freeze element at current animated position
+                            el.style.transform = `translate(${m.e}px, ${m.f}px) scale(${m.a})`;
+                        }
+                    } catch { /* DOMMatrix unsupported or parse error — proceed with refs */ }
+                }
+
+                // CRITICAL: force transform-origin to top-left (0,0).
+                // Incremental focal-point formula requires scale origin at element corner.
+                el.style.transformOrigin = '0 0';
+                el.style.touchAction = 'none';
+
+                // Capture element's natural (untransformed) viewport position
+                const rect = el.getBoundingClientRect();
+                natLeft = rect.left - (viewportWidthRef.current < 1024 ? mobileTranslateXRef.current : 0);
+                natTop  = rect.top  - (viewportWidthRef.current < 1024 ? mobileTranslateYRef.current : 0);
+
+                const clientMidX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                const clientMidY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+
                 initialDist = dist2(e.touches);
-                initialZoom = zoomRef.current;
+                prevDist = initialDist;
+                prevMidX = clientMidX;
+                prevMidY = clientMidY;
+
+                if (viewportWidthRef.current < 1024) {
+                    // ── Mobile / Tablet: visual zoom ──
+                    initialScale = mobileVisualScaleRef.current;
+                    initialTx    = mobileTranslateXRef.current;
+                    initialTy    = mobileTranslateYRef.current;
+                } else {
+                    // ── Desktop: commit to zoom/textScale on release ──
+                    initialScale = isPdfPinch ? zoomRef.current : textScaleRef.current;
+                    initialTx    = 0;
+                    initialTy    = 0;
+                }
+                liveScale = initialScale;
+                liveTx    = initialTx;
+                liveTy    = initialTy;
+                suppressPdfZoomSnapRef.current = true;
+            } else if (e.touches.length === 1 && viewportWidthRef.current < 1024
+                       && mobileVisualScaleRef.current > 1.0) {
+                // Single-finger pan on zoomed mobile content
+                isSinglePan = true;
+                singleTouchStartX  = e.touches[0].clientX;
+                singleTouchStartY  = e.touches[0].clientY;
+                singleTouchStartTx = mobileTranslateXRef.current;
+                singleTouchStartTy = mobileTranslateYRef.current;
+                if (e.cancelable) e.preventDefault();
             }
         };
 
         const onTouchMove = (e: TouchEvent) => {
-            if (e.touches.length === 2 && initialDist > 0) {
+            if (e.touches.length === 2 && prevDist > 0) {
                 if (e.cancelable) e.preventDefault();
-                const raw = Math.max(0.3, Math.min(3.0, initialZoom * (dist2(e.touches) / initialDist)));
-                // Round to 5% steps — reduces re-renders ~5× vs per-pixel updates.
-                // Gate behind rAF so we fire at most once per frame (60fps cap).
-                const quantized = Math.round(raw * 20) / 20;
-                if (rafId !== null) return;
-                rafId = requestAnimationFrame(() => {
-                    setZoom(quantized);
-                    rafId = null;
-                });
+
+                const curDist = dist2(e.touches);
+                const curMidX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                const curMidY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+
+                // Incremental focal-point formula: zoom toward current pinch midpoint.
+                // Each frame: scale by (curDist/prevDist) around curMid, then pan by finger drift.
+                const dScale = curDist / prevDist;
+                const S0 = liveScale;
+                const S1 = Math.max(PINCH_MIN_VISUAL, Math.min(PINCH_MAX_VISUAL, S0 * dScale));
+                const actualDScale = S1 / S0;
+
+                // tx/ty: translate so that curMid stays fixed on screen while scaling.
+                // Formula: new_origin_offset = curMid - (prevMid - liveTx) * actualDScale
+                const tx = (curMidX - natLeft) - ((prevMidX - natLeft) - liveTx) * actualDScale;
+                const ty = (curMidY - natTop)  - ((prevMidY - natTop)  - liveTy) * actualDScale;
+
+                liveScale = S1;
+                liveTx    = tx;
+                liveTy    = ty;
+
+                // Update per-frame tracking for next frame
+                prevDist = curDist;
+                prevMidX = curMidX;
+                prevMidY = curMidY;
+
+                if (contentRef.current) {
+                    contentRef.current.style.transform =
+                        `translate(${tx}px, ${ty}px) scale(${S1})`;
+                }
+                if (zoomPillTextRef.current) {
+                    zoomPillTextRef.current.textContent = `${Math.round(S1 * 100)}%`;
+                }
+            } else if (isSinglePan && e.touches.length === 1) {
+                if (e.cancelable) e.preventDefault();
+                const dx  = e.touches[0].clientX - singleTouchStartX;
+                const dy  = e.touches[0].clientY - singleTouchStartY;
+                const S   = mobileVisualScaleRef.current;
+                
+                // Bounds clamping matching transformOrigin 0 0:
+                const W = el.clientWidth;
+                const H = el.clientHeight;
+                const minTx = W * (1 - S);
+                const minTy = H * (1 - S);
+                
+                const tx = Math.max(minTx, Math.min(0, singleTouchStartTx + dx));
+                const ty = Math.max(minTy, Math.min(0, singleTouchStartTy + dy));
+                mobileTranslateXRef.current = tx;
+                mobileTranslateYRef.current = ty;
+                if (contentRef.current) {
+                    contentRef.current.style.transform = `translate(${tx}px, ${ty}px) scale(${S})`;
+                }
             }
         };
 
         const onTouchEnd = (e: TouchEvent) => {
-            if (e.touches.length < 2) {
+            if (isSinglePan) {
+                if (e.touches.length === 0) {
+                    isSinglePan = false;
+                    // If we were zooming before panning and released, check snap-back
+                    if (initialDist > 0) {
+                        initialDist = 0;
+                        prevDist = 0;
+                        if (viewportWidthRef.current < 1024 && liveScale < VISUAL_ZOOM_SNAP_THRESHOLD) {
+                            resetVisualZoom();
+                        }
+                    }
+                }
+                return;
+            }
+
+            // Don't commit until ALL fingers are off the screen.
+            if (initialDist > 0 && e.touches.length > 0) {
+                if (viewportWidthRef.current < 1024 && e.touches.length === 1) {
+                    // 2→1 transition: switch to single-pan
+                    isSinglePan = true;
+                    // Update state to live values to prevent jumps
+                    mobileVisualScaleRef.current = liveScale;
+                    mobileTranslateXRef.current  = liveTx;
+                    mobileTranslateYRef.current  = liveTy;
+                    setMobileVisualScale(liveScale);
+                    setShowVisualZoom(true);
+
+                    singleTouchStartX  = e.touches[0].clientX;
+                    singleTouchStartY  = e.touches[0].clientY;
+                    singleTouchStartTx = liveTx;
+                    singleTouchStartTy = liveTy;
+                }
+                return;
+            }
+
+            if (initialDist > 0) {
                 initialDist = 0;
-                if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
+                prevDist = 0;
+                const finalScale = liveScale;
+                const finalTx    = liveTx;
+                const finalTy    = liveTy;
+
+                if (viewportWidthRef.current < 1024) {
+                    // ── Mobile: commit visual zoom ──
+                    if (finalScale < VISUAL_ZOOM_SNAP_THRESHOLD) {
+                        resetVisualZoom();
+                    } else {
+                        const W = el.clientWidth;
+                        const H = el.clientHeight;
+                        const minTx = W * (1 - finalScale);
+                        const minTy = H * (1 - finalScale);
+                        const clampedTx = Math.max(minTx, Math.min(0, finalTx));
+                        const clampedTy = Math.max(minTy, Math.min(0, finalTy));
+                        const needsAnim = clampedTx !== finalTx || clampedTy !== finalTy;
+
+                        mobileVisualScaleRef.current  = finalScale;
+                        mobileTranslateXRef.current   = clampedTx;
+                        mobileTranslateYRef.current   = clampedTy;
+                        setMobileVisualScale(finalScale);
+                        setShowVisualZoom(true);
+
+                        if (contentRef.current) {
+                            if (needsAnim) {
+                                contentRef.current.style.transition = 'transform 200ms ease-out';
+                                setTimeout(() => {
+                                    if (contentRef.current) contentRef.current.style.transition = '';
+                                }, 200);
+                            }
+                            contentRef.current.style.transform =
+                                `translate(${clampedTx}px, ${clampedTy}px) scale(${finalScale})`;
+                        }
+                    }
+                } else {
+                    // ── Desktop: commit to zoom/textScale state ──
+                    if (contentRef.current) {
+                        contentRef.current.style.transform  = '';
+                        contentRef.current.style.touchAction = '';
+                    }
+                    suppressPdfZoomSnapRef.current = false;
+
+                    if (isPdfPinch) {
+                        const rounded = Math.round(finalScale * 50) / 50;
+                        setZoom(rounded);
+                    } else {
+                        const rounded = Math.round(finalScale * 20) / 20;
+                        setTextScale(rounded);
+                    }
+                }
             }
         };
 
         el.addEventListener('touchstart', onTouchStart, { passive: false });
-        el.addEventListener('touchmove', onTouchMove, { passive: false });
-        el.addEventListener('touchend', onTouchEnd, { passive: true });
+        el.addEventListener('touchmove',  onTouchMove,  { passive: false });
+        el.addEventListener('touchend',   onTouchEnd,   { passive: false });
+        el.addEventListener('touchcancel', onTouchEnd,  { passive: false });
 
         return () => {
+            if (pinchResetTimeoutRef.current) {
+                clearTimeout(pinchResetTimeoutRef.current);
+                pinchResetTimeoutRef.current = null;
+            }
+            el.removeEventListener('gesturestart',  onGestureStart);
+            el.removeEventListener('gesturechange', onGestureChange);
             el.removeEventListener('touchstart', onTouchStart);
-            el.removeEventListener('touchmove', onTouchMove);
-            el.removeEventListener('touchend', onTouchEnd);
-            if (rafId !== null) cancelAnimationFrame(rafId);
+            el.removeEventListener('touchmove',  onTouchMove);
+            el.removeEventListener('touchend',   onTouchEnd);
+            el.removeEventListener('touchcancel', onTouchEnd);
         };
-    }, [activeFormat]);
+    }, [schedulePinchReset]); // stable — schedulePinchReset is useCallback with []
 
     /* ── Load book ── */
     useEffect(() => {
@@ -2186,9 +2772,13 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
             setTocOpen(false);
             setPdfSidebarOpen(false);
             setZoom(window.innerWidth >= 640 ? 0.75 : 1.0);
+            setTextScale(1.0);
             setDualPage(false);
             setPdfTextCache(null);
+            pdfDocRef.current?.destroy();
             pdfDocRef.current = null;
+            epubBlobUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
+            epubBlobUrlsRef.current = [];
 
             try {
                 const result = await ReaderEngine.loadBook(activeFileUrl, activeFormat, activeEncoding);
@@ -2197,10 +2787,16 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                 pdfDocRef.current = result.pdfDoc ?? null;
                 if (result.pdfDoc) setPdfDocVer((v) => v + 1);
 
-                setPages(result.pages);
+                const loadedFmt = result.metadata.format;
+                if (loadedFmt === 'epub') {
+                    const { pages: blobPages, blobUrls } = convertEpubPagesToBlobUrls(result.pages);
+                    epubBlobUrlsRef.current = blobUrls;
+                    setPages(blobPages);
+                } else {
+                    setPages(result.pages);
+                }
                 setMetadata(result.metadata);
                 setToc(result.toc);
-                const loadedFmt = result.metadata.format;
                 // On mobile (<768px) the sidebar opens as a full-screen fixed drawer that
                 // covers the entire reader on first load, which feels broken. Only auto-open
                 // on desktop where it renders as a side panel inside the layout.
@@ -2213,14 +2809,23 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                     setTocOpen(isDesktop);
                 }
 
-                // Deep-link page takes priority; otherwise restore saved reading position.
-                // NOTE: initialPage === 0 is a valid deeplink (first page) — must not fall through to saved.
+                // Deep-link priority: prop → URL ?page=N → URL #page=N → localStorage → 0
+                // Must mirror the same priority order used in the useState lazy initializer above.
                 const posKey = `jetreader_pos_${itemId}_v${currentVolume}`;
                 const savedPos = localStorage.getItem(posKey);
                 const saved = savedPos ? parseInt(savedPos, 10) : 0;
-                let target = initialPage !== undefined ? initialPage : saved;
-                if (loadedFmt === 'epub' && initialPage !== undefined && result.pages.length > 0) {
-                    let targetCharOffset = initialPage * 1500;
+                let deepLinkPage: number | undefined = initialPage;
+                if (deepLinkPage === undefined) {
+                    const qp = new URLSearchParams(window.location.search).get('page');
+                    if (qp !== null) deepLinkPage = parseInt(qp, 10) || 0;
+                }
+                if (deepLinkPage === undefined) {
+                    const hp = new URLSearchParams(window.location.hash.slice(1)).get('page');
+                    if (hp !== null) deepLinkPage = parseInt(hp, 10) || 0;
+                }
+                let target = deepLinkPage !== undefined ? deepLinkPage : saved;
+                if (loadedFmt === 'epub' && deepLinkPage !== undefined && result.pages.length > 0) {
+                    let targetCharOffset = deepLinkPage * 1500;
                     let currentOffset = 0;
                     let mappedPage = 0;
                     for (let i = 0; i < result.pages.length; i++) {
@@ -2466,6 +3071,10 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
 
         let cancelled = false;
 
+        // Mark as extracting immediately so the search bar is disabled
+        // during the async IDB check (prevents silent fail on early Enter press).
+        setPdfTextExtracting(true);
+
         // 2. Sayfa yenilense de korunan IndexedDB önbelleğini asenkron sorgula
         (async () => {
             const dbCached = await getCachedPdfText(cacheKey);
@@ -2478,8 +3087,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                 return;
             }
 
-            // 3. Cache Miss: İndeksleme durumunu başlat
-            setPdfTextExtracting(true);
+            // 3. Cache Miss: İndeksleme devam ediyor (zaten true)
             setPdfTextCache(null);
 
             const texts: string[] = [];
@@ -2547,10 +3155,12 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
         } else {
             // Lazy cached DOM Parsing & exact matching to keep search instant and avoid freezes.
             for (let i = 0; i < pages.length; i++) {
-                const page = pages[i] as any;
+                const page = pages[i] as CachedReaderPage;
                 const plainText = page.content ?? '';
-                // Collapsed space normalization pre-check
-                if (normalizeQuery(plainText).indexOf(q) === -1) {
+                // Pre-check: use already-computed virtNorm if cached (same source as actual search),
+                // otherwise fall back to plainText so we never skip a page that virtNorm would match.
+                const preCheckText = page._virtNorm ?? normalizeQuery(plainText);
+                if (preCheckText.indexOf(q) === -1) {
                     continue;
                 }
 
@@ -2579,7 +3189,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                     page._virtNorm = virtNorm;
                 }
 
-                const matchedPositions = findMatchPositions(virtNorm, q);
+                const matchedPositions = findMatchPositions(virtNorm ?? '', q);
                 let matchIndex = 0;
                 for (const pos of matchedPositions) {
                     matches.push({ pageIndex: i, matchIndex, charOffset: pos });
@@ -2643,13 +3253,17 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
         if (bestMatchIdx !== -1) {
             setSearchMatchIdx(bestMatchIdx);
             setCurrentPage(exactTargetPage);
-            setSearchScrollKey(k => k + 1);
+            setTimeout(() => {
+                searchScrollTriggerRef.current?.();
+            }, 0);
         } else {
             const idxOfTarget = exactTargetPage !== -1 ? matches.findIndex(m => m.pageIndex === exactTargetPage) : -1;
             if (idxOfTarget !== -1) {
                 setSearchMatchIdx(idxOfTarget);
                 setCurrentPage(exactTargetPage);
-                setSearchScrollKey(k => k + 1);
+                setTimeout(() => {
+                    searchScrollTriggerRef.current?.();
+                }, 0);
             } else {
                 if (matches.length > 0) {
                     // No match on the exact target page (common for DOCX where DB page_num
@@ -2666,14 +3280,16 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                     }
                     setSearchMatchIdx(nearestIdx);
                     setCurrentPage(matches[nearestIdx].pageIndex);
-                    setSearchScrollKey(k => k + 1);
+                    setTimeout(() => {
+                        searchScrollTriggerRef.current?.();
+                    }, 0);
                 } else if (actualTargetPage !== undefined && actualTargetPage >= 0) {
                     // Zero matches (encoding/format mismatch): navigate to approximate page.
                     setCurrentPage(actualTargetPage);
                 }
             }
         }
-    }, [searchQuery, pages, activeFormat, pdfTextCache, initialPage, initialAnchor, setSearchScrollKey]);
+    }, [searchQuery, pages, activeFormat, pdfTextCache, initialPage, initialAnchor]);
 
     // Auto-run search when reader opens with initialSearch / initialAnchor set.
     // For PDFs: wait for pdfTextCache (background text extraction). For others: wait for pages.
@@ -2701,9 +3317,9 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
         const next = (searchMatchIdx + 1) % searchMatches.length;
         setSearchMatchIdx(next);
         setCurrentPage(searchMatches[next].pageIndex);
-        // currentPage aynı kalsa bile (IntersectionObserver zaten o sayfadaysa)
-        // HtmlScrollView'deki searchScrollKey effect highlight'a zorla scroll yapar
-        setSearchScrollKey(k => k + 1);
+        setTimeout(() => {
+            searchScrollTriggerRef.current?.();
+        }, 0);
     };
 
     const searchPrev = () => {
@@ -2711,7 +3327,9 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
         const prev = (searchMatchIdx - 1 + searchMatches.length) % searchMatches.length;
         setSearchMatchIdx(prev);
         setCurrentPage(searchMatches[prev].pageIndex);
-        setSearchScrollKey(k => k + 1);
+        setTimeout(() => {
+            searchScrollTriggerRef.current?.();
+        }, 0);
     };
 
     const openSearch = () => {
@@ -2784,16 +3402,24 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
         }
     }, []);
 
-    /* ── Text selection → annotation ── */
+    /* ── Text selection → "Add Note" button ── */
     const handleTextSelection = useCallback(() => {
         if (!settings.annotation_enabled) return;
-        const selection = window.getSelection();
-        if (!selection || selection.isCollapsed) { setShowAnnotationInput(false); return; }
-        const text = selection.toString().trim();
-        if (text.length < 2) return;
-        setSelectedText(text);
-        setAnnotationNote('');
-        setShowAnnotationInput(true);
+        setTimeout(() => {
+            const selection = window.getSelection();
+            if (!selection || selection.isCollapsed) { setShowAddNoteBtn(false); return; }
+            const text = selection.toString().trim();
+            if (text.length < 2) { setShowAddNoteBtn(false); return; }
+            // Position the button just below the selection end
+            const range = selection.getRangeAt(0);
+            const rect = range.getBoundingClientRect();
+            const x = Math.min(Math.max((rect.left + rect.right) / 2, 50), window.innerWidth - 80);
+            const y = Math.min(rect.bottom + 10, window.innerHeight - 48);
+            setSelectedText(text);
+            setAnnotationNote('');
+            setAddNoteBtnPos({ x, y });
+            setShowAddNoteBtn(true);
+        }, 50);
     }, [settings.annotation_enabled]);
 
     const handleCopy = useCallback(
@@ -2926,10 +3552,12 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                     searchQuery={searchMatches.length > 0 ? searchQuery : ''}
                     searchMatches={searchMatches}
                     searchMatchIdx={searchMatchIdx}
-                    searchScrollKey={searchScrollKey}
+                    searchScrollTriggerRef={searchScrollTriggerRef}
                     annotationEnabled={settings.annotation_enabled}
                     copyEnabled={settings.copy_enabled}
                     onPageChange={setCurrentPage}
+                    suppressZoomSnapRef={suppressPdfZoomSnapRef}
+                    isVisuallyZoomed={showVisualZoom}
                 />
             );
         }
@@ -2942,7 +3570,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                 searchQuery={searchQuery}
                 searchMatches={searchMatches}
                 searchMatchIdx={searchMatchIdx}
-                searchScrollKey={searchScrollKey}
+                searchScrollTriggerRef={searchScrollTriggerRef}
                 jumpFragment={tocJumpFragment}
                 jumpFragmentKey={tocJumpKey}
                 fontSizeClass={fontSizeMap[fontSize]}
@@ -2953,6 +3581,9 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                 onLinkClick={handleEpubLinkClick}
                 onRemoveAnnotation={removeAnnotation}
                 notesHeader={(count) => `${t('reader.notesHeader')} (${count})`}
+                textScale={textScale}
+                isVisuallyZoomed={showVisualZoom}
+                suppressZoomSnapRef={suppressPdfZoomSnapRef}
             />
         );
     };
@@ -2975,72 +3606,190 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
             <div className={`shrink-0 flex flex-col border-b ${toolbarBg}`} style={{ backgroundColor: toolbarBgHex }}>
 
                 {/* Mobile-only logo bar — sits above the controls row, no competition with buttons */}
-                {settings.logo_url && (
-                    <div className={`sm:hidden flex items-center px-3 pt-2 pb-1 border-b ${isDark ? 'border-gray-800' : isSepia ? 'border-amber-200' : 'border-gray-100'}`}>
-                        <a
+                <div className={`sm:hidden flex items-center px-3 pt-2 pb-1 border-b ${isDark ? 'border-gray-800' : isSepia ? 'border-amber-200' : 'border-gray-100'}`}>
+                    <a
+                        onClick={handleGoBack}
+                        href="#"
+                        title={t('reader.backTitle')}
+                        className="flex items-center"
+                    >
+                        <img
+                            src={hardcodedLogoUrl}
+                            alt="Logo"
+                            className="max-h-[28px] w-auto object-contain"
+                        />
+                    </a>
+                </div>
+
+                {/* Mobile upper control bar (single row on mobile, hidden on desktop) */}
+                <div className={`jr-mobile-toolbar sm:hidden flex items-center justify-between px-3 py-2 gap-1.5 border-b ${isDark ? 'border-gray-800' : isSepia ? 'border-amber-200' : 'border-gray-100'}`}>
+                    {/* Left: Back button, Search button, Close button, Volume selector */}
+                    <div className="flex items-center gap-1 shrink-0">
+                        {/* Back button */}
+                        <button
                             onClick={handleGoBack}
-                            href="#"
+                            className={`shrink-0 flex items-center justify-center w-8 h-8 rounded-lg border text-sm transition-colors jr-btn-back ${controlBtn}`}
                             title={t('reader.backTitle')}
-                            className="flex items-center"
                         >
-                            {isDefaultLogo ? (
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 40" className="h-7 w-auto" style={{ maxHeight: '28px' }}>
-                                    <path d="M12 10v16a3 3 0 0 0 3 3h12a3 3 0 0 0 3-3V14a3 3 0 0 0-3-3H19"
-                                        fill="none"
-                                        stroke="#8A2BE2"
-                                        strokeWidth="3.5"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round" />
-                                    <path d="M18 19h6M18 23h4" stroke="#8A2BE2" strokeWidth="2.5" strokeLinecap="round" opacity="0.7" />
-                                    <text x="45" y="26" fontFamily="system-ui, -apple-system, sans-serif" fontSize="21" fontWeight="800" fill={isDark ? "#FFFFFF" : "#111827"} letterSpacing="-0.5">
-                                        Jet<tspan fontWeight="400" fill="#8A2BE2">Reader</tspan>
-                                    </text>
-                                </svg>
-                            ) : (
-                                <img
-                                    src={settings.logo_url}
-                                    alt="Logo"
-                                    className="max-h-[28px] w-auto object-contain"
-                                />
-                            )}
-                        </a>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
+                        </button>
+
+                        {/* Search button */}
+                        <button
+                            onClick={showSearch ? closeSearch : openSearch}
+                            className={`shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border text-sm transition-colors jr-btn-search jr-btn-search-mobile ${
+                                showSearch ? (isDark ? 'bg-blue-700 border-blue-600 text-white' : 'bg-blue-600 border-blue-600 text-white') : controlBtn
+                            }`}
+                            title={t('reader.searchTitle')}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                        </button>
+
+                        {/* Close button */}
+                        {!isPageMode && (
+                            <button
+                                onClick={onClose}
+                                className={`shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border text-sm transition-colors jr-btn-close ${controlBtn}`}
+                                title={t('reader.closeTitle')}
+                            >
+                                ✕
+                            </button>
+                        )}
+
+                        {/* Volume select */}
+                        {volumes && volumes.length >= 2 && (
+                            <select
+                                value={currentVolume}
+                                onChange={(e) => setCurrentVolume(Number(e.target.value))}
+                                className={`jr-select-volume h-8 text-xs font-medium border rounded-lg pl-1.5 pr-4 cursor-pointer appearance-none transition-colors focus:outline-none focus:ring-2 ${
+                                    isDark ? 'hover:border-gray-400 focus:ring-blue-500' : isSepia ? 'hover:border-amber-500 focus:ring-amber-400' : 'hover:border-gray-400 focus:ring-blue-500'
+                                } ${inputCls}`}
+                                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 3px center', backgroundSize: '7px' }}
+                            >
+                                {volumes.map((_, idx) => (
+                                    <option key={idx} value={idx}>{volLabel(idx)}</option>
+                                ))}
+                            </select>
+                        )}
                     </div>
-                )}
+
+                    {/* Middle: Visual zoom pill OR PDF Zoom controls */}
+                    <div className="flex items-center justify-center gap-0.5 shrink-0">
+                        {showVisualZoom ? (
+                            <button onClick={resetVisualZoom}
+                                className={`jr-btn-visual-zoom-reset h-7 px-2.5 text-xs font-semibold border rounded transition-colors ${isDark ? 'bg-blue-700 border-blue-600 text-white' : isSepia ? 'bg-amber-600 border-amber-600 text-white' : 'bg-blue-600 border-blue-600 text-white'}`}
+                                title={t('reader.visualZoomReset')}>
+                                <span ref={zoomPillTextRef}>{Math.round(mobileVisualScale * 100)}%</span>{' '}✕
+                            </button>
+                        ) : (
+                            activeFormat === 'pdf' && (() => {
+                                const presets = window.innerWidth < 640 ? ZOOM_PRESETS_MOBILE : ZOOM_PRESETS_DESKTOP;
+                                const prevPreset = [...presets].reverse().find(v => v < zoom - 0.01);
+                                const nextPreset = presets.find(v => v > zoom + 0.01);
+                                const zoomLabel = zoom === 1.0 ? t('reader.fit') : `${Math.round(zoom * 100)}%`;
+                                return (
+                                    <>
+                                        <button
+                                            onClick={() => prevPreset !== undefined && setZoom(prevPreset)}
+                                            disabled={prevPreset === undefined}
+                                            className={`w-7 h-7 flex items-center justify-center rounded border text-base font-bold transition-colors disabled:opacity-30 jr-btn-zoom-out ${controlBtn}`}
+                                            title={t('reader.zoomOut')}
+                                        >−</button>
+                                        <button
+                                            onClick={() => setZoom(1.0)}
+                                            className={`jr-btn-zoom-fit h-7 px-1.5 min-w-[44px] text-xs font-semibold border rounded transition-colors text-center ${
+                                                zoom === 1.0 ? (isDark ? 'bg-blue-700 border-blue-600 text-white' : isSepia ? 'bg-amber-600 border-amber-600 text-white' : 'bg-blue-600 border-blue-600 text-white') : controlBtn
+                                            }`}
+                                            title={t('reader.zoomFit')}
+                                        >{zoomLabel}</button>
+                                        <button
+                                            onClick={() => nextPreset !== undefined && setZoom(nextPreset)}
+                                            disabled={nextPreset === undefined}
+                                            className={`w-7 h-7 flex items-center justify-center rounded border text-base font-bold transition-colors disabled:opacity-30 jr-btn-zoom-in ${controlBtn}`}
+                                            title={t('reader.zoomIn')}
+                                        >+</button>
+                                    </>
+                                );
+                            })()
+                        )}
+                    </div>
+
+                    {/* Right: TOC toggle, Font size, Theme select */}
+                    <div className="flex items-center justify-end gap-1 shrink-0">
+                        {activeFormat === 'pdf' && (
+                            <button
+                                onClick={() => setPdfSidebarOpen((v) => !v)}
+                                className={`w-8 h-8 flex items-center justify-center rounded-lg border text-sm transition-colors jr-btn-sidebar ${
+                                    pdfSidebarOpen ? (isDark ? 'bg-blue-700 border-blue-600 text-white' : 'bg-blue-600 border-blue-600 text-white') : controlBtn
+                                }`}
+                                title={t('reader.pdfSidebarToggle')}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
+                            </button>
+                        )}
+
+                        {activeFormat !== 'pdf' && toc.length > 0 && (
+                            <button
+                                onClick={() => setTocOpen((v) => !v)}
+                                className={`w-8 h-8 flex items-center justify-center rounded-lg border text-sm transition-colors jr-btn-toc ${
+                                    tocOpen ? (isDark ? 'bg-blue-700 border-blue-600 text-white' : 'bg-blue-600 border-blue-600 text-white') : controlBtn
+                                }`}
+                                title={t('reader.tocHeader')}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
+                            </button>
+                        )}
+
+                        {activeFormat !== 'pdf' && (
+                            <select
+                                value={fontSize}
+                                onChange={(e) => setFontSize(e.target.value as typeof fontSize)}
+                                className={`jr-select-font h-8 text-xs font-medium border rounded-lg pl-1.5 pr-4 cursor-pointer appearance-none transition-colors focus:outline-none focus:ring-2 ${
+                                    isDark ? 'hover:border-gray-400 focus:ring-blue-500' : isSepia ? 'hover:border-amber-500 focus:ring-amber-400' : 'hover:border-gray-400 focus:ring-blue-500'
+                                } ${inputCls}`}
+                                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 3px center', backgroundSize: '7px' }}
+                                title={t('reader.fontSizeTitle')}
+                            >
+                                <option value="small">{t('reader.small')}</option>
+                                <option value="medium">{t('reader.medium')}</option>
+                                <option value="large">{t('reader.large')}</option>
+                                <option value="xlarge">{t('reader.xlarge')}</option>
+                            </select>
+                        )}
+
+                        <select
+                            value={theme}
+                            onChange={(e) => setTheme(e.target.value as typeof theme)}
+                            className={`jr-select-theme h-8 text-xs font-medium border rounded-lg pl-1.5 pr-4 cursor-pointer appearance-none transition-colors focus:outline-none focus:ring-2 ${
+                                isDark ? 'hover:border-gray-400 focus:ring-blue-500' : isSepia ? 'hover:border-amber-500 focus:ring-amber-400' : 'hover:border-gray-400 focus:ring-blue-500'
+                            } ${inputCls}`}
+                            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 3px center', backgroundSize: '7px' }}
+                            title={t('reader.themeTitle')}
+                        >
+                            <option value="light">{t('reader.light')}</option>
+                            <option value="dark">{t('reader.dark')}</option>
+                            <option value="sepia">{t('reader.sepia')}</option>
+                        </select>
+                    </div>
+                </div>
 
                 {/* Top row — grid/flex toolbar */}
-                <div className="jr-reader-toolbar-grid grid items-center px-3 py-2.5 gap-2">
+                <div className="jr-reader-toolbar-grid hidden sm:grid items-center px-3 py-2.5 gap-2">
 
                     {/* ── LEFT: logo (desktop) + close + title + volume ── */}
                     <div className="flex items-center gap-2 min-w-0">
-                        {settings.logo_url && (
-                            <a
-                                onClick={handleGoBack}
-                                href="#"
-                                className="hidden sm:flex shrink-0 items-center"
-                                title={t('reader.backTitle')}
-                            >
-                                {isDefaultLogo ? (
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 40" className="h-9 w-auto" style={{ maxHeight: '36px' }}>
-                                        <path d="M12 10v16a3 3 0 0 0 3 3h12a3 3 0 0 0 3-3V14a3 3 0 0 0-3-3H19"
-                                            fill="none"
-                                            stroke="#8A2BE2"
-                                            strokeWidth="3.5"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round" />
-                                        <path d="M18 19h6M18 23h4" stroke="#8A2BE2" strokeWidth="2.5" strokeLinecap="round" opacity="0.7" />
-                                        <text x="45" y="26" fontFamily="system-ui, -apple-system, sans-serif" fontSize="21" fontWeight="800" fill={isDark ? "#FFFFFF" : "#111827"} letterSpacing="-0.5">
-                                            Jet<tspan fontWeight="400" fill="#8A2BE2">Reader</tspan>
-                                        </text>
-                                    </svg>
-                                ) : (
-                                    <img
-                                        src={settings.logo_url}
-                                        alt="Logo"
-                                        className="max-h-[36px] w-auto object-contain"
-                                    />
-                                )}
-                            </a>
-                        )}
+                        <a
+                            onClick={handleGoBack}
+                            href="#"
+                            className="hidden sm:flex shrink-0 items-center"
+                            title={t('reader.backTitle')}
+                        >
+                            <img
+                                src={hardcodedLogoUrl}
+                                alt="Logo"
+                                className="max-h-[36px] w-auto object-contain"
+                            />
+                        </a>
 
                         {!isPageMode && (
                             <button
@@ -3100,13 +3849,19 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                         )}
                     </div>
 
-                    {/* ── CENTER: Zoom controls (PDF) ── */}
-                    {activeFormat === 'pdf' ? (() => {
-                        // Preset zoom steps — like Chrome's PDF viewer
-                        const ZOOM_PRESETS = [0.3, 0.4, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
-                        // Find next lower / higher preset relative to current zoom
-                        const prevPreset = [...ZOOM_PRESETS].reverse().find(v => v < zoom - 0.01);
-                        const nextPreset = ZOOM_PRESETS.find(v => v > zoom + 0.01);
+                    {/* ── CENTER: Visual zoom pill OR Zoom controls (PDF) ── */}
+                    {showVisualZoom ? (
+                        <div className="flex items-center gap-0.5 shrink-0">
+                            <button onClick={resetVisualZoom}
+                                className={`jr-btn-visual-zoom-reset h-7 px-2.5 text-xs font-semibold border rounded transition-colors ${isDark ? 'bg-blue-700 border-blue-600 text-white' : isSepia ? 'bg-amber-600 border-amber-600 text-white' : 'bg-blue-600 border-blue-600 text-white'}`}
+                                title={t('reader.visualZoomReset')}>
+                                <span ref={zoomPillTextRef}>{Math.round(mobileVisualScale * 100)}%</span>{' '}✕
+                            </button>
+                        </div>
+                    ) : activeFormat === 'pdf' ? (() => {
+                        const presets = window.innerWidth < 640 ? ZOOM_PRESETS_MOBILE : ZOOM_PRESETS_DESKTOP;
+                        const prevPreset = [...presets].reverse().find(v => v < zoom - 0.01);
+                        const nextPreset = presets.find(v => v > zoom + 0.01);
                         const zoomLabel = zoom === 1.0
                             ? t('reader.fit')
                             : `${Math.round(zoom * 100)}%`;
@@ -3166,13 +3921,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                         {/* Dual page toggle — desktop only, PDF only */}
                         {activeFormat === 'pdf' && (
                             <button
-                                onClick={() => {
-                                    setDualPage((v) => {
-                                        // dual ON → sığdır (%100); dual OFF → %50
-                                        setZoom(v ? (window.innerWidth >= 640 ? 0.75 : 1.0) : 1.0);
-                                        return !v;
-                                    });
-                                }}
+                                onClick={() => setDualPage((v) => !v)}
                                 className={`hidden sm:flex w-[38px] h-8 items-center justify-center rounded-lg border transition-colors jr-btn-dualpage ${dualPage
                                     ? (isDark ? 'bg-blue-700 border-blue-600 text-white' : 'bg-blue-600 border-blue-600 text-white')
                                     : controlBtn
@@ -3265,7 +4014,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                             : t('reader.searchPlaceholderText')
                                     }
                                     disabled={pdfTextExtracting}
-                                    className={`flex-1 min-w-0 text-xs border rounded-lg px-3 py-1.5 ${inputCls} outline-none focus:ring-2 focus:ring-blue-500/50 disabled:opacity-50`}
+                                    className={`flex-1 min-w-0 text-base sm:text-xs border rounded-lg px-3 py-1.5 ${inputCls} outline-none focus:ring-2 focus:ring-blue-500/50 disabled:opacity-50`}
                                 />
 
                                 {/* Scanned PDF notice */}
@@ -3374,9 +4123,13 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                         : 'overflow-hidden'
                         }`}
                     onMouseUp={handleTextSelection}
+                    onTouchEnd={handleTextSelection}
                     onCopy={handleCopy}
                     onContextMenu={handleContextMenu}
-                    style={{ userSelect: (settings.copy_enabled || settings.annotation_enabled) ? 'text' : 'none' }}
+                    style={{
+                        userSelect: (settings.copy_enabled || settings.annotation_enabled) ? 'text' : 'none',
+                        touchAction: 'pan-x pan-y',
+                    }}
                     ref={contentRef}
                 >
                     {/* Loading */}
@@ -3489,66 +4242,72 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                     </div>
 
                     {/* Navigation row */}
-                    <div className="flex items-center justify-between gap-2 px-3 py-2">
+                    <div className="flex items-center justify-between gap-2 px-3 py-2 jr-bottom-nav-row">
 
-                        {/* Prev */}
-                        <button
-                            onClick={() => setCurrentPage((p) => Math.max(p - (dualPage ? 2 : 1), 0))}
-                            disabled={currentPage === 0}
-                            className={`flex items-center justify-center min-w-[36px] sm:px-3 py-2 sm:py-1.5 text-xs border rounded-lg transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed jr-btn-prev ${controlBtn}`}
-                            aria-label={t('reader.prevBtn')}
-                        >
-                            <span className="hidden sm:inline-flex items-center gap-1.5 transition-opacity hover:opacity-80">
-                                <span className="text-sm font-bold">←</span>
-                                <span>{t('common.previous')}</span>
-                            </span>
-                            <span className="sm:hidden text-lg font-bold">←</span>
-                        </button>
-
-                        {/* Centered Indicator / Input */}
-                        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border border-black/5 dark:border-white/10 shadow-sm ${isDark ? 'bg-black/40' : 'bg-white/60'}`}>
-                            <div className="flex items-center gap-1">
-                                <input
-                                    type="text"
-                                    value={pageInputVal}
-                                    onChange={(e) => setPageInputVal(e.target.value)}
-                                    onBlur={() => {
-                                        const v = parseInt(pageInputVal, 10) - 1;
-                                        if (!isNaN(v) && v >= 0 && v < pages.length) {
-                                            setCurrentPage(v);
-                                        } else {
-                                            setPageInputVal(String(currentPage + 1));
-                                        }
-                                    }}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                                    }}
-                                    className={`jr-page-input w-8 sm:w-12 text-center text-xs font-extrabold bg-transparent border-none p-0 outline-none ${textColor}`}
-                                />
-                                <span className={`text-[10px] sm:text-xs opacity-50 font-bold ${textColor}`}>
-                                    / {pages.length}
-                                </span>
-                            </div>
+                        {/* Book title (Left) */}
+                        <div className="hidden sm:flex flex-1 items-center min-w-0 text-xs font-semibold truncate opacity-70 jr-bottom-title" title={title}>
+                            {title}
                         </div>
 
-                        {/* Next */}
-                        <button
-                            onClick={() => setCurrentPage((p) => Math.min(p + (dualPage ? 2 : 1), pages.length - 1))}
-                            disabled={currentPage >= pages.length - 1}
-                            className={`flex items-center justify-center min-w-[36px] sm:px-3 py-2 sm:py-1.5 text-xs border rounded-lg transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed jr-btn-next ${controlBtn}`}
-                            aria-label={t('reader.nextBtn')}
-                        >
-                            <span className="hidden sm:inline-flex items-center gap-1.5 transition-opacity hover:opacity-80">
-                                <span>{t('common.next')}</span>
-                                <span className="text-sm font-bold">→</span>
-                            </span>
-                            <span className="sm:hidden text-lg font-bold">→</span>
-                        </button>
+                        {/* Centered Controls (Prev, Indicator, Next) */}
+                        <div className="flex items-center justify-center gap-2 jr-nav-controls">
+                            {/* Prev */}
+                            <button
+                                onClick={() => setCurrentPage((p) => Math.max(p - (dualPage ? 2 : 1), 0))}
+                                disabled={currentPage === 0}
+                                className={`flex items-center justify-center min-w-[36px] sm:px-3 py-2 sm:py-1.5 text-xs border rounded-lg transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed jr-btn-prev ${controlBtn}`}
+                                aria-label={t('reader.prevBtn')}
+                            >
+                                <span className="hidden sm:inline-flex items-center gap-1.5 transition-opacity hover:opacity-80">
+                                    <span className="text-sm font-bold">←</span>
+                                    <span>{t('common.previous')}</span>
+                                </span>
+                                <span className="sm:hidden text-lg font-bold">←</span>
+                            </button>
 
+                            {/* Centered Indicator / Input */}
+                            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border border-black/5 dark:border-white/10 shadow-sm ${isDark ? 'bg-black/40' : 'bg-white/60'}`}>
+                                <div className="flex items-center gap-1">
+                                    <input
+                                        type="text"
+                                        value={pageInputVal}
+                                        onChange={(e) => setPageInputVal(e.target.value)}
+                                        onBlur={() => {
+                                            const v = parseInt(pageInputVal, 10) - 1;
+                                            if (!isNaN(v) && v >= 0 && v < pages.length) {
+                                                setCurrentPage(v);
+                                            } else {
+                                                setPageInputVal(String(currentPage + 1));
+                                            }
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                                        }}
+                                        className={`jr-page-input w-8 sm:w-12 text-center text-base sm:text-xs font-extrabold bg-transparent border-none p-0 outline-none ${textColor}`}
+                                    />
+                                    <span className={`text-[10px] sm:text-xs opacity-50 font-bold ${textColor}`}>
+                                        / {pages.length}
+                                    </span>
+                                </div>
+                            </div>
 
+                            {/* Next */}
+                            <button
+                                onClick={() => setCurrentPage((p) => Math.min(p + (dualPage ? 2 : 1), pages.length - 1))}
+                                disabled={currentPage >= pages.length - 1}
+                                className={`flex items-center justify-center min-w-[36px] sm:px-3 py-2 sm:py-1.5 text-xs border rounded-lg transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed jr-btn-next ${controlBtn}`}
+                                aria-label={t('reader.nextBtn')}
+                            >
+                                <span className="hidden sm:inline-flex items-center gap-1.5 transition-opacity hover:opacity-80">
+                                    <span>{t('common.next')}</span>
+                                    <span className="text-sm font-bold">→</span>
+                                </span>
+                                <span className="sm:hidden text-lg font-bold">→</span>
+                            </button>
+                        </div>
 
-                        {/* Action buttons */}
-                        <div className="flex items-center gap-1 shrink-0">
+                        {/* Action buttons (Right) */}
+                        <div className="flex-1 flex items-center justify-end gap-1.5 jr-action-buttons">
                             <button
                                 onClick={addBookmark}
                                 className={`px-2.5 py-1 text-xs border rounded-lg transition-colors jr-btn-bookmark-toggle ${currentPageBookmark
@@ -3671,31 +4430,59 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
             )}
 
             {/* ══════════════════════════════════════════════════════ */}
+            {/* ── "Add Note" floating button — appears after text selection ── */}
+            {showAddNoteBtn && settings.annotation_enabled && !showAnnotationInput && (
+                <button
+                    ref={addNoteBtnRef}
+                    style={{ left: addNoteBtnPos.x, top: addNoteBtnPos.y }}
+                    className={`jr-btn-add-note fixed z-[10001] -translate-x-1/2 px-3 py-1.5 text-xs font-semibold rounded-full shadow-lg pointer-events-auto select-none transition-colors ${
+                        isDark ? 'bg-blue-600 hover:bg-blue-500 text-white'
+                        : isSepia ? 'bg-amber-600 hover:bg-amber-500 text-white'
+                        : 'bg-blue-600 hover:bg-blue-700 text-white'
+                    }`}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                        setShowAddNoteBtn(false);
+                        setShowAnnotationInput(true);
+                    }}
+                >
+                    ✏️ {t('reader.addNote')}
+                </button>
+            )}
+
             {/*  ANNOTATION INPUT POPUP                               */}
             {/* ══════════════════════════════════════════════════════ */}
             <AnimatePresence mode="wait">
                 {showAnnotationInput && settings.annotation_enabled && (
-                    <div
-                        className="fixed inset-0 z-[10000] flex items-center justify-center sm:items-end sm:pb-24 p-4 bg-black/30 sm:bg-transparent pointer-events-auto sm:pointer-events-none"
-                        onClick={() => {
-                            setShowAnnotationInput(false);
-                            setSelectedText('');
-                            setAnnotationNote('');
-                            window.getSelection()?.removeAllRanges();
-                        }}
-                    >
+                    <>
+                        {/* Backdrop Overlay (Sibling 1) */}
+                        <div
+                            className="fixed inset-0 z-[10000] bg-black/30 pointer-events-auto"
+                            onClick={() => {
+                                setShowAnnotationInput(false);
+                                setSelectedText('');
+                                setAnnotationNote('');
+                                window.getSelection()?.removeAllRanges();
+                            }}
+                        />
+
+                        {/* Centered Annotation Card (Sibling 2) */}
                         <motion.div
-                            initial={{ opacity: 0, y: 16, scale: 0.97 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: 16, scale: 0.97 }}
-                            className={`relative shadow-2xl border rounded-2xl p-4 w-[360px] max-w-[95vw] pointer-events-auto ${isDark ? 'bg-gray-900 border-gray-700' : isSepia ? 'bg-amber-50 border-amber-300' : 'bg-white border-gray-200'
+                            ref={annotationPopupRef}
+                            initial={{ opacity: 0, scale: 0.97, x: '-50%', y: '-40%' }}
+                            animate={{ opacity: 1, scale: 1, x: '-50%', y: '-50%' }}
+                            exit={{ opacity: 0, scale: 0.97, x: '-50%', y: '-40%' }}
+                            style={{ left: '50%', top: '50%' }}
+                            className={`fixed z-[10001] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 shadow-2xl border rounded-2xl p-4 w-[360px] max-w-[95vw] pointer-events-auto ${isDark ? 'bg-gray-900 border-gray-700' : isSepia ? 'bg-amber-50 border-amber-300' : 'bg-white border-gray-200'
                                 }`}
                             onClick={(e) => e.stopPropagation()}
                         >
                             <p className={`text-[10px] font-semibold uppercase tracking-wider mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                                 {t('reader.selectedText')}
                             </p>
-                            <blockquote className={`text-sm italic rounded-lg p-2.5 mb-3 leading-relaxed ${isDark ? 'bg-gray-800 text-gray-300' : isSepia ? 'bg-amber-100 text-amber-900' : 'bg-gray-100 text-gray-700'}`}>
+                            
+                            {/* Scrollable selected text area */}
+                            <blockquote className={`text-sm italic rounded-lg p-2.5 mb-3 leading-relaxed max-h-24 overflow-y-auto ${isDark ? 'bg-gray-800 text-gray-300' : isSepia ? 'bg-amber-100 text-amber-900' : 'bg-gray-100 text-gray-700'}`}>
                                 &ldquo;{selectedText}&rdquo;
                             </blockquote>
 
@@ -3703,10 +4490,11 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                 value={annotationNote}
                                 onChange={(e) => setAnnotationNote(e.target.value)}
                                 placeholder={t('reader.addNotePlaceholder')}
-                                className={`w-full text-sm border rounded-lg p-2.5 mb-3 resize-none outline-none focus:ring-2 focus:ring-blue-500/40 ${inputCls}`}
+                                className={`w-full text-base sm:text-sm border rounded-lg p-2.5 mb-3 resize-none outline-none focus:ring-2 focus:ring-blue-500/40 ${inputCls}`}
                                 rows={2}
                             />
 
+                            {/* Color swatches */}
                             <div className="flex items-center gap-2 mb-3">
                                 {ANNOTATION_COLORS.map((color) => (
                                     <button
@@ -3719,6 +4507,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                 ))}
                             </div>
 
+                            {/* Actions */}
                             <div className="flex gap-2">
                                 <button
                                     onClick={addAnnotation}
@@ -3740,7 +4529,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                 </button>
                             </div>
                         </motion.div>
-                    </div>
+                    </>
                 )}
             </AnimatePresence>
         </motion.div>
@@ -3760,6 +4549,22 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
         }
         return el;
     });
+
+    // Destroy the PDF.js document on unmount — releases worker thread and GPU resources.
+    useEffect(() => {
+        return () => {
+            pdfDocRef.current?.destroy();
+            pdfDocRef.current = null;
+        };
+    }, []);
+
+    // Revoke EPUB blob URLs on unmount to release memory.
+    useEffect(() => {
+        return () => {
+            epubBlobUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
+            epubBlobUrlsRef.current = [];
+        };
+    }, []);
 
     // Clean up the portal root on final unmount (e.g. SPA navigation).
     useEffect(() => {

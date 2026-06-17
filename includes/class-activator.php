@@ -26,7 +26,6 @@ class JetReader_Activator {
         self::set_default_options();
         self::register_cpts_and_flush();
         self::migrate_to_cpt();
-        update_option( 'jetreader_edition', 'lite' );
     }
 
     /**
@@ -85,7 +84,7 @@ class JetReader_Activator {
             'annotation_enabled'   => true,
             'copy_enabled'         => true,
             'plugin_language'      => 'en',
-            'primary_palette'      => 'green',
+            'primary_palette'      => 'gray',
             // CPT URL slugs
             'cpt_slug_book'        => 'jetreader-books',
             'cpt_slug_article'     => 'jetreader-articles',

@@ -33,10 +33,9 @@ class JetReader_Upload_Handler {
         'png'  => 'image/png',
         'webp' => 'image/webp',
         'gif'  => 'image/gif',
-        'svg'  => 'image/svg+xml',
     );
 
-    private $image_exts = array( 'jpg', 'jpeg', 'png', 'webp', 'gif', 'svg' );
+    private $image_exts = array( 'jpg', 'jpeg', 'png', 'webp', 'gif' );
 
     /**
      * Handle file upload from REST API request.
@@ -70,27 +69,33 @@ class JetReader_Upload_Handler {
         }
 
         // Validate real MIME type via magic bytes (prevents disguised uploads).
-        if ( function_exists( 'finfo_open' ) ) {
-            $finfo     = finfo_open( FILEINFO_MIME_TYPE );
-            $real_mime = finfo_file( $finfo, $file['tmp_name'] );
-            finfo_close( $finfo );
+        if ( ! function_exists( 'finfo_open' ) ) {
+            return new WP_Error(
+                'jetreader_fileinfo_missing',
+                __( 'Server fileinfo extension is required to validate uploaded files.', 'jetreader' ),
+                array( 'status' => 500 )
+            );
+        }
 
-            $expected_mime = $this->allowed_mimes[ $extension ];
-            // Allow application/zip as a valid magic-byte result for epub (zip-based format).
-            $zip_exts      = array( 'epub' );
-            // For images, allow any image/* MIME type to accommodate minor browser variations.
-            $is_image = in_array( $extension, $this->image_exts, true );
-            $mime_ok  = ( $real_mime === $expected_mime )
-                || ( in_array( $extension, $zip_exts, true ) && 'application/zip' === $real_mime )
-                || ( $is_image && strpos( $real_mime, 'image/' ) === 0 );
+        $finfo     = finfo_open( FILEINFO_MIME_TYPE );
+        $real_mime = finfo_file( $finfo, $file['tmp_name'] );
+        finfo_close( $finfo );
 
-            if ( ! $mime_ok ) {
-                return new WP_Error(
-                    'jetreader_mime_mismatch',
-                    __( 'File content does not match the declared file type.', 'jetreader' ),
-                    array( 'status' => 400 )
-                );
-            }
+        $expected_mime = $this->allowed_mimes[ $extension ];
+        // Allow application/zip as a valid magic-byte result for epub and docx (zip-based formats).
+        $zip_exts      = array( 'epub', 'docx' );
+        // For images, allow any image/* MIME type to accommodate minor browser variations.
+        $is_image = in_array( $extension, $this->image_exts, true );
+        $mime_ok  = ( $real_mime === $expected_mime )
+            || ( in_array( $extension, $zip_exts, true ) && 'application/zip' === $real_mime )
+            || ( $is_image && strpos( $real_mime, 'image/' ) === 0 );
+
+        if ( ! $mime_ok ) {
+            return new WP_Error(
+                'jetreader_mime_mismatch',
+                __( 'File content does not match the declared file type.', 'jetreader' ),
+                array( 'status' => 400 )
+            );
         }
 
         // Validate file size.
@@ -115,13 +120,29 @@ class JetReader_Upload_Handler {
             require_once ABSPATH . 'wp-admin/includes/file.php';
         }
 
+        // Temporarily hook to allow custom file extension matching in WordPress core checks.
+        // This is safe because we already manually validated the real MIME type via finfo above.
+        // It prevents false rejection of zip-based custom files (like .epub or .docx) when test_type is true.
+        $check_filetype_callback = function( $data, $file, $filename, $mimes ) use ( $extension ) {
+            if ( array_key_exists( $extension, $this->allowed_mimes ) ) {
+                $data['ext']             = $extension;
+                $data['type']            = $this->allowed_mimes[ $extension ];
+                $data['proper_filename'] = false;
+            }
+            return $data;
+        };
+
+        add_filter( 'wp_check_filetype_and_ext', $check_filetype_callback, 10, 4 );
+
         $overrides = array(
-            'test_form'   => false,
-            'test_type'   => false,
-            'mimes'       => $this->allowed_mimes,
+            'test_form' => false,
+            'test_type' => true,
+            'mimes'     => $this->allowed_mimes,
         );
 
         $uploaded = wp_handle_upload( $file, $overrides );
+
+        remove_filter( 'wp_check_filetype_and_ext', $check_filetype_callback, 10 );
 
         if ( isset( $uploaded['error'] ) ) {
             return new WP_Error(
@@ -178,7 +199,7 @@ class JetReader_Upload_Handler {
                 array(
                     'file_name' => $unique_name,
                     'file_url'  => $file_url,
-                    'file_path' => $destination,
+                    'file_path' => $file_url,
                     'file_type' => $extension,
                     'file_size' => $file_size,
                     'metadata'  => array(),
@@ -199,7 +220,7 @@ class JetReader_Upload_Handler {
             array(
                 'file_name'      => $unique_name,
                 'file_url'       => $file_url,
-                'file_path'      => $destination,
+                'file_path'      => $file_url,
                 'file_type'      => $extension,
                 'file_size'      => $file_size,
                 'metadata'       => $metadata,
@@ -301,7 +322,7 @@ class JetReader_Upload_Handler {
                 // Try to read container.xml and OPF for metadata.
                 $container_xml = $zip->getFromName( 'META-INF/container.xml' );
                 if ( $container_xml ) {
-                    $xml = simplexml_load_string( $container_xml );
+                    $xml = simplexml_load_string( $container_xml, 'SimpleXMLElement', LIBXML_NONET );
                     if ( $xml ) {
                         $namespaces = $xml->getNamespaces( true );
                         $rootfile = $xml->rootfiles->rootfile;
@@ -309,7 +330,7 @@ class JetReader_Upload_Handler {
                             $opf_path = (string) $rootfile['full-path'];
                             $opf_content = $zip->getFromName( $opf_path );
                             if ( $opf_content ) {
-                                $opf_xml = simplexml_load_string( $opf_content );
+                                $opf_xml = simplexml_load_string( $opf_content, 'SimpleXMLElement', LIBXML_NONET );
                                 if ( $opf_xml ) {
                                     $dc = $opf_xml->metadata->children( 'http://purl.org/dc/elements/1.1/' );
                                     $metadata['title']    = (string) $dc->title ?: $metadata['title'];
@@ -447,7 +468,7 @@ class JetReader_Upload_Handler {
             // Read core.xml for metadata.
             $core_xml = $zip->getFromName( 'docProps/core.xml' );
             if ( $core_xml ) {
-                $xml = simplexml_load_string( $core_xml );
+                $xml = simplexml_load_string( $core_xml, 'SimpleXMLElement', LIBXML_NONET );
                 if ( $xml ) {
                     $dc = $xml->children( 'http://purl.org/dc/elements/1.1/' );
                     $metadata['title']  = (string) $dc->title ?: $metadata['title'];

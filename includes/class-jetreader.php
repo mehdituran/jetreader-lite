@@ -48,6 +48,7 @@ class JetReader {
         $this->define_rest_api_hooks();
     }
 
+
     /**
      * Load the required dependencies for this plugin.
      */
@@ -56,26 +57,8 @@ class JetReader {
         require_once JETREADER_PLUGIN_DIR . 'includes/class-rest-api.php';
         require_once JETREADER_PLUGIN_DIR . 'includes/class-upload-handler.php';
         require_once JETREADER_PLUGIN_DIR . 'includes/class-parser-engine.php';
-        if ( file_exists( JETREADER_PLUGIN_DIR . 'includes/class-gutenberg-blocks.php' ) ) {
-            require_once JETREADER_PLUGIN_DIR . 'includes/class-gutenberg-blocks.php';
-        }
         require_once JETREADER_PLUGIN_DIR . 'includes/class-cpt.php';
         require_once JETREADER_PLUGIN_DIR . 'includes/class-color-engine.php';
-
-        // Register Elementor category and widgets on their respective hooks.
-        add_action( 'elementor/elements/categories_registered', function ( $elements_manager ) {
-            if ( file_exists( JETREADER_PLUGIN_DIR . 'includes/class-elementor-widgets.php' ) ) {
-                require_once JETREADER_PLUGIN_DIR . 'includes/class-elementor-widgets.php';
-                JetReader_Elementor_Widgets::register_category( $elements_manager );
-            }
-        } );
-
-        add_action( 'elementor/widgets/register', function ( $widgets_manager ) {
-            if ( file_exists( JETREADER_PLUGIN_DIR . 'includes/class-elementor-widgets.php' ) ) {
-                require_once JETREADER_PLUGIN_DIR . 'includes/class-elementor-widgets.php';
-                JetReader_Elementor_Widgets::register_widgets( $widgets_manager );
-            }
-        } );
     }
 
     /**
@@ -415,6 +398,15 @@ class JetReader {
                         'phpVersion'    => PHP_VERSION,
                         'elementor'     => defined( 'ELEMENTOR_VERSION' ) ? ELEMENTOR_VERSION : false,
                     ),
+                    // Inlined here so the reader initialises with the correct values
+                    // on the very first render — eliminates the async-API race window
+                    // where copy/annotation could be enabled despite admin disabling them.
+                    'annotationEnabled'  => isset( $settings['annotation_enabled'] )
+                        ? ! in_array( $settings['annotation_enabled'], array( false, 0, '0', '', 'false' ), true )
+                        : true,
+                    'copyEnabled'        => isset( $settings['copy_enabled'] )
+                        ? ! in_array( $settings['copy_enabled'], array( false, 0, '0', '', 'false' ), true )
+                        : true,
                 )
             );
         }
@@ -459,24 +451,42 @@ class JetReader {
             'jetreader_library'
         );
 
-        // Sanitize types list — only allow valid type slugs.
-        $valid_types = array( 'book', 'article', 'magazine', 'qa' );
+        // Map plural or common variations to correct singular slugs
+        $type_map = array(
+            'book'      => 'book',
+            'books'     => 'book',
+            'article'   => 'article',
+            'articles'  => 'article',
+            'magazine'  => 'magazine',
+            'magazines' => 'magazine',
+            'qa'        => 'qa',
+            'qas'       => 'qa',
+            'q&a'       => 'qa',
+        );
+
+        // Normalize single type
+        $single_type = ! empty( $atts['type'] ) ? strtolower( trim( $atts['type'] ) ) : '';
+        $single_type = isset( $type_map[ $single_type ] ) ? $type_map[ $single_type ] : '';
+
+        // Sanitize and normalize types list
         $types_clean = '';
         if ( ! empty( $atts['types'] ) ) {
-            $types_arr = array_values( array_filter(
-                array_map( 'trim', explode( ',', sanitize_text_field( $atts['types'] ) ) ),
-                function ( $t ) use ( $valid_types ) {
-                    return in_array( $t, $valid_types, true );
+            $types_arr = array();
+            foreach ( explode( ',', $atts['types'] ) as $t ) {
+                $t_clean = strtolower( trim( $t ) );
+                if ( isset( $type_map[ $t_clean ] ) ) {
+                    $types_arr[] = $type_map[ $t_clean ];
                 }
-            ) );
+            }
+            $types_arr = array_unique( $types_arr );
             $types_clean = implode( ',', $types_arr );
         }
 
         $this->maybe_enqueue_frontend_assets();
 
         $html = sprintf(
-            '<div id="jetreader-frontend-app" class="jetreader-wrap alignwide" data-library-type="%s" data-library-types="%s"></div>',
-            esc_attr( $atts['type'] ),
+            '<div id="jetreader-frontend-app" class="jetreader-frontend-app-container jetreader-wrap alignwide" data-library-type="%s" data-library-types="%s"></div>',
+            esc_attr( $single_type ),
             esc_attr( $types_clean )
         );
 

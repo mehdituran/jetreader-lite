@@ -15,11 +15,21 @@ import {
     QueryClient,
     QueryClientProvider,
     useQuery,
+    keepPreviousData,
 } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { ReaderFormat } from '../reader/ReaderEngine';
+import { ReaderErrorBoundary } from '../reader/ReaderModal';
 
 const ReaderModal = lazy( () => import( '../reader/ReaderModal' ) );
+
+let readerEnginePromise: Promise<any> | null = null;
+const getReaderEngine = () => {
+    if ( ! readerEnginePromise ) {
+        readerEnginePromise = import( '../reader/ReaderEngine' );
+    }
+    return readerEnginePromise;
+};
 import { I18nProvider, useTranslation } from '../i18n/I18nContext';
 import { WORLD_LANGUAGES } from '../data/world-languages';
 import { LangCombobox } from '../admin/LangCombobox';
@@ -263,6 +273,7 @@ interface SidebarProps {
     onFilterChange: ( partial: Partial<ActiveFilters> ) => void;
     onClear: () => void;
     onMobileClose?: () => void;
+    onCollapse?: () => void;
 }
 
 const inputStyle: React.CSSProperties = {
@@ -277,31 +288,31 @@ const inputStyle: React.CSSProperties = {
     boxSizing: 'border-box',
 };
 
-const FilterSidebar: React.FC<SidebarProps> = ( {
-    settings, categories, authors, publishers, filters, onFilterChange, onClear, onMobileClose,
+const FilterSidebar = React.memo<SidebarProps>( ( {
+    settings, categories, authors, publishers, filters, onFilterChange, onClear, onMobileClose, onCollapse,
 } ) => {
     const { t, locale } = useTranslation();
 
-    const toggleCategory = ( id: number ) => {
+    const toggleCategory = React.useCallback( ( id: number ) => {
         const next = filters.categoryIds.includes( id )
             ? filters.categoryIds.filter( ( c ) => c !== id )
             : [ ...filters.categoryIds, id ];
         onFilterChange( { categoryIds: next } );
-    };
+    }, [ filters.categoryIds, onFilterChange ] );
 
-    const toggleAuthorName = ( name: string ) => {
+    const toggleAuthorName = React.useCallback( ( name: string ) => {
         const next = filters.authorNames.includes( name )
             ? filters.authorNames.filter( ( n ) => n !== name )
             : [ ...filters.authorNames, name ];
         onFilterChange( { authorNames: next } );
-    };
+    }, [ filters.authorNames, onFilterChange ] );
 
-    const togglePublisherName = ( name: string ) => {
+    const togglePublisherName = React.useCallback( ( name: string ) => {
         const next = filters.publisherNames.includes( name )
             ? filters.publisherNames.filter( ( n ) => n !== name )
             : [ ...filters.publisherNames, name ];
         onFilterChange( { publisherNames: next } );
-    };
+    }, [ filters.publisherNames, onFilterChange ] );
 
     const activeCount = [
         filters.categoryIds.length > 0,
@@ -333,6 +344,17 @@ const FilterSidebar: React.FC<SidebarProps> = ( {
                             style={ { fontSize: '11px', color: 'var(--jr-p600, #4f46e5)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' } }
                         >
                             { t( 'frontend.clearAll' ) }
+                        </button>
+                    ) }
+                    { onCollapse && (
+                        <button
+                            onClick={ onCollapse }
+                            className="hidden lg:flex items-center justify-center w-6 h-6 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 cursor-pointer transition-colors duration-150 active:scale-95 shrink-0"
+                            title="Collapse sidebar"
+                        >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" />
+                            </svg>
                         </button>
                     ) }
                     { onMobileClose && (
@@ -423,33 +445,21 @@ const FilterSidebar: React.FC<SidebarProps> = ( {
             </div>
         </div>
     );
-};
+} );
 
 /* ------------------------------------------------------------------ */
 /*  Active filter chips                                               */
 /* ------------------------------------------------------------------ */
 
-const ActiveFilterChips: React.FC<{
+const ActiveFilterChips = React.memo<{
     filters: ActiveFilters;
     categories: Category[];
     onRemove: ( key: keyof ActiveFilters ) => void;
     onRemoveCategoryId: ( id: number ) => void;
     onRemoveAuthorName: ( name: string ) => void;
     onRemovePublisherName: ( name: string ) => void;
-}> = ( { filters, categories, onRemove, onRemoveCategoryId, onRemoveAuthorName, onRemovePublisherName } ) => {
+}>( ( { filters, categories, onRemove, onRemoveCategoryId, onRemoveAuthorName, onRemovePublisherName } ) => {
     const { t, locale } = useTranslation();
-
-    const chipStyle: React.CSSProperties = {
-        display: 'inline-flex', alignItems: 'center', gap: '4px',
-        background: 'var(--jr-p50, #eef2ff)', color: 'var(--jr-p700, #4338ca)',
-        fontSize: '11px', padding: '3px 10px', borderRadius: '999px',
-        border: '1px solid var(--jr-p200, #c7d2fe)',
-    };
-    const btnStyle: React.CSSProperties = {
-        border: 'none', background: 'none', cursor: 'pointer',
-        color: 'var(--jr-p400, #818cf8)', fontSize: '11px', lineHeight: 1,
-        padding: '0 0 0 2px',
-    };
 
     const chips: { label: string; onDismiss: () => void }[] = [];
 
@@ -475,34 +485,36 @@ const ActiveFilterChips: React.FC<{
     if ( chips.length === 0 ) return null;
 
     return (
-        <div style={ { display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '16px' } }>
+        <div className="flex flex-wrap gap-1.5 mb-4">
             { chips.map( ( chip, i ) => (
-                <span key={ i } style={ chipStyle }>
+                <span key={ i } className="inline-flex items-center gap-1 bg-[var(--jr-p50,#eef2ff)] text-[var(--jr-p700,#4338ca)] text-[11px] py-[3px] px-[10px] rounded-full border border-[var(--jr-p200,#c7d2fe)]">
                     { chip.label }
-                    <button style={ btnStyle } onClick={ chip.onDismiss }>✕</button>
+                    <button className="border-none bg-transparent cursor-pointer text-[var(--jr-p400,#818cf8)] text-[11px] leading-none pl-[2px] pr-0 py-0" onClick={ chip.onDismiss }>✕</button>
                 </span>
             ) ) }
         </div>
     );
-};
+} );
 
 /* ------------------------------------------------------------------ */
 /*  Item card                                                         */
 /* ------------------------------------------------------------------ */
 
-const ItemCard: React.FC<{
+const ItemCard = React.memo<{
     item: LibraryItem;
-    onRead: () => void;
-    onInfo: () => void;
+    onRead: ( item: LibraryItem ) => void;
+    onInfo: ( item: LibraryItem ) => void;
     imageSize?: string;
     imageFit?:  string;
     showReadButton?: boolean;
     showInfoButton?: boolean;
     showImage?: boolean;
     showTitle?: boolean;
-}> = ( {
+    isQAView?: boolean;
+}>( ( {
     item, onRead, onInfo,
     showImage = true, showTitle = true,
+    isQAView = false,
 } ) => {
     const { t } = useTranslation();
     const isQA    = item.type === 'qa';
@@ -514,7 +526,7 @@ const ItemCard: React.FC<{
     const handleMouseEnter = () => {
         if ( hasFile && ! isQA && item.file_path.trim() !== '' ) {
             prefetchRef.current = setTimeout( () => {
-                import( '../reader/ReaderEngine' ).then( ( { ReaderEngine } ) => {
+                getReaderEngine().then( ( { ReaderEngine } ) => {
                     ReaderEngine.prefetchBook( item.file_path, ( item.file_type || '' ).toLowerCase() as ReaderFormat, item.metadata?.encoding );
                 } ).catch( () => {} );
             }, 1000 );
@@ -538,9 +550,61 @@ const ItemCard: React.FC<{
         if ( item.cpt_url ) {
             window.location.href = item.cpt_url;
         } else {
-            onRead();
+            onRead( item );
         }
     };
+
+    const handleInfo = () => {
+        onInfo( item );
+    };
+
+    if ( isQAView ) {
+        return (
+            <motion.div
+                layout
+                initial={ { opacity: 0, y: 16 } }
+                animate={ { opacity: 1, y: 0 } }
+                exit={ { opacity: 0, scale: 0.96 } }
+                transition={ { duration: 0.22 } }
+                onClick={ handleInfo }
+                className="jr-qa-list-item relative overflow-hidden pl-6 pr-5 py-4 flex items-center justify-between gap-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700/60 shadow-[0_1px_3px_rgba(0,0,0,0.05)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)] active:scale-[0.99] transition-all duration-200 cursor-pointer"
+            >
+                <div 
+                    className="absolute left-0 top-0 bottom-0 w-1.5 rounded-l-xl" 
+                    style={ {
+                        background: 'linear-gradient(to bottom, #fb923c, #ea580c)'
+                    } }
+                />
+                <div className="flex-1 min-w-0 pr-2">
+                    <h3 className="font-semibold text-gray-800 dark:text-gray-100 hover:text-amber-600 dark:hover:text-amber-500 transition-colors text-[14px] sm:text-[15px] leading-relaxed m-0 line-clamp-2">
+                        { item.title }
+                    </h3>
+                </div>
+                <button
+                    onClick={ ( e ) => {
+                        e.stopPropagation();
+                        handleInfo();
+                    } }
+                    className="jrc-btn-info inline-flex items-center justify-center gap-1.5 text-xs font-semibold py-2 px-3.5 rounded-xl transition-all duration-200 active:scale-95 shrink-0 cursor-pointer"
+                    style={ {
+                        background: 'transparent',
+                        color: 'var(--jr-p600, #4f46e5)',
+                        border: '1.5px solid var(--jr-p200, #c7d2fe)',
+                    } }
+                    onMouseEnter={ ( e ) => {
+                        e.currentTarget.style.background = 'var(--jr-p50, #eef2ff)';
+                        e.currentTarget.style.borderColor = 'var(--jr-p200, #c7d2fe)';
+                    } }
+                    onMouseLeave={ ( e ) => {
+                        e.currentTarget.style.background = 'transparent';
+                        e.currentTarget.style.borderColor = 'var(--jr-p200, #c7d2fe)';
+                    } }
+                >
+                    { t( 'frontend.cardView' ) }
+                </button>
+            </motion.div>
+        );
+    }
 
     return (
         <motion.div
@@ -635,7 +699,7 @@ const ItemCard: React.FC<{
                         </button>
                     ) }
                     <button
-                        onClick={ onInfo }
+                        onClick={ handleInfo }
                         className="jrc-btn-info flex-1 inline-flex items-center justify-center gap-1 text-xs font-semibold py-2 px-3 rounded-xl transition-all duration-200 active:scale-95"
                         style={ {
                             background: 'transparent',
@@ -651,23 +715,29 @@ const ItemCard: React.FC<{
                             e.currentTarget.style.borderColor = 'var(--jr-p200, #c7d2fe)';
                         } }
                     >
-                        <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
+                        { ! isQA && (
+                            <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        ) }
                         { isQA ? t( 'frontend.cardView' ) : t( 'frontend.cardInfo' ) }
                     </button>
                 </div>
             </div>
         </motion.div>
     );
-};
+} );
 
 /* ------------------------------------------------------------------ */
 /*  Skeleton                                                           */
 /* ------------------------------------------------------------------ */
 
-const SkeletonGrid: React.FC<{ cols: number; cardMinWidth?: number }> = ( { cols, cardMinWidth = 180 } ) => {
-    const gridStyle: React.CSSProperties = {
+const SkeletonGrid: React.FC<{ cols: number; cardMinWidth?: number; isQAView?: boolean }> = ( { cols, cardMinWidth = 180, isQAView = false } ) => {
+    const gridStyle: React.CSSProperties = isQAView ? {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '1rem',
+    } : {
         display: 'grid',
         gridTemplateColumns: `repeat(auto-fill, minmax(${ cardMinWidth }px, 1fr))`,
         gap: '1.25rem',
@@ -675,14 +745,24 @@ const SkeletonGrid: React.FC<{ cols: number; cardMinWidth?: number }> = ( { cols
     return (
     <div style={ gridStyle }>
         { Array.from( { length: cols * 2 } ).map( ( _, i ) => (
-            <div key={ i } className="jr-card overflow-hidden">
-                <div className="jr-skeleton h-44 w-full" />
-                <div className="p-4 space-y-2">
-                    <div className="jr-skeleton h-3.5 w-3/4" />
-                    <div className="jr-skeleton h-3 w-1/2" />
-                    <div className="jr-skeleton h-8 w-full mt-3 rounded-lg" />
+            isQAView ? (
+                <div key={ i } className="relative overflow-hidden pl-6 pr-5 py-4 flex items-center justify-between gap-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700/60 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+                    <div className="absolute left-0 top-0 bottom-0 w-1.5 rounded-l-xl bg-gray-200 dark:bg-gray-700" />
+                    <div className="flex-1 min-w-0 pr-2">
+                        <div className="jr-skeleton h-4 w-3/4 rounded" />
+                    </div>
+                    <div className="jr-skeleton h-8 w-20 rounded-xl shrink-0" />
                 </div>
-            </div>
+            ) : (
+                <div key={ i } className="jr-card overflow-hidden">
+                    <div className="jr-skeleton h-44 w-full" />
+                    <div className="p-4 space-y-2">
+                        <div className="jr-skeleton h-3.5 w-3/4" />
+                        <div className="jr-skeleton h-3 w-1/2" />
+                        <div className="jr-skeleton h-8 w-full mt-3 rounded-lg" />
+                    </div>
+                </div>
+            )
         ) ) }
     </div>
     );
@@ -703,6 +783,17 @@ const InfoModal: React.FC<{
     const { t, locale } = useTranslation();
     const [ selectedVolIdx, setSelectedVolIdx ] = React.useState<number | null>( null );
 
+    // Lock body scroll while modal is open to prevent scrollbar-width layout shift
+    React.useEffect( () => {
+        const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+        document.body.style.overflow = 'hidden';
+        if ( scrollbarWidth > 0 ) document.body.style.paddingRight = `${ scrollbarWidth }px`;
+        return () => {
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+        };
+    }, [] );
+
     // Fire-and-forget view ping — no await, no UI impact, keepalive ensures
     // delivery even if the user closes the modal immediately.
     React.useEffect( () => {
@@ -720,7 +811,7 @@ const InfoModal: React.FC<{
 
     React.useEffect( () => {
         if ( item.file_path && item.type !== 'qa' && item.file_path.trim() !== '' ) {
-            import( '../reader/ReaderEngine' ).then( ( { ReaderEngine } ) => {
+            getReaderEngine().then( ( { ReaderEngine } ) => {
                 ReaderEngine.prefetchBook( item.file_path, ( item.file_type || '' ).toLowerCase() as ReaderFormat, item.metadata?.encoding );
             } ).catch( () => {} );
         }
@@ -753,8 +844,7 @@ const InfoModal: React.FC<{
     return (
         <motion.div
             initial={ { opacity: 0 } } animate={ { opacity: 1 } } exit={ { opacity: 0 } }
-            className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-6"
-            style={ { backgroundColor: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(4px)' } }
+            className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-6 bg-black/70 backdrop-blur-[4px]"
             onClick={ onClose }
         >
             <motion.div
@@ -762,134 +852,59 @@ const InfoModal: React.FC<{
                 animate={ { scale: 1, opacity: 1, y: 0 } }
                 exit={ { scale: 0.94, opacity: 0, y: 24 } }
                 transition={ { type: 'spring', stiffness: 340, damping: 30 } }
-                className="jr-info-modal"
-                style={ {
-                    position: 'relative',
-                    background: 'var(--jr-modal-bg, #fff)',
-                    borderRadius: '20px',
-                    boxShadow: '0 24px 60px rgba(0,0,0,0.22), 0 4px 16px rgba(0,0,0,0.12)',
-                    width: '100%',
-                    maxWidth: '980px',
-                    maxHeight: '90vh',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    overflow: 'hidden',
-                } }
+                className={ `jr-info-modal relative bg-[var(--jr-modal-bg,#fff)] rounded-[20px] shadow-[0_24px_60px_rgba(0,0,0,0.22),0_4px_16px_rgba(0,0,0,0.12)] w-full ${ item.type === 'qa' ? 'max-w-[650px]' : 'max-w-[980px]' } max-h-[90vh] flex flex-col overflow-hidden` }
                 onClick={ ( e ) => e.stopPropagation() }
             >
                 { /* ── Close button (always top-right) ── */ }
                 <button
                     onClick={ onClose }
                     aria-label="Close"
-                    style={ {
-                        position: 'absolute',
-                        top: '12px',
-                        right: '12px',
-                        zIndex: 10,
-                        width: '36px',
-                        height: '36px',
-                        borderRadius: '50%',
-                        border: '1px solid rgba(255, 255, 255, 0.25)',
-                        background: 'rgba(15, 23, 42, 0.65)',
-                        color: '#fff',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '14px',
-                        lineHeight: 1,
-                        transition: 'background 0.15s, transform 0.15s',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                    } }
-                    onMouseEnter={ ( e ) => ( e.currentTarget.style.background = 'rgba(15, 23, 42, 0.8)' ) }
-                    onMouseLeave={ ( e ) => ( e.currentTarget.style.background = 'rgba(15, 23, 42, 0.65)' ) }
+                    className="absolute top-3 right-3 z-10 w-9 h-9 rounded-full border border-white/25 bg-[rgba(15,23,42,0.65)] hover:bg-[rgba(15,23,42,0.8)] text-white cursor-pointer flex items-center justify-center text-sm leading-none transition-all duration-150 shadow-[0_4px_12px_rgba(0,0,0,0.15)]"
                 >✕</button>
 
                 { /* ── Body: image + content ── */ }
-                <div style={ { display: 'flex', flexDirection: 'row', flex: 1, minHeight: 0, overflow: 'hidden' } }
-                     className="jr-info-body">
+                <div className="jr-info-body flex flex-row flex-1 min-h-0 overflow-hidden">
 
                     { /* ── Left: Cover image ── */ }
-                    { settings?.show_detail_image !== false && (
-                        <div style={ {
-                            width: '390px',
-                            minWidth: '390px',
-                            flexShrink: 0,
-                            position: 'relative',
-                            overflow: 'hidden',
-                            background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)',
-                            borderRadius: '20px 0 0 20px',
-                        } } className="jr-info-cover">
+                    { item.type !== 'qa' && settings?.show_detail_image !== false && (
+                        <div className="jr-info-cover w-[390px] min-w-[390px] shrink-0 relative overflow-hidden bg-gradient-to-br from-slate-800 to-slate-600 rounded-l-[20px]">
                             { item.cover_image ? (
                                 <img
                                     src={ item.cover_image }
                                     alt={ item.title }
-                                    style={ {
-                                        width: '100%',
-                                        height: '100%',
-                                        objectFit: 'contain',
-                                        objectPosition: 'center center',
-                                        display: 'block',
-                                    } }
+                                    className="w-full h-full object-contain object-center block"
                                 />
                             ) : (
-                                <div style={ {
-                                    width: '100%',
-                                    height: '100%',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '12px',
-                                    minHeight: '320px',
-                                } }>
-                                    <span style={ { fontSize: '72px', lineHeight: 1 } }>{ TYPE_EMOJI[ item.type ] ?? '📄' }</span>
+                                <div className="w-full h-full flex flex-col items-center justify-center gap-3 min-h-[320px]">
+                                    <span className="text-[72px] leading-none">{ TYPE_EMOJI[ item.type ] ?? '📄' }</span>
                                 </div>
                             ) }
                         </div>
                     ) }
 
                     { /* ── Right: Info + description + actions ── */ }
-                    <div style={ {
-                        flex: 1,
-                        minWidth: 0,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        overflow: 'hidden',
-                    } }>
+                    <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
                         { /* Scrollable content area */ }
-                        <div style={ {
-                            flex: 1,
-                            overflowY: 'auto',
-                            padding: '32px 28px 24px 28px',
-                        } } className="jr-info-scroll">
+                        <div className="jr-info-scroll flex-1 overflow-y-auto pt-8 pb-6 px-7">
 
                             { /* Title */ }
                             { settings?.show_detail_title !== false && (
-                                <h2 style={ {
-                                    margin: '0 0 10px 0',
-                                    fontSize: 'clamp(17px, 2.2vw, 22px)',
-                                    fontWeight: 800,
-                                    lineHeight: 1.25,
-                                    color: 'var(--jr-modal-title, #0f172a)',
-                                    letterSpacing: '-0.01em',
-                                    paddingRight: '24px',
-                                } }>{ item.title }</h2>
+                                <h2 className="m-0 mb-2.5 text-[clamp(17px,2.2vw,22px)] font-extrabold leading-snug text-[var(--jr-modal-title,#0f172a)] tracking-tight pr-6">{ item.title }</h2>
                             ) }
 
                             { /* Author + Translator */ }
                             { ( ( item.author && settings?.show_detail_author !== false ) || item.translator ) && (
-                                <div style={ { marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '4px' } }>
+                                <div className="mb-5 flex flex-col gap-1">
                                     { item.author && settings?.show_detail_author !== false && (
-                                        <p style={ { margin: 0, fontSize: '14px', color: 'var(--jr-modal-meta, #64748b)', display: 'flex', alignItems: 'center', gap: '6px' } }>
-                                            <span style={ { fontSize: '12px' } }>✍️</span>
-                                            <span>{ t( 'frontend.infoModalBy' ) } <strong style={ { fontWeight: 600, color: 'var(--jr-modal-text, #334155)' } }>{ item.author }</strong></span>
+                                        <p className="m-0 text-sm text-[var(--jr-modal-meta,#64748b)] flex items-center gap-1.5">
+                                            <span className="text-xs">✍️</span>
+                                            <span>{ t( 'frontend.infoModalBy' ) } <strong className="font-semibold text-[var(--jr-modal-text,#334155)]">{ item.author }</strong></span>
                                         </p>
                                     ) }
                                     { item.translator && (
-                                        <p style={ { margin: 0, fontSize: '13px', color: 'var(--jr-modal-meta, #64748b)', display: 'flex', alignItems: 'center', gap: '6px' } }>
-                                            <span style={ { fontSize: '12px' } }>🌐</span>
-                                            <span>{ t( 'frontend.infoModalTranslator' ) }: <strong style={ { fontWeight: 600, color: 'var(--jr-modal-text, #334155)' } }>{ item.translator }</strong></span>
+                                        <p className="m-0 text-[13px] text-[var(--jr-modal-meta,#64748b)] flex items-center gap-1.5">
+                                            <span className="text-xs">🌐</span>
+                                            <span>{ t( 'frontend.infoModalTranslator' ) }: <strong className="font-semibold text-[var(--jr-modal-text,#334155)]">{ item.translator }</strong></span>
                                         </p>
                                     ) }
                                 </div>
@@ -897,24 +912,11 @@ const InfoModal: React.FC<{
 
                             { /* Meta badges */ }
                             { metaFields.length > 0 && (
-                                <div style={ {
-                                    display: 'flex',
-                                    flexWrap: 'wrap',
-                                    gap: '8px',
-                                    marginBottom: '20px',
-                                } }>
+                                <div className="flex flex-wrap gap-2 mb-5">
                                     { metaFields.map( ( [ label, value ] ) => (
-                                        <div key={ label } style={ {
-                                            background: 'var(--jr-modal-badge-bg, #f1f5f9)',
-                                            borderRadius: '8px',
-                                            padding: '6px 12px',
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            gap: '1px',
-                                            minWidth: '60px',
-                                        } }>
-                                            <span style={ { fontSize: '10px', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--jr-modal-meta, #94a3b8)' } }>{ label }</span>
-                                            <span style={ { fontSize: '13px', fontWeight: 700, color: 'var(--jr-modal-text, #1e293b)' } }>{ value }</span>
+                                        <div key={ label } className="bg-[var(--jr-modal-badge-bg,#f1f5f9)] rounded-[8px] py-1.5 px-3 flex flex-col gap-[1px] min-w-[60px]">
+                                            <span className="text-[10px] font-bold tracking-[0.07em] uppercase text-[var(--jr-modal-meta,#94a3b8)]">{ label }</span>
+                                            <span className="text-[13px] font-bold text-[var(--jr-modal-text,#1e293b)]">{ value }</span>
                                         </div>
                                     ) ) }
                                 </div>
@@ -922,53 +924,32 @@ const InfoModal: React.FC<{
 
                             { /* Volumes list */ }
                             { item.volumes && item.volumes.length > 1 && (
-                                <div style={ { marginBottom: '20px' } }>
-                                    <p style={ { margin: '0 0 8px 0', fontSize: '11px', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--jr-modal-meta, #94a3b8)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' } }>
+                                <div className="mb-5">
+                                    <p className="m-0 mb-2 text-[11px] font-bold tracking-[0.07em] uppercase text-[var(--jr-modal-meta,#94a3b8)] flex items-center gap-1.5 flex-wrap">
                                         <span>{ item.type === 'magazine' ? t( 'frontend.infoModalVolumesListMagazine' ) : t( 'frontend.infoModalVolumesListBook' ) }</span>
                                     </p>
-                                    <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '8px' } }>
+                                    <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2">
                                         { item.volumes.map( ( vol, idx ) => {
                                             const isSelected = selectedVolIdx === idx;
                                             return (
                                                 <div
                                                     key={ idx }
                                                     onClick={ () => setSelectedVolIdx( isSelected ? null : idx ) }
-                                                    style={ {
-                                                        background: isSelected ? 'var(--jr-p100, #e0e7ff)' : 'var(--jr-modal-badge-bg, #f1f5f9)',
-                                                        border: isSelected ? '2px solid var(--jr-p400, #818cf8)' : '2px solid transparent',
-                                                        borderRadius: '10px',
-                                                        padding: '8px 12px',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        gap: '8px',
-                                                        fontSize: '12px',
-                                                        fontWeight: 600,
-                                                        color: isSelected ? 'var(--jr-p700, #4338ca)' : 'var(--jr-modal-text, #334155)',
-                                                        cursor: 'pointer',
-                                                        transition: 'background 0.15s, border-color 0.15s',
-                                                    } }
+                                                    className={ `rounded-[10px] py-2 px-3 flex items-center gap-2 text-xs font-semibold cursor-pointer transition-all duration-150 ${ isSelected ? 'bg-[var(--jr-p100,#e0e7ff)] border-2 border-[var(--jr-p400,#818cf8)] text-[var(--jr-p700,#4338ca)]' : 'bg-[var(--jr-modal-badge-bg,#f1f5f9)] border-2 border-transparent text-[var(--jr-modal-text,#334155)]' }` }
                                                 >
-                                                    <span style={ { fontSize: '14px', flexShrink: 0 } }>{ item.type === 'magazine' ? '🗞️' : '📖' }</span>
-                                                    <div style={ { display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1, lineHeight: 1.25 } }>
-                                                        <span style={ { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }>
+                                                    <span className="text-sm shrink-0">{ item.type === 'magazine' ? '🗞️' : '📖' }</span>
+                                                    <div className="flex flex-col min-w-0 flex-1 leading-snug">
+                                                        <span className="whitespace-nowrap overflow-hidden text-ellipsis">
                                                             { item.type === 'magazine' ? `${ t( 'frontend.infoModalVolItemMagazine' ) } ${ idx + 1 }` : `${ t( 'frontend.infoModalVolItemBook' ) } ${ idx + 1 }` }
                                                         </span>
                                                         { vol.page_count && vol.page_count > 0 ? (
-                                                            <span style={ { fontSize: '10px', fontWeight: 500, color: isSelected ? 'var(--jr-p600, #4f46e5)' : 'var(--jr-modal-meta, #94a3b8)', marginTop: '2px' } }>
+                                                            <span className={ `text-[10px] font-medium mt-0.5 ${ isSelected ? 'text-[var(--jr-p600,#4f46e5)]' : 'text-[var(--jr-modal-meta,#94a3b8)]' }` }>
                                                                 { vol.page_count } { t( 'reader.pages' ) }
                                                             </span>
                                                         ) : null }
                                                     </div>
                                                     { vol.file_type && (
-                                                        <span style={ {
-                                                            fontSize: '10px',
-                                                            fontWeight: 700,
-                                                            color: isSelected ? 'var(--jr-p500, #6366f1)' : 'var(--jr-modal-meta, #94a3b8)',
-                                                            textTransform: 'uppercase',
-                                                            fontFamily: 'monospace',
-                                                            flexShrink: 0,
-                                                            marginLeft: '4px'
-                                                        } }>
+                                                        <span className={ `text-[10px] font-bold uppercase font-mono shrink-0 ml-1 ${ isSelected ? 'text-[var(--jr-p500,#6366f1)]' : 'text-[var(--jr-modal-meta,#94a3b8)]' }` }>
                                                             { vol.file_type }
                                                         </span>
                                                     ) }
@@ -981,86 +962,32 @@ const InfoModal: React.FC<{
 
                             { /* Separator */ }
                             { settings?.show_detail_description !== false && item.description && ( metaFields.length > 0 || ( item.author && settings?.show_detail_author !== false ) || item.translator ) && (
-                                <hr style={ { border: 'none', borderTop: '1px solid var(--jr-modal-divider, #e2e8f0)', margin: '0 0 16px 0' } } />
+                                <hr className="border-none border-t border-[var(--jr-modal-divider,#e2e8f0)] m-0 mb-4" />
                             ) }
 
                             { /* Description — pre-line preserves paragraph/line breaks */ }
                             { settings?.show_detail_description !== false && item.description && (
-                                <p style={ {
-                                    margin: 0,
-                                    fontSize: '14px',
-                                    lineHeight: 1.72,
-                                    color: 'var(--jr-modal-desc, #475569)',
-                                    whiteSpace: 'pre-line',
-                                } }>{ item.description }</p>
+                                <p className="m-0 text-sm leading-relaxed text-[var(--jr-modal-desc,#475569)] whitespace-pre-line">{ item.description }</p>
                             ) }
                         </div>
 
                         { /* ── Action bar ── */ }
-                        <div
-                            className="jr-info-actions"
-                            style={ {
-                                padding: '16px 28px 24px 28px',
-                                borderTop: '1px solid var(--jr-modal-divider, #e2e8f0)',
-                                display: 'flex',
-                                gap: '10px',
-                                flexWrap: 'wrap',
-                                alignItems: 'center',
-                            } }>
+                        <div className="jr-info-actions pt-4 pb-6 px-7 border-t border-[var(--jr-modal-divider,#e2e8f0)] flex gap-2.5 flex-wrap items-center">
                             { hasFile && item.type !== 'qa' && item.file_path.trim() !== '' && (
                                 <button
                                     onClick={ handleRead }
-                                    className="jr-btn-primary"
-                                    style={ { flex: '0 0 auto' } }
+                                    className="jr-btn-primary flex-none"
                                 >{ t( 'frontend.infoModalReadNow' ) }</button>
                             ) }
                             <button
                                 onClick={ onClose }
-                                className="jr-btn-secondary"
-                                style={ { flex: '0 0 auto', marginLeft: 'auto' } }
+                                className="jr-btn-secondary flex-none ml-auto"
                             >{ t( 'frontend.infoModalClose' ) }</button>
                         </div>
                     </div>
                 </div>
             </motion.div>
 
-            { /* ── Responsive: stack vertically on small screens ── */ }
-            <style>{ `
-                @media (max-width: 680px) {
-                    .jr-info-body { flex-direction: column !important; }
-                    .jr-info-cover {
-                        width: 100% !important;
-                        min-width: unset !important;
-                        height: 200px !important;
-                        min-height: 200px !important;
-                        max-height: 200px !important;
-                        border-radius: 20px 20px 0 0 !important;
-                        flex-shrink: 0 !important;
-                    }
-                    .jr-info-scroll { padding: 20px 18px 16px !important; }
-                    .jr-info-actions { padding: 12px 18px 18px !important; }
-                }
-                @media (prefers-color-scheme: dark) {
-                    .jr-info-modal {
-                        --jr-modal-bg: #1e293b;
-                        --jr-modal-title: #f1f5f9;
-                        --jr-modal-text: #cbd5e1;
-                        --jr-modal-meta: #64748b;
-                        --jr-modal-desc: #94a3b8;
-                        --jr-modal-badge-bg: #0f172a;
-                        --jr-modal-divider: #334155;
-                    }
-                }
-                .dark .jr-info-modal {
-                    --jr-modal-bg: #1e293b;
-                    --jr-modal-title: #f1f5f9;
-                    --jr-modal-text: #cbd5e1;
-                    --jr-modal-meta: #64748b;
-                    --jr-modal-desc: #94a3b8;
-                    --jr-modal-badge-bg: #0f172a;
-                    --jr-modal-divider: #334155;
-                }
-            ` }</style>
         </motion.div>
     );
 };
@@ -1151,6 +1078,14 @@ const LibraryContent: React.FC<LibraryContentProps> = ( {
     const [ infoItem,   setInfoItem   ] = useState<LibraryItem | null>( null );
     const [ readerVolIdx, setReaderVolIdx ] = useState<number | undefined>( undefined );
 
+    const handleRead = React.useCallback( ( item: LibraryItem ) => {
+        setReaderItem( item );
+    }, [] );
+
+    const handleInfo = React.useCallback( ( item: LibraryItem ) => {
+        setInfoItem( item );
+    }, [] );
+
     const resolvedTheme = ( (): 'light' | 'dark' | 'sepia' => {
         const raw = settings.reader_theme ?? 'auto';
         if ( raw === 'auto' ) return window.matchMedia( '(prefers-color-scheme: dark)' ).matches ? 'dark' : 'light';
@@ -1188,20 +1123,25 @@ const LibraryContent: React.FC<LibraryContentProps> = ( {
             const res = await fetch( `${API_BASE}/items${API_BASE.includes( '?' ) ? '&' : '?'}${ params }` );
             return res.json();
         },
-        keepPreviousData: true,
-    } as any );
+        placeholderData: keepPreviousData,
+    } );
 
     const gridCols      = settings.grid_columns ?? 4;
     const showCardImage = settings.show_card_image !== false;
     const showCardTitle = settings.show_card_title !== false;
     const gap = 20;
-    const gridStyle: React.CSSProperties = {
+    const isQA = effectiveType === 'qa';
+    const gridStyle: React.CSSProperties = isQA ? {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '1rem',
+    } : {
         display: 'grid',
         gridTemplateColumns: `repeat(auto-fill, minmax(max(180px, calc((100% - ${ ( gridCols - 1 ) * gap }px) / ${ gridCols })), 1fr))`,
         gap: '1.25rem',
     };
 
-    if ( isLoading ) return <SkeletonGrid cols={ gridCols } cardMinWidth={ 180 } />;
+    if ( isLoading ) return <SkeletonGrid cols={ gridCols } cardMinWidth={ 180 } isQAView={ isQA } />;
 
     if ( isError ) return (
         <div className="text-center py-20">
@@ -1230,10 +1170,11 @@ const LibraryContent: React.FC<LibraryContentProps> = ( {
                                 <ItemCard
                                     key={ item.id }
                                     item={ item }
-                                    onRead={ () => setReaderItem( item ) }
-                                    onInfo={ () => setInfoItem( item ) }
+                                    onRead={ handleRead }
+                                    onInfo={ handleInfo }
                                     showImage={ showCardImage }
                                     showTitle={ showCardTitle }
+                                    isQAView={ isQA }
                                 />
                             ) ) }
                         </div>
@@ -1250,22 +1191,24 @@ const LibraryContent: React.FC<LibraryContentProps> = ( {
             ) }
 
             { readerItem && (
-                <Suspense fallback={ null }>
-                    <ReaderModal
-                        key={ readerItem.id }
-                        itemId={ readerItem.id }
-                        fileUrl={ readerItem.file_path }
-                        format={ resolveFileFormat( readerItem ) }
-                        title={ readerItem.title }
-                        volumes={ readerItem.volumes && readerItem.volumes.length > 1 ? readerItem.volumes : undefined }
-                        itemType={ readerItem.type }
-                        encoding={ readerItem.metadata?.encoding }
-                        onClose={ () => { setReaderItem( null ); setReaderVolIdx( undefined ); } }
-                        initialVolume={ readerVolIdx }
-                        initialFontSize={ resolvedFontSize }
-                        initialTheme={ resolvedTheme }
-                    />
-                </Suspense>
+                <ReaderErrorBoundary>
+                    <Suspense fallback={ null }>
+                        <ReaderModal
+                            key={ readerItem.id }
+                            itemId={ readerItem.id }
+                            fileUrl={ readerItem.file_path }
+                            format={ resolveFileFormat( readerItem ) }
+                            title={ readerItem.title }
+                            volumes={ readerItem.volumes && readerItem.volumes.length > 1 ? readerItem.volumes : undefined }
+                            itemType={ readerItem.type }
+                            encoding={ readerItem.metadata?.encoding }
+                            onClose={ () => { setReaderItem( null ); setReaderVolIdx( undefined ); } }
+                            initialVolume={ readerVolIdx }
+                            initialFontSize={ resolvedFontSize }
+                            initialTheme={ resolvedTheme }
+                        />
+                    </Suspense>
+                </ReaderErrorBoundary>
             ) }
             <AnimatePresence>
                 { infoItem && ! readerItem && (
@@ -1292,6 +1235,15 @@ const LibraryContent: React.FC<LibraryContentProps> = ( {
 
 interface AppProps { libraryType: string; libraryTypes?: string }
 
+const normalizeType = ( t: string ): ContentTypeKey => {
+    const clean = t.trim().toLowerCase();
+    if ( clean === 'book' || clean === 'books' ) return 'book';
+    if ( clean === 'article' || clean === 'articles' ) return 'article';
+    if ( clean === 'magazine' || clean === 'magazines' ) return 'magazine';
+    if ( clean === 'qa' || clean === 'qas' || clean === 'q&a' ) return 'qa';
+    return '' as ContentTypeKey;
+};
+
 const AppInner: React.FC<AppProps> = ( { libraryType, libraryTypes = '' } ) => {
     const { t, direction } = useTranslation();
     const { data: settings, isLoading: settingsLoading } = usePublicSettings();
@@ -1299,16 +1251,16 @@ const AppInner: React.FC<AppProps> = ( { libraryType, libraryTypes = '' } ) => {
     // Parse comma-separated 'types' attribute, e.g. "book,magazine"
     const allowedTypeKeys: ContentTypeKey[] = libraryTypes
         ? ( libraryTypes.split( ',' )
-              .map( ( s ) => s.trim() )
-              .filter( ( s ): s is ContentTypeKey =>
-                  s !== '' && CONTENT_TYPES.some( ( ct ) => ct.key === s )
-              ) )
+              .map( ( s ) => normalizeType( s ) )
+              .filter( ( s ): s is ContentTypeKey => s !== '' ) )
         : [];
+
+    const parsedType = normalizeType( libraryType );
 
     // Single forced type: from 'type' attr OR when only 1 value in 'types' attr
     const forcedType: ContentTypeKey | null =
-        libraryType && CONTENT_TYPES.some( ( ct ) => ct.key === libraryType )
-            ? ( libraryType as ContentTypeKey )
+        parsedType
+            ? parsedType
             : allowedTypeKeys.length === 1
               ? allowedTypeKeys[ 0 ]
               : null;
@@ -1337,6 +1289,13 @@ const AppInner: React.FC<AppProps> = ( { libraryType, libraryTypes = '' } ) => {
     const [ searchInput,  setSearchInput  ] = useState( initialSearch );
     const [ searchTerm,   setSearchTerm   ] = useState( initialSearch );
     const [ mobileSidebar,setMobileSidebar] = useState( false );
+    const [ desktopSidebarOpen, setDesktopSidebarOpen ] = useState( true );
+
+    const toggleDesktopSidebar = React.useCallback( () => {
+        setDesktopSidebarOpen( ( prev ) => ! prev );
+    }, [] );
+
+    const handleMobileClose = React.useCallback( () => setMobileSidebar( false ), [] );
 
     useEffect( () => {
         const url = new URL( window.location.href );
@@ -1371,22 +1330,22 @@ const AppInner: React.FC<AppProps> = ( { libraryType, libraryTypes = '' } ) => {
         }
     };
 
-    const mergeFilter = ( partial: Partial<ActiveFilters> ) =>
-        setFilters( ( prev ) => ( { ...prev, ...partial } ) );
+    const mergeFilter = React.useCallback( ( partial: Partial<ActiveFilters> ) =>
+        setFilters( ( prev ) => ( { ...prev, ...partial } ) ), [] );
 
-    const removeFilter = ( key: keyof ActiveFilters ) =>
-        setFilters( ( prev ) => ( { ...prev, [ key ]: DEFAULT_FILTERS[ key ] } ) );
+    const removeFilter = React.useCallback( ( key: keyof ActiveFilters ) =>
+        setFilters( ( prev ) => ( { ...prev, [ key ]: DEFAULT_FILTERS[ key ] } ) ), [] );
 
-    const removeCategoryId = ( id: number ) =>
-        setFilters( ( prev ) => ( { ...prev, categoryIds: prev.categoryIds.filter( ( c ) => c !== id ) } ) );
+    const removeCategoryId = React.useCallback( ( id: number ) =>
+        setFilters( ( prev ) => ( { ...prev, categoryIds: prev.categoryIds.filter( ( c ) => c !== id ) } ) ), [] );
 
-    const removeAuthorName = ( name: string ) =>
-        setFilters( ( prev ) => ( { ...prev, authorNames: prev.authorNames.filter( ( n ) => n !== name ) } ) );
+    const removeAuthorName = React.useCallback( ( name: string ) =>
+        setFilters( ( prev ) => ( { ...prev, authorNames: prev.authorNames.filter( ( n ) => n !== name ) } ) ), [] );
 
-    const removePublisherName = ( name: string ) =>
-        setFilters( ( prev ) => ( { ...prev, publisherNames: prev.publisherNames.filter( ( n ) => n !== name ) } ) );
+    const removePublisherName = React.useCallback( ( name: string ) =>
+        setFilters( ( prev ) => ( { ...prev, publisherNames: prev.publisherNames.filter( ( n ) => n !== name ) } ) ), [] );
 
-    const clearFilters = () => setFilters( DEFAULT_FILTERS );
+    const clearFilters = React.useCallback( () => setFilters( DEFAULT_FILTERS ), [] );
 
     const handleSearch = () => {
         if ( searchInput.trim().length >= 2 ) setSearchTerm( searchInput.trim() );
@@ -1474,8 +1433,21 @@ const AppInner: React.FC<AppProps> = ( { libraryType, libraryTypes = '' } ) => {
             { /* ── Main layout ── */ }
             <div className={ `flex gap-6 ${ showSidebar ? 'items-start' : '' }` }>
 
+                { /* Desktop Sidebar Toggle Button (When Collapsed) */ }
+                { showSidebar && ! desktopSidebarOpen && (
+                    <button
+                        onClick={ toggleDesktopSidebar }
+                        className="jr-sidebar-expand-btn hidden lg:flex items-center justify-center w-10 h-10 rounded-xl bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 shadow-sm text-gray-500 dark:text-gray-400 cursor-pointer transition-all duration-200 active:scale-95 shrink-0 sticky top-6 self-start"
+                        title="Expand sidebar"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </button>
+                ) }
+
                 { /* Desktop Sidebar */ }
-                { showSidebar && (
+                { showSidebar && desktopSidebarOpen && (
                     <aside className="hidden lg:block w-56 xl:w-64 shrink-0 sticky top-6 self-start">
                         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
                             <FilterSidebar
@@ -1487,6 +1459,7 @@ const AppInner: React.FC<AppProps> = ( { libraryType, libraryTypes = '' } ) => {
                                 forcedType={ forcedType }
                                 onFilterChange={ mergeFilter }
                                 onClear={ clearFilters }
+                                onCollapse={ toggleDesktopSidebar }
                             />
                         </div>
                     </aside>
@@ -1535,7 +1508,7 @@ const AppInner: React.FC<AppProps> = ( { libraryType, libraryTypes = '' } ) => {
                                 forcedType={ forcedType }
                                 onFilterChange={ mergeFilter }
                                 onClear={ clearFilters }
-                                onMobileClose={ () => setMobileSidebar( false ) }
+                                onMobileClose={ handleMobileClose }
                             />
                         </motion.div>
                     </>

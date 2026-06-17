@@ -7,7 +7,7 @@ import { LangCombobox } from './LangCombobox';
 const queryClient = new QueryClient( {
     defaultOptions: {
         queries: {
-            staleTime: Infinity,
+            staleTime: 10 * 60 * 1000,
             gcTime:    10 * 60 * 1000,
             retry: 1,
         },
@@ -217,7 +217,7 @@ const JetReaderFileSelectorModal: React.FC<JetReaderFileSelectorModalProps> = ( 
         }
 
         const ext = f.extension;
-        const isImage = [ 'png', 'jpg', 'jpeg', 'webp', 'gif', 'svg' ].includes( ext );
+        const isImage = [ 'png', 'jpg', 'jpeg', 'webp', 'gif' ].includes( ext );
         
         if ( activeTab === 'images' && ! isImage ) return false;
         if ( activeTab !== 'images' && ext !== activeTab ) return false;
@@ -228,7 +228,7 @@ const JetReaderFileSelectorModal: React.FC<JetReaderFileSelectorModalProps> = ( 
     const getTabCount = ( tab: string ) => {
         return files.filter( ( f: any ) => {
             const ext = f.extension;
-            const isImage = [ 'png', 'jpg', 'jpeg', 'webp', 'gif', 'svg' ].includes( ext );
+            const isImage = [ 'png', 'jpg', 'jpeg', 'webp', 'gif' ].includes( ext );
             if ( tab === 'images' ) return isImage;
             return ext === tab;
         } ).length;
@@ -402,7 +402,7 @@ const JetReaderFileSelectorModal: React.FC<JetReaderFileSelectorModalProps> = ( 
                                     { t( 'files.uploadAndSelect' ) }
                                 </div>
                                 <div className="text-xs text-gray-400 dark:text-gray-500">
-                                    { imageOnly ? 'PNG, JPG, WEBP, GIF, SVG' : 'PDF, EPUB, TXT, DOCX' }
+                                    { imageOnly ? 'PNG, JPG, WEBP, GIF' : 'PDF, EPUB, TXT, DOCX' }
                                 </div>
                             </div>
                         </div>
@@ -493,7 +493,7 @@ const JetReaderFileSelectorModal: React.FC<JetReaderFileSelectorModalProps> = ( 
                                         className="p-3 flex items-center justify-between hover:bg-primary-50/30 dark:hover:bg-primary-950/10 cursor-pointer transition-colors group"
                                     >
                                         <div className="flex items-center gap-2 min-w-0 flex-1">
-                                            { file.extension === 'png' || file.extension === 'jpg' || file.extension === 'jpeg' || file.extension === 'webp' || file.extension === 'gif' || file.extension === 'svg' ? (
+                                            { file.extension === 'png' || file.extension === 'jpg' || file.extension === 'jpeg' || file.extension === 'webp' || file.extension === 'gif' ? (
                                                 <img src={ file.url } alt="" className="w-8 h-8 rounded border border-gray-250 dark:border-gray-700 object-cover bg-white" />
                                             ) : (
                                                 <span className="text-xl shrink-0">
@@ -1872,6 +1872,7 @@ const ItemsPage: React.FC = () => {
         onSuccess: () => {
             queryClient.invalidateQueries( { queryKey: [ 'items' ] } );
             queryClient.invalidateQueries( { queryKey: [ 'dashboard-stats' ] } );
+            queryClient.invalidateQueries( { queryKey: [ 'files' ] } );
             setDeleteConfirm( null );
             flashMessage( '✅ Item deleted successfully.' );
         },
@@ -1968,6 +1969,7 @@ const ItemsPage: React.FC = () => {
             setBulkEditOpen( false );
             setSelectedIds( new Set() );
             queryClient.invalidateQueries( { queryKey: [ 'items' ] } );
+            queryClient.invalidateQueries( { queryKey: [ 'files' ] } );
         }
     };
 
@@ -1990,6 +1992,7 @@ const ItemsPage: React.FC = () => {
             setSelectedIds( new Set() );
             queryClient.invalidateQueries( { queryKey: [ 'items' ] } );
             queryClient.invalidateQueries( { queryKey: [ 'dashboard-stats' ] } );
+            queryClient.invalidateQueries( { queryKey: [ 'files' ] } );
         }
     };
 
@@ -2373,6 +2376,9 @@ const ItemsPage: React.FC = () => {
                     queryClient.invalidateQueries( { queryKey: [ 'items' ] } );
                     queryClient.invalidateQueries( { queryKey: [ 'dashboard-stats' ] } );
                     queryClient.invalidateQueries( { queryKey: [ 'categories' ] } );
+                    queryClient.invalidateQueries( { queryKey: [ 'authors' ] } );
+                    queryClient.invalidateQueries( { queryKey: [ 'publishers' ] } );
+                    queryClient.invalidateQueries( { queryKey: [ 'files' ] } );
                 } }
                 flashMessage={ flashMessage }
             />
@@ -2385,6 +2391,9 @@ const ItemsPage: React.FC = () => {
                     queryClient.invalidateQueries( { queryKey: [ 'items' ] } );
                     queryClient.invalidateQueries( { queryKey: [ 'dashboard-stats' ] } );
                     queryClient.invalidateQueries( { queryKey: [ 'categories' ] } );
+                    queryClient.invalidateQueries( { queryKey: [ 'authors' ] } );
+                    queryClient.invalidateQueries( { queryKey: [ 'publishers' ] } );
+                    queryClient.invalidateQueries( { queryKey: [ 'files' ] } );
                 } }
                 flashMessage={ flashMessage }
             />
@@ -2933,7 +2942,7 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
             setFormCategoriesText( '' );
             resetVolumes();
         }
-    }, [ editingItem ] );
+    }, [ editingItem, isCreating ] );
 
     // Populate category text when editing and categories have loaded
     useEffect( () => {
@@ -4797,7 +4806,7 @@ const FilesPage: React.FC = () => {
 
         // Tab category check
         const ext = f.extension;
-        const isImage = [ 'png', 'jpg', 'jpeg', 'webp', 'gif', 'svg' ].includes( ext );
+        const isImage = [ 'png', 'jpg', 'jpeg', 'webp', 'gif' ].includes( ext );
         
         if ( activeTab === 'images' && ! isImage ) return false;
         if ( activeTab !== 'images' && ext !== activeTab ) return false;
@@ -4812,7 +4821,7 @@ const FilesPage: React.FC = () => {
     const getTabCount = ( tab: string ) => {
         return files.filter( f => {
             const ext = f.extension;
-            const isImage = [ 'png', 'jpg', 'jpeg', 'webp', 'gif', 'svg' ].includes( ext );
+            const isImage = [ 'png', 'jpg', 'jpeg', 'webp', 'gif' ].includes( ext );
             if ( tab === 'images' ) return isImage;
             return ext === tab;
         } ).length;

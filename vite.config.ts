@@ -41,9 +41,8 @@ function stripCdnFallback() {
 }
 
 // __JR_LITE__ is injected as a build-time constant.
-// true  → Lite bundle (used by build-releases.php for the WP.org submission).
-// false → Pro bundle (default).
-const isLiteBuild = true; // Lite source – always true
+// always true for this open source release.
+const isLiteBuild = true;
 
 export default defineConfig( {
     base: '',

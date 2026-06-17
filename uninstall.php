@@ -116,8 +116,10 @@ function jetreader_uninstall_site(): void {
     // ── 4. Delete transients (named + wildcard patterns) ────────────────────────
     $named_transients = array(
         'jetreader_dashboard_stats',
-        'jetreader_authors_list',
-        'jetreader_publishers_list',
+        'jetreader_authors_list_admin',
+        'jetreader_authors_list_public',
+        'jetreader_publishers_list_admin',
+        'jetreader_publishers_list_public',
     );
 
     foreach ( $named_transients as $t ) {

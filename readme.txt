@@ -3,7 +3,7 @@ Contributors: mehdituran
 Tags: ebook, epub, pdf, reader, library
 Requires at least: 6.4
 Tested up to: 7.0
-Stable tag: 1.0.0
+Stable tag: 1.0.2
 Requires PHP: 8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -43,7 +43,7 @@ https://wplector.com
 
 == Source Code & Build Instructions ==
 
-This plugin contains minified/compiled React assets under the `dist/` directory. The complete, unminified, human-readable source code is included inside the `src/` directory of the plugin, and is also publicly accessible and maintained in the following repository:
+This plugin contains minified/compiled React assets under the `dist/` directory. For build reproducibility and compilation transparency, the distributed package includes the complete, unminified, human-readable source code inside the `src/` directory, as well as the build configuration files (`package.json`, `package-lock.json`, `vite.config.ts`, `tsconfig.json`, `postcss.config.js`, `tailwind.config.ts`). The source code is also publicly accessible and maintained in the following repository:
 https://github.com/mehdituran/jetreader-lite
 
 === Build Tools & Steps ===
@@ -63,6 +63,13 @@ The compiled assets bundle the following third-party libraries:
 * **Framer Motion** (MIT License) - https://www.framer.com/motion/
 * **Epub.js** (BSD 3-Clause License) - https://github.com/futurepress/epub.js/
 * **Mozilla PDF.js** (Apache 2.0 License) - https://mozilla.github.io/pdf.js/
+* **Mammoth.js** (BSD 2-Clause License) - https://github.com/mwilliamson/mammoth.js (including Bluebird and JSZip)
+* **DOMPurify** (Apache 2.0 / LGPL 2.1) - https://github.com/cure53/DOMPurify
+* **fflate** (MIT License) - https://github.com/101percent/fflate
+* **Keen Slider** (MIT License) - https://keen-slider.io/
+
+=== Localization & Translation ===
+Frontend UI translations are stored in `lang/*.json` and are loaded dynamically by the React app; PHP strings use WordPress i18n and are located under the `languages/` directory.
 
 == Frequently Asked Questions ==
 
@@ -96,9 +103,19 @@ See the Screenshots section below for the required images and how to place them.
 2. In-Reader Experience — The fullscreen React reader open on an EPUB document, showing the toolbar, reading themes toggle, and chapter navigation panel.
 3. Annotations & Highlights — A page with colored text highlights and an open annotation note panel.
 4. Admin — Library Items — The admin item list showing type tabs, cover thumbnails, and action buttons.
-5. Admin — Add / Edit Item — The document form with metadata fields, tag selector, volume uploader, and visibility controls.
+5. Admin — Add / Edit Item — The document form with metadata fields, tag selector, uploader, and visibility controls.
 
 == Changelog ==
+
+= 1.0.2 =
+* Collapsible Filter Sidebar: added a collapsible Filter Sidebar on desktop layout.
+* Modern Arrow Icons: integrated custom `<` and `>` toggle buttons for the sidebar.
+
+= 1.0.1 =
+* Custom Q&A layout: displayed as a clean, vertical list instead of standard grid cards.
+* Detail modal: hid the left cover image column and adjusted width to 650px for Q&A items.
+* Multiple shortcodes: fixed ID conflicts to support displaying multiple library instances on a single page.
+* Type parameter mapping: automatically resolves plural shortcode attributes (e.g. books, magazines) to singular ones.
 
 = 1.0.0 =
 * Initial stable release of JetReader Lite.

@@ -1,6 +1,6 @@
 {
   "name": "jetreader",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "private": true,
   "description": "JetReader - Modern Digital Library Plugin for WordPress",
   "author": "Mehdi Turan",
@@ -13,7 +13,8 @@
     "audit": "npm audit --production",
     "wp-env:start": "wp-env start",
     "wp-env:stop": "wp-env stop",
-    "wp-env:destroy": "wp-env destroy"
+    "wp-env:destroy": "wp-env destroy",
+    "build-zip": "cd .. && rm -f jetreader.zip && zip -r jetreader.zip jetreader/assets jetreader/dist jetreader/includes jetreader/lang jetreader/languages jetreader/templates jetreader/jetreader.php jetreader/uninstall.php jetreader/readme.txt -x '*/.DS_Store' && echo 'jetreader.zip ready'"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.62.0",
@@ -26,8 +27,7 @@
     "pdfjs-dist": "^4.8.69",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.28.0",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz"
+    "react-router-dom": "^6.28.0"
   },
   "devDependencies": {
     "@types/node": "^25.6.2",

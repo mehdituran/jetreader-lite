@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import '../index.css';
-import ReaderModal from './ReaderModal';
+import ReaderModal, { ReaderErrorBoundary } from './ReaderModal';
 import type { ReaderFormat } from './ReaderEngine';
 import { I18nProvider } from '../i18n/I18nContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -70,21 +70,23 @@ if ( pageContainer ) {
         <React.StrictMode>
             <QueryClientProvider client={ queryClient }>
                 <I18nProvider>
-                    <ReaderModal
-                        itemId={ itemId }
-                        fileUrl={ fileUrl }
-                        format={ format }
-                        title={ title }
-                        itemType={ itemType }
-                        volumes={ volumes }
-                        encoding={ encoding }
-                        pageMode="page"
-                        initialPage={ initialPage }
-                        initialVolume={ initialVolume }
-                        initialSearch={ initialSearch }
-                        initialAnchor={ initialAnchor }
-                        onClose={ () => window.history.back() }
-                    />
+                    <ReaderErrorBoundary>
+                        <ReaderModal
+                            itemId={ itemId }
+                            fileUrl={ fileUrl }
+                            format={ format }
+                            title={ title }
+                            itemType={ itemType }
+                            volumes={ volumes }
+                            encoding={ encoding }
+                            pageMode="page"
+                            initialPage={ initialPage }
+                            initialVolume={ initialVolume }
+                            initialSearch={ initialSearch }
+                            initialAnchor={ initialAnchor }
+                            onClose={ () => window.history.back() }
+                        />
+                    </ReaderErrorBoundary>
                 </I18nProvider>
             </QueryClientProvider>
         </React.StrictMode>

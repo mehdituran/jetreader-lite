@@ -1,0 +1,336 @@
+# Copyright (C) 2026 JetReader
+# This file is distributed under the same license as the JetReader package.
+msgid ""
+msgstr ""
+"Project-Id-Version: JetReader 1.0.0\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/jetreader\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"POT-Creation-Date: 2026-06-12T17:00:00+03:00\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+
+#: includes/class-activator.php:43
+msgid "JetReader requires PHP version %s or higher."
+msgstr ""
+
+#: includes/class-activator.php:57
+msgid "JetReader requires WordPress version %s or higher."
+msgstr ""
+
+#: includes/class-rest-api.php:899
+#: includes/class-rest-api.php:914
+#: includes/class-rest-api.php:1354
+#: includes/class-rest-api.php:1663
+#: includes/class-rest-api.php:2608
+#: includes/class-rest-api.php:2703
+msgid "Item not found."
+msgstr ""
+
+#: includes/class-rest-api.php:1012
+msgid "Title is required."
+msgstr ""
+
+#: includes/class-rest-api.php:1080
+#: includes/class-rest-api.php:1389
+msgid "Invalid file path/URL or domain not allowed."
+msgstr ""
+
+#: includes/class-rest-api.php:1090
+#: includes/class-rest-api.php:1413
+msgid "Invalid volume file path/URL or domain not allowed."
+msgstr ""
+
+#: includes/class-rest-api.php:1163
+msgid "Could not create item: %s"
+msgstr ""
+
+#: includes/class-rest-api.php:1164
+msgid "Could not create item."
+msgstr ""
+
+#: includes/class-rest-api.php:1211
+msgid "Item created successfully."
+msgstr ""
+
+#: includes/class-rest-api.php:1228
+#: includes/class-rest-api.php:1573
+msgid "No item IDs provided."
+msgstr ""
+
+#: includes/class-rest-api.php:1281
+#: includes/class-rest-api.php:1496
+#: includes/class-rest-api.php:1943
+#: includes/class-rest-api.php:2779
+#: includes/class-rest-api.php:2977
+#: includes/class-rest-api.php:3129
+msgid "No data to update."
+msgstr ""
+
+#: includes/class-rest-api.php:1336
+msgid "Items updated successfully."
+msgstr ""
+
+#: includes/class-rest-api.php:1513
+msgid "Could not update item: %s"
+msgstr ""
+
+#: includes/class-rest-api.php:1514
+msgid "Could not update item."
+msgstr ""
+
+#: includes/class-rest-api.php:1559
+msgid "Item updated successfully."
+msgstr ""
+
+#: includes/class-rest-api.php:1643
+msgid "Items deleted successfully."
+msgstr ""
+
+#: includes/class-rest-api.php:1728
+msgid "Item deleted successfully."
+msgstr ""
+
+#: includes/class-rest-api.php:1838
+msgid "Category name is required."
+msgstr ""
+
+#: includes/class-rest-api.php:1876
+msgid "Could not create category."
+msgstr ""
+
+#: includes/class-rest-api.php:1896
+msgid "Category created successfully."
+msgstr ""
+
+#: includes/class-rest-api.php:1918
+#: includes/class-rest-api.php:1980
+msgid "Category not found."
+msgstr ""
+
+#: includes/class-rest-api.php:1959
+msgid "Category updated successfully."
+msgstr ""
+
+#: includes/class-rest-api.php:1993
+msgid "Category deleted successfully."
+msgstr ""
+
+#: includes/class-rest-api.php:2028
+msgid "Other"
+msgstr ""
+
+#: includes/class-rest-api.php:2030
+msgid "Default category"
+msgstr ""
+
+#: includes/class-rest-api.php:2267
+msgid "Settings updated successfully."
+msgstr ""
+
+#: includes/class-rest-api.php:2630
+msgid "Bookmark created."
+msgstr ""
+
+#: includes/class-rest-api.php:2657
+msgid "Bookmark not found."
+msgstr ""
+
+#: includes/class-rest-api.php:2663
+msgid "Bookmark deleted."
+msgstr ""
+
+#: includes/class-rest-api.php:2728
+msgid "Note created."
+msgstr ""
+
+#: includes/class-rest-api.php:2753
+#: includes/class-rest-api.php:2820
+msgid "Note not found."
+msgstr ""
+
+#: includes/class-rest-api.php:2794
+msgid "Note updated."
+msgstr ""
+
+#: includes/class-rest-api.php:2826
+msgid "Note deleted."
+msgstr ""
+
+#: includes/class-rest-api.php:2907
+msgid "Author name is required."
+msgstr ""
+
+#: includes/class-rest-api.php:2931
+msgid "Could not create author."
+msgstr ""
+
+#: includes/class-rest-api.php:2945
+msgid "Author created successfully."
+msgstr ""
+
+#: includes/class-rest-api.php:2962
+#: includes/class-rest-api.php:3000
+msgid "Author not found."
+msgstr ""
+
+#: includes/class-rest-api.php:2984
+msgid "Author updated successfully."
+msgstr ""
+
+#: includes/class-rest-api.php:3007
+msgid "Author deleted successfully."
+msgstr ""
+
+#: includes/class-rest-api.php:3059
+msgid "Publisher name is required."
+msgstr ""
+
+#: includes/class-rest-api.php:3083
+msgid "Could not create publisher."
+msgstr ""
+
+#: includes/class-rest-api.php:3097
+msgid "Publisher created successfully."
+msgstr ""
+
+#: includes/class-rest-api.php:3114
+#: includes/class-rest-api.php:3152
+msgid "Publisher not found."
+msgstr ""
+
+#: includes/class-rest-api.php:3136
+msgid "Publisher updated successfully."
+msgstr ""
+
+#: includes/class-rest-api.php:3159
+msgid "Publisher deleted successfully."
+msgstr ""
+
+#: includes/class-rest-api.php:3242
+msgid "%d items synced to CPT."
+msgstr ""
+
+#: includes/class-rest-api.php:3259
+msgid "Invalid URL scheme."
+msgstr ""
+
+#: includes/class-rest-api.php:3290
+msgid "Access to internal resources is not allowed."
+msgstr ""
+
+#: includes/class-rest-api.php:3347
+msgid "Unsupported document type."
+msgstr ""
+
+#: includes/class-rest-api.php:3368
+msgid "Failed to fetch remote resource."
+msgstr ""
+
+#: includes/class-rest-api.php:3376
+msgid "Redirects are not allowed."
+msgstr ""
+
+#: includes/class-rest-api.php:3380
+msgid "Remote resource unavailable."
+msgstr ""
+
+#: includes/class-rest-api.php:3388
+msgid "HTML is not allowed for security reasons."
+msgstr ""
+
+#: includes/class-rest-api.php:3404
+msgid "Content type mismatch or not allowed."
+msgstr ""
+
+#: includes/class-rest-api.php:3449
+msgid "Missing URL parameter."
+msgstr ""
+
+#: includes/class-rest-api.php:3486
+#: includes/class-rest-api.php:3523
+msgid "You do not have permission to proxy this URL."
+msgstr ""
+
+#: includes/class-rest-api.php:3650
+msgid "No items provided."
+msgstr ""
+
+#: includes/class-rest-api.php:4067
+msgid "No filenames provided for deletion."
+msgstr ""
+
+#: includes/class-rest-api.php:4101
+msgid "Selected files deleted successfully."
+msgstr ""
+
+#: includes/class-rest-api.php:4109
+msgid "Deleted %1$d files, failed to delete %2$d files."
+msgstr ""
+
+#: includes/class-rest-api.php:4127
+msgid "Both old and new file names are required."
+msgstr ""
+
+#: includes/class-rest-api.php:4134
+msgid "New file name must be different."
+msgstr ""
+
+#: includes/class-rest-api.php:4147
+msgid "Source file does not exist."
+msgstr ""
+
+#: includes/class-rest-api.php:4154
+msgid "A file with the new name already exists."
+msgstr ""
+
+#: includes/class-rest-api.php:4164
+msgid "Failed to rename file on disk."
+msgstr ""
+
+#: includes/class-rest-api.php:4244
+msgid "File renamed and references updated successfully."
+msgstr ""
+
+#: includes/class-rest-api.php:4262
+msgid "No JetReader uploads directory exists."
+msgstr ""
+
+#: includes/class-rest-api.php:4270
+msgid "No files found to clean."
+msgstr ""
+
+#: includes/class-rest-api.php:4342
+msgid "Cleaned %1$d unused files (%2$s)."
+msgstr ""
+
+#: includes/class-upload-handler.php:50
+msgid "No file was uploaded."
+msgstr ""
+
+#: includes/class-upload-handler.php:65
+msgid "File type .%s is not supported."
+msgstr ""
+
+#: includes/class-upload-handler.php:90
+msgid "File content does not match the declared file type."
+msgstr ""
+
+#: includes/class-upload-handler.php:106
+msgid "File size exceeds the maximum allowed size of %s MB."
+msgstr ""
+
+#: includes/class-upload-handler.php:167
+msgid "Failed to save uploaded file."
+msgstr ""
+
+#: includes/class-upload-handler.php:185
+msgid "Image uploaded successfully."
+msgstr ""
+
+#: includes/class-upload-handler.php:208
+msgid "File uploaded and processed successfully."
+msgstr ""
+

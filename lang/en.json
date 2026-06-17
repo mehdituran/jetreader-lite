@@ -309,6 +309,8 @@
         "showAnnotations": "Show notes",
         "pageAbbr": "Pg.",
         "remove": "Remove",
+        "addNote": "Add Note",
+        "visualZoomReset": "Reset zoom",
         "selectedText": "Selected text:",
         "addNotePlaceholder": "Add a note (optional)...",
         "highlightColor": "Highlight color",

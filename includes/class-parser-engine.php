@@ -182,7 +182,7 @@ class JetReader_Parser_Engine {
         }
 
         if ( $ncx_content ) {
-            $xml = simplexml_load_string( $ncx_content );
+            $xml = simplexml_load_string( $ncx_content, 'SimpleXMLElement', LIBXML_NONET );
             if ( $xml ) {
                 $xml->registerXPathNamespace( 'ncx', 'http://www.daisy.org/z3986/2005/ncx/' );
                 $nav_points = $xml->xpath( '//ncx:navPoint' );
@@ -389,7 +389,7 @@ class JetReader_Parser_Engine {
             return $chapters;
         }
 
-        $xml = simplexml_load_string( $document_xml );
+        $xml = simplexml_load_string( $document_xml, 'SimpleXMLElement', LIBXML_NONET );
         if ( ! $xml ) {
             return $chapters;
         }
