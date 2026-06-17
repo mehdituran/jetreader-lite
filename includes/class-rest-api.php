@@ -2343,11 +2343,6 @@ class JetReader_REST_API {
                 $force = true;
             }
         }
-        if ( ! $force && isset( $_GET['force'] ) ) {
-            if ( '1' === $_GET['force'] || 1 === $_GET['force'] || 'true' === $_GET['force'] || true === $_GET['force'] ) {
-                $force = true;
-            }
-        }
 
         $cache_key = 'jetreader_dashboard_stats';
 

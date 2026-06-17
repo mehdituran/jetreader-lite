@@ -14,7 +14,7 @@
     "wp-env:start": "wp-env start",
     "wp-env:stop": "wp-env stop",
     "wp-env:destroy": "wp-env destroy",
-    "build-zip": "cd .. && rm -f jetreader.zip && zip -r jetreader.zip jetreader/assets jetreader/dist jetreader/includes jetreader/lang jetreader/languages jetreader/templates jetreader/jetreader.php jetreader/uninstall.php jetreader/readme.txt -x '*/.DS_Store' && echo 'jetreader.zip ready'"
+    "build-zip": "cd .. && rm -f jetreader.zip && zip -r jetreader.zip jetreader/assets jetreader/dist jetreader/includes jetreader/lang jetreader/languages jetreader/templates jetreader/src jetreader/jetreader.php jetreader/uninstall.php jetreader/readme.txt jetreader/package.json jetreader/package-lock.json jetreader/vite.config.ts jetreader/tsconfig.json jetreader/tsconfig.node.json jetreader/postcss.config.js jetreader/tailwind.config.ts -x '*/.DS_Store' && echo 'jetreader.zip ready'"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.62.0",
