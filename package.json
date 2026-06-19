@@ -1,6 +1,6 @@
 {
   "name": "jetreader",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "private": true,
   "description": "JetReader - Modern Digital Library Plugin for WordPress",
   "author": "Mehdi Turan",
@@ -14,11 +14,12 @@
     "wp-env:start": "wp-env start",
     "wp-env:stop": "wp-env stop",
     "wp-env:destroy": "wp-env destroy",
-    "build-zip": "cd .. && rm -f jetreader.zip && zip -r jetreader.zip jetreader/assets jetreader/dist jetreader/includes jetreader/lang jetreader/languages jetreader/templates jetreader/src jetreader/jetreader.php jetreader/uninstall.php jetreader/readme.txt jetreader/package.json jetreader/package-lock.json jetreader/vite.config.ts jetreader/tsconfig.json jetreader/tsconfig.node.json jetreader/postcss.config.js jetreader/tailwind.config.ts -x '*/.DS_Store' && echo 'jetreader.zip ready'"
+    "build-zip": "cd .. && rm -f jetreader.zip && zip -r jetreader.zip jetreader/assets jetreader/dist jetreader/includes jetreader/languages jetreader/templates jetreader/src jetreader/jetreader.php jetreader/uninstall.php jetreader/readme.txt jetreader/package.json jetreader/package-lock.json jetreader/vite.config.ts jetreader/tsconfig.json jetreader/tsconfig.node.json jetreader/postcss.config.js jetreader/tailwind.config.ts -x '*/.DS_Store' && echo 'jetreader.zip ready'"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.62.0",
     "@types/dompurify": "^3.0.5",
+    "@wordpress/i18n": "^5.26.0",
     "dompurify": "^3.4.5",
     "fflate": "^0.8.2",
     "framer-motion": "^11.12.0",

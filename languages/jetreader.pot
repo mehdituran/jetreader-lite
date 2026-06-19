@@ -1,264 +1,368 @@
-# Copyright (C) 2026 JetReader
-# This file is distributed under the same license as the JetReader package.
+# Copyright (C) 2026 Mehdi Turan
+# This file is distributed under the GPL v2 or later.
 msgid ""
 msgstr ""
-"Project-Id-Version: JetReader 1.0.0\n"
+"Project-Id-Version: JetReader – Book Library, EPUB & PDF Reader (Lite) "
+"1.0.3\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/jetreader\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-06-12T17:00:00+03:00\n"
+"POT-Creation-Date: 2026-06-19T09:02:38+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"X-Generator: WP-CLI 2.12.0\n"
+"X-Domain: jetreader\n"
 
+#. Plugin Name of the plugin
+#: jetreader.php
+msgid "JetReader – Book Library, EPUB & PDF Reader (Lite)"
+msgstr ""
+
+#. Plugin URI of the plugin
+#: jetreader.php
+msgid "https://wplector.com"
+msgstr ""
+
+#. Description of the plugin
+#: jetreader.php
+msgid ""
+"Digital library plugin with modern reader experience. Supports EPUB, PDF, "
+"TXT, DOCX."
+msgstr ""
+
+#. Author of the plugin
+#: jetreader.php
+msgid "Mehdi Turan"
+msgstr ""
+
+#. Author URI of the plugin
+#: jetreader.php
+msgid "https://github.com/mehdituran"
+msgstr ""
+
+#. translators: %s: PHP version
 #: includes/class-activator.php:43
+#, php-format
 msgid "JetReader requires PHP version %s or higher."
 msgstr ""
 
+#. translators: %s: WordPress version
 #: includes/class-activator.php:57
+#, php-format
 msgid "JetReader requires WordPress version %s or higher."
 msgstr ""
 
-#: includes/class-rest-api.php:899
-#: includes/class-rest-api.php:914
-#: includes/class-rest-api.php:1354
-#: includes/class-rest-api.php:1663
-#: includes/class-rest-api.php:2608
-#: includes/class-rest-api.php:2703
+#: includes/class-cpt.php:43 src/frontend/App.tsx:73 src/admin/App.tsx:910
+#: src/admin/App.tsx:1703
+msgid "Books"
+msgstr ""
+
+#: includes/class-cpt.php:44 src/frontend/App.tsx:74 src/admin/App.tsx:911
+#: src/admin/App.tsx:1704
+msgid "Articles"
+msgstr ""
+
+#: includes/class-cpt.php:45 src/frontend/App.tsx:75 src/admin/App.tsx:912
+#: src/admin/App.tsx:1705
+msgid "Magazines"
+msgstr ""
+
+#: includes/class-cpt.php:46 src/frontend/App.tsx:76 src/admin/App.tsx:913
+#: src/admin/App.tsx:1364 src/admin/App.tsx:1706 src/admin/App.tsx:1713
+#: src/admin/App.tsx:2597 src/admin/App.tsx:3115
+msgid "Q&A"
+msgstr ""
+
+#. translators: %s: post type label, e.g. "Books"
+#: includes/class-cpt.php:60
+#, php-format
+msgid "Add New %s"
+msgstr ""
+
+#. translators: %s: post type label, e.g. "Books"
+#: includes/class-cpt.php:62
+#, php-format
+msgid "Edit %s"
+msgstr ""
+
+#. translators: %s: post type label, e.g. "Books"
+#: includes/class-cpt.php:64
+#, php-format
+msgid "View %s"
+msgstr ""
+
+#. translators: %s: post type label, e.g. "Books"
+#: includes/class-cpt.php:66
+#, php-format
+msgid "Search %s"
+msgstr ""
+
+#: includes/class-cpt.php:67 src/reader/ReaderModal.tsx:4063
+msgid "Not found"
+msgstr ""
+
+#: includes/class-cpt.php:68
+msgid "Not found in Trash"
+msgstr ""
+
+#: includes/class-jetreader.php:218 includes/class-jetreader.php:219
+msgid "JetReader"
+msgstr ""
+
+#: includes/class-jetreader.php:229 includes/class-jetreader.php:230
+msgid "Dashboard"
+msgstr ""
+
+#: includes/class-jetreader.php:238 includes/class-jetreader.php:239
+msgid "Library Items"
+msgstr ""
+
+#: includes/class-jetreader.php:247 includes/class-jetreader.php:248
+msgid "Constants"
+msgstr ""
+
+#: includes/class-jetreader.php:256 includes/class-jetreader.php:257
+#: src/admin/App.tsx:715
+msgid "Settings"
+msgstr ""
+
+#: includes/class-jetreader.php:265 includes/class-jetreader.php:266
+msgid "About"
+msgstr ""
+
+#: includes/class-rest-api.php:905 includes/class-rest-api.php:920
+#: includes/class-rest-api.php:1360 includes/class-rest-api.php:1669
+#: includes/class-rest-api.php:2580 includes/class-rest-api.php:2675
 msgid "Item not found."
 msgstr ""
 
-#: includes/class-rest-api.php:1012
+#: includes/class-rest-api.php:1018
 msgid "Title is required."
 msgstr ""
 
-#: includes/class-rest-api.php:1080
-#: includes/class-rest-api.php:1389
+#: includes/class-rest-api.php:1086 includes/class-rest-api.php:1395
 msgid "Invalid file path/URL or domain not allowed."
 msgstr ""
 
-#: includes/class-rest-api.php:1090
-#: includes/class-rest-api.php:1413
+#: includes/class-rest-api.php:1096 includes/class-rest-api.php:1419
 msgid "Invalid volume file path/URL or domain not allowed."
 msgstr ""
 
-#: includes/class-rest-api.php:1163
+#. translators: %s: database error message
+#: includes/class-rest-api.php:1169
+#, php-format
 msgid "Could not create item: %s"
 msgstr ""
 
-#: includes/class-rest-api.php:1164
+#: includes/class-rest-api.php:1170
 msgid "Could not create item."
 msgstr ""
 
-#: includes/class-rest-api.php:1211
+#: includes/class-rest-api.php:1217
 msgid "Item created successfully."
 msgstr ""
 
-#: includes/class-rest-api.php:1228
-#: includes/class-rest-api.php:1573
+#: includes/class-rest-api.php:1234 includes/class-rest-api.php:1579
 msgid "No item IDs provided."
 msgstr ""
 
-#: includes/class-rest-api.php:1281
-#: includes/class-rest-api.php:1496
-#: includes/class-rest-api.php:1943
-#: includes/class-rest-api.php:2779
-#: includes/class-rest-api.php:2977
-#: includes/class-rest-api.php:3129
+#: includes/class-rest-api.php:1287 includes/class-rest-api.php:1502
+#: includes/class-rest-api.php:1950 includes/class-rest-api.php:2751
+#: includes/class-rest-api.php:2949 includes/class-rest-api.php:3101
 msgid "No data to update."
 msgstr ""
 
-#: includes/class-rest-api.php:1336
+#: includes/class-rest-api.php:1342
 msgid "Items updated successfully."
 msgstr ""
 
-#: includes/class-rest-api.php:1513
+#. translators: %s: database error message
+#: includes/class-rest-api.php:1519
+#, php-format
 msgid "Could not update item: %s"
 msgstr ""
 
-#: includes/class-rest-api.php:1514
+#: includes/class-rest-api.php:1520
 msgid "Could not update item."
 msgstr ""
 
-#: includes/class-rest-api.php:1559
+#: includes/class-rest-api.php:1565
 msgid "Item updated successfully."
 msgstr ""
 
-#: includes/class-rest-api.php:1643
+#: includes/class-rest-api.php:1649
 msgid "Items deleted successfully."
 msgstr ""
 
-#: includes/class-rest-api.php:1728
+#: includes/class-rest-api.php:1735
 msgid "Item deleted successfully."
 msgstr ""
 
-#: includes/class-rest-api.php:1838
+#: includes/class-rest-api.php:1845
 msgid "Category name is required."
 msgstr ""
 
-#: includes/class-rest-api.php:1876
+#: includes/class-rest-api.php:1883
 msgid "Could not create category."
 msgstr ""
 
-#: includes/class-rest-api.php:1896
+#: includes/class-rest-api.php:1903
 msgid "Category created successfully."
 msgstr ""
 
-#: includes/class-rest-api.php:1918
-#: includes/class-rest-api.php:1980
+#: includes/class-rest-api.php:1925 includes/class-rest-api.php:1987
 msgid "Category not found."
 msgstr ""
 
-#: includes/class-rest-api.php:1959
+#: includes/class-rest-api.php:1966
 msgid "Category updated successfully."
 msgstr ""
 
-#: includes/class-rest-api.php:1993
+#: includes/class-rest-api.php:2000
 msgid "Category deleted successfully."
 msgstr ""
 
-#: includes/class-rest-api.php:2028
+#: includes/class-rest-api.php:2035
 msgid "Other"
 msgstr ""
 
-#: includes/class-rest-api.php:2030
+#: includes/class-rest-api.php:2037
 msgid "Default category"
 msgstr ""
 
-#: includes/class-rest-api.php:2267
+#: includes/class-rest-api.php:2265
 msgid "Settings updated successfully."
 msgstr ""
 
-#: includes/class-rest-api.php:2630
+#: includes/class-rest-api.php:2602
 msgid "Bookmark created."
 msgstr ""
 
-#: includes/class-rest-api.php:2657
+#: includes/class-rest-api.php:2629
 msgid "Bookmark not found."
 msgstr ""
 
-#: includes/class-rest-api.php:2663
+#: includes/class-rest-api.php:2635
 msgid "Bookmark deleted."
 msgstr ""
 
-#: includes/class-rest-api.php:2728
+#: includes/class-rest-api.php:2700
 msgid "Note created."
 msgstr ""
 
-#: includes/class-rest-api.php:2753
-#: includes/class-rest-api.php:2820
+#: includes/class-rest-api.php:2725 includes/class-rest-api.php:2792
 msgid "Note not found."
 msgstr ""
 
-#: includes/class-rest-api.php:2794
+#: includes/class-rest-api.php:2766
 msgid "Note updated."
 msgstr ""
 
-#: includes/class-rest-api.php:2826
+#: includes/class-rest-api.php:2798
 msgid "Note deleted."
 msgstr ""
 
-#: includes/class-rest-api.php:2907
+#: includes/class-rest-api.php:2879
 msgid "Author name is required."
 msgstr ""
 
-#: includes/class-rest-api.php:2931
+#: includes/class-rest-api.php:2903
 msgid "Could not create author."
 msgstr ""
 
-#: includes/class-rest-api.php:2945
+#: includes/class-rest-api.php:2917
 msgid "Author created successfully."
 msgstr ""
 
-#: includes/class-rest-api.php:2962
-#: includes/class-rest-api.php:3000
+#: includes/class-rest-api.php:2934 includes/class-rest-api.php:2972
 msgid "Author not found."
 msgstr ""
 
-#: includes/class-rest-api.php:2984
+#: includes/class-rest-api.php:2956
 msgid "Author updated successfully."
 msgstr ""
 
-#: includes/class-rest-api.php:3007
+#: includes/class-rest-api.php:2979
 msgid "Author deleted successfully."
 msgstr ""
 
-#: includes/class-rest-api.php:3059
+#: includes/class-rest-api.php:3031
 msgid "Publisher name is required."
 msgstr ""
 
-#: includes/class-rest-api.php:3083
+#: includes/class-rest-api.php:3055
 msgid "Could not create publisher."
 msgstr ""
 
-#: includes/class-rest-api.php:3097
+#: includes/class-rest-api.php:3069
 msgid "Publisher created successfully."
 msgstr ""
 
-#: includes/class-rest-api.php:3114
-#: includes/class-rest-api.php:3152
+#: includes/class-rest-api.php:3086 includes/class-rest-api.php:3124
 msgid "Publisher not found."
 msgstr ""
 
-#: includes/class-rest-api.php:3136
+#: includes/class-rest-api.php:3108
 msgid "Publisher updated successfully."
 msgstr ""
 
-#: includes/class-rest-api.php:3159
+#: includes/class-rest-api.php:3131
 msgid "Publisher deleted successfully."
 msgstr ""
 
-#: includes/class-rest-api.php:3242
+#. translators: %d: number of items synced
+#: includes/class-rest-api.php:3223
+#, php-format
 msgid "%d items synced to CPT."
 msgstr ""
 
-#: includes/class-rest-api.php:3259
+#: includes/class-rest-api.php:3240
 msgid "Invalid URL scheme."
 msgstr ""
 
-#: includes/class-rest-api.php:3290
+#: includes/class-rest-api.php:3271
 msgid "Access to internal resources is not allowed."
 msgstr ""
 
-#: includes/class-rest-api.php:3347
+#: includes/class-rest-api.php:3328
 msgid "Unsupported document type."
 msgstr ""
 
-#: includes/class-rest-api.php:3368
+#: includes/class-rest-api.php:3349
 msgid "Failed to fetch remote resource."
 msgstr ""
 
-#: includes/class-rest-api.php:3376
+#: includes/class-rest-api.php:3357
 msgid "Redirects are not allowed."
 msgstr ""
 
-#: includes/class-rest-api.php:3380
+#: includes/class-rest-api.php:3361
 msgid "Remote resource unavailable."
 msgstr ""
 
-#: includes/class-rest-api.php:3388
+#: includes/class-rest-api.php:3369
 msgid "HTML is not allowed for security reasons."
 msgstr ""
 
-#: includes/class-rest-api.php:3404
+#: includes/class-rest-api.php:3395
 msgid "Content type mismatch or not allowed."
 msgstr ""
 
-#: includes/class-rest-api.php:3449
+#: includes/class-rest-api.php:3431
 msgid "Missing URL parameter."
 msgstr ""
 
-#: includes/class-rest-api.php:3486
-#: includes/class-rest-api.php:3523
+#: includes/class-rest-api.php:3468 includes/class-rest-api.php:3505
 msgid "You do not have permission to proxy this URL."
 msgstr ""
 
-#: includes/class-rest-api.php:3650
+#: includes/class-rest-api.php:3632
 msgid "No items provided."
 msgstr ""
 
-#: includes/class-rest-api.php:4067
+#: includes/class-rest-api.php:4049
 msgid "No filenames provided for deletion."
 msgstr ""
 
@@ -266,7 +370,9 @@ msgstr ""
 msgid "Selected files deleted successfully."
 msgstr ""
 
+#. translators: 1: number of deleted files, 2: number of files that failed to delete
 #: includes/class-rest-api.php:4109
+#, php-format
 msgid "Deleted %1$d files, failed to delete %2$d files."
 msgstr ""
 
@@ -278,59 +384,1546 @@ msgstr ""
 msgid "New file name must be different."
 msgstr ""
 
-#: includes/class-rest-api.php:4147
-msgid "Source file does not exist."
-msgstr ""
-
-#: includes/class-rest-api.php:4154
-msgid "A file with the new name already exists."
+#: includes/class-rest-api.php:4146
+msgid "New file name must keep the same file extension."
 msgstr ""
 
 #: includes/class-rest-api.php:4164
+msgid "Source file does not exist."
+msgstr ""
+
+#: includes/class-rest-api.php:4175
+msgid "Access denied outside the uploads folder."
+msgstr ""
+
+#: includes/class-rest-api.php:4182
+msgid "Source is not a file."
+msgstr ""
+
+#: includes/class-rest-api.php:4189
+msgid "A file with the new name already exists."
+msgstr ""
+
+#: includes/class-rest-api.php:4199
 msgid "Failed to rename file on disk."
 msgstr ""
 
-#: includes/class-rest-api.php:4244
+#: includes/class-rest-api.php:4279
 msgid "File renamed and references updated successfully."
 msgstr ""
 
-#: includes/class-rest-api.php:4262
+#: includes/class-rest-api.php:4297
 msgid "No JetReader uploads directory exists."
 msgstr ""
 
-#: includes/class-rest-api.php:4270
+#: includes/class-rest-api.php:4305
 msgid "No files found to clean."
 msgstr ""
 
-#: includes/class-rest-api.php:4342
+#. translators: 1: number of deleted files, 2: human readable size
+#: includes/class-rest-api.php:4377
+#, php-format
 msgid "Cleaned %1$d unused files (%2$s)."
 msgstr ""
 
-#: includes/class-upload-handler.php:50
+#: includes/class-upload-handler.php:49
 msgid "No file was uploaded."
 msgstr ""
 
-#: includes/class-upload-handler.php:65
+#. translators: %s: file extension
+#: includes/class-upload-handler.php:64
+#, php-format
 msgid "File type .%s is not supported."
 msgstr ""
 
-#: includes/class-upload-handler.php:90
+#: includes/class-upload-handler.php:75
+msgid "Server fileinfo extension is required to validate uploaded files."
+msgstr ""
+
+#: includes/class-upload-handler.php:96
 msgid "File content does not match the declared file type."
 msgstr ""
 
-#: includes/class-upload-handler.php:106
+#. translators: %s: max file size
+#: includes/class-upload-handler.php:111
+#, php-format
 msgid "File size exceeds the maximum allowed size of %s MB."
 msgstr ""
 
-#: includes/class-upload-handler.php:167
+#: includes/class-upload-handler.php:188
 msgid "Failed to save uploaded file."
 msgstr ""
 
-#: includes/class-upload-handler.php:185
+#: includes/class-upload-handler.php:206
 msgid "Image uploaded successfully."
 msgstr ""
 
-#: includes/class-upload-handler.php:208
+#: includes/class-upload-handler.php:229
 msgid "File uploaded and processed successfully."
 msgstr ""
 
+#: templates/single-reader.php:207
+msgid "Loading reader…"
+msgstr ""
+
+#: src/reader/ReaderEngine.ts:245
+msgid "Failed to fetch file"
+msgstr ""
+
+#: src/reader/ReaderEngine.ts:257
+msgid "Unsupported format"
+msgstr ""
+
+#: src/reader/ReaderEngine.ts:285
+msgid "Untitled PDF"
+msgstr ""
+
+#: src/reader/ReaderEngine.ts:299 src/reader/ReaderEngine.ts:301
+#: src/reader/ReaderModal.tsx:2944 src/reader/ReaderModal.tsx:4407
+msgid "Page"
+msgstr ""
+
+#: src/reader/ReaderEngine.ts:376
+msgid "Invalid EPUB: container.xml missing"
+msgstr ""
+
+#: src/reader/ReaderEngine.ts:380
+msgid "Invalid EPUB: OPF path not found"
+msgstr ""
+
+#: src/reader/ReaderEngine.ts:384
+msgid "Invalid EPUB: OPF file missing"
+msgstr ""
+
+#: src/reader/ReaderEngine.ts:392
+msgid "Untitled EPUB"
+msgstr ""
+
+#: src/reader/ReaderEngine.ts:560
+msgid "This EPUB does not contain readable text content."
+msgstr ""
+
+#: src/reader/ReaderEngine.ts:788
+msgid "Text Document"
+msgstr ""
+
+#: src/reader/ReaderEngine.ts:845 src/reader/ReaderEngine.ts:1040
+msgid "Empty file."
+msgstr ""
+
+#: src/reader/ReaderEngine.ts:848 src/reader/ReaderEngine.ts:890
+#: src/reader/ReaderEngine.ts:941 src/reader/ReaderEngine.ts:950
+#: src/reader/ReaderEngine.ts:961
+msgid "Word Document"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:867
+msgid "Outlines"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:874 src/frontend/App.tsx:836
+msgid "Pages"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:883 src/reader/ReaderModal.tsx:1661
+msgid "Decrease font size"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:889 src/reader/ReaderModal.tsx:1667
+msgid "Increase font size"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:1654 src/reader/ReaderModal.tsx:3731
+#: src/reader/ReaderModal.tsx:3938
+msgid "Table of Contents"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:2118 src/reader/ReaderModal.tsx:3825
+#: src/frontend/App.tsx:944 src/admin/App.tsx:2300 src/admin/App.tsx:2777
+#: src/admin/App.tsx:3292
+msgid "Issue"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:2118 src/reader/ReaderModal.tsx:3825
+#: src/frontend/App.tsx:944 src/admin/App.tsx:2300 src/admin/App.tsx:2777
+#: src/admin/App.tsx:3292
+msgid "Volume"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:2839
+msgid "Failed to load book."
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:3499 src/reader/ReaderModal.tsx:3577
+#: src/reader/ReaderModal.tsx:4382
+msgid "Notes"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:3607 src/reader/ReaderModal.tsx:3626
+#: src/reader/ReaderModal.tsx:3779 src/reader/ReaderModal.tsx:3816
+msgid "Go back"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:3637 src/reader/ReaderModal.tsx:3803
+#: src/reader/ReaderModal.tsx:3898
+msgid "Search (Ctrl+F)"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:3647 src/reader/ReaderModal.tsx:3792
+msgid "Close (Esc)"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:3675 src/reader/ReaderModal.tsx:3851
+msgid "Reset zoom"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:3683 src/reader/ReaderModal.tsx:3860
+msgid "Fit"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:3690 src/reader/ReaderModal.tsx:3868
+msgid "Zoom out"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:3697 src/reader/ReaderModal.tsx:3876
+msgid "Fit (reset)"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:3703 src/reader/ReaderModal.tsx:3882
+msgid "Zoom in"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:3719 src/reader/ReaderModal.tsx:3909
+msgid "Page panel"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:3745 src/reader/ReaderModal.tsx:3956
+msgid "Font size"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:3747 src/reader/ReaderModal.tsx:3958
+#: src/admin/App.tsx:4413
+msgid "Small"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:3748 src/reader/ReaderModal.tsx:3959
+#: src/admin/App.tsx:4414
+msgid "Medium"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:3749 src/reader/ReaderModal.tsx:3960
+#: src/admin/App.tsx:4415
+msgid "Large"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:3750 src/reader/ReaderModal.tsx:3961
+#: src/admin/App.tsx:4416
+msgid "Extra Large"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:3761 src/reader/ReaderModal.tsx:3976
+msgid "Theme"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:3763 src/reader/ReaderModal.tsx:3978
+#: src/admin/App.tsx:4429
+msgid "Light"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:3764 src/reader/ReaderModal.tsx:3979
+#: src/admin/App.tsx:4430
+msgid "Dark"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:3765 src/reader/ReaderModal.tsx:3980
+#: src/admin/App.tsx:4431
+msgid "Sepia"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:3819
+msgid "Back"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:3923
+msgid "Single page view"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:3923
+msgid "Dual page view"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:4007
+msgid "Indexing text, please wait..."
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:4008
+msgid "Search in text... (min. 2 characters)"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:4017
+msgid "Scanned PDF"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:4024
+msgid "Indexing..."
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:4034
+msgid "Search"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:4044 src/reader/ReaderModal.tsx:4253
+#: src/reader/ReaderModal.tsx:4257 src/admin/App.tsx:2353
+msgid "Previous"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:4054 src/reader/ReaderModal.tsx:4293
+#: src/reader/ReaderModal.tsx:4296 src/admin/App.tsx:2360
+msgid "Next"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:4135
+msgid "Loading EPUB/PDF/TXT/DOCX..."
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:4148 src/frontend/App.tsx:986
+#: src/admin/App.tsx:1267
+msgid "Close"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:4159
+msgid "Content not available."
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:4311
+msgid "Toggle bookmark (Ctrl+B)"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:4318
+msgid "Show bookmarks"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:4326
+msgid "Show notes"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:4347
+msgid "Bookmarks"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:4351
+msgid ""
+"No bookmarks yet. Press Ctrl+B or click \"Bookmark\" to save the current "
+"page."
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:4363
+msgid "Pg."
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:4386
+msgid "No notes yet. Select text to add highlights with notes."
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:4443
+msgid "Add Note"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:4475
+msgid "Selected text:"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:4486
+msgid "Add a note (optional)..."
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:4510 src/admin/App.tsx:3599
+#: src/admin/App.tsx:3868 src/admin/App.tsx:5349
+msgid "Save"
+msgstr ""
+
+#: src/reader/ReaderModal.tsx:4522 src/admin/App.tsx:1259
+#: src/admin/App.tsx:1661 src/admin/App.tsx:2425 src/admin/App.tsx:2665
+#: src/admin/App.tsx:2716 src/admin/App.tsx:3396 src/admin/App.tsx:3602
+#: src/admin/App.tsx:3648 src/admin/App.tsx:3871 src/admin/App.tsx:3915
+#: src/admin/App.tsx:4733 src/admin/App.tsx:5342 src/admin/App.tsx:5390
+#: src/admin/App.tsx:5423
+msgid "Cancel"
+msgstr ""
+
+#: src/frontend/App.tsx:72 src/admin/App.tsx:1702 src/admin/App.tsx:2129
+#: src/admin/App.tsx:2142
+msgid "All"
+msgstr ""
+
+#: src/frontend/App.tsx:334 src/frontend/App.tsx:1402
+msgid "Filters"
+msgstr ""
+
+#: src/frontend/App.tsx:347
+msgid "Clear all"
+msgstr ""
+
+#: src/frontend/App.tsx:374 src/admin/App.tsx:2089 src/admin/App.tsx:2260
+msgid "Category"
+msgstr ""
+
+#: src/frontend/App.tsx:406 src/admin/App.tsx:2523 src/admin/App.tsx:3212
+msgid "Language"
+msgstr ""
+
+#: src/frontend/App.tsx:411
+msgid "All Languages"
+msgstr ""
+
+#: src/frontend/App.tsx:412 src/admin/App.tsx:2529 src/admin/App.tsx:3218
+msgid "Search languages..."
+msgstr ""
+
+#: src/frontend/App.tsx:419
+msgid "Publication Year"
+msgstr ""
+
+#: src/frontend/App.tsx:423
+msgid "From"
+msgstr ""
+
+#: src/frontend/App.tsx:434
+msgid "To"
+msgstr ""
+
+#: src/frontend/App.tsx:470
+msgid "Category:"
+msgstr ""
+
+#: src/frontend/App.tsx:474
+msgid "Language:"
+msgstr ""
+
+#: src/frontend/App.tsx:475
+msgid "From:"
+msgstr ""
+
+#: src/frontend/App.tsx:476
+msgid "To:"
+msgstr ""
+
+#: src/frontend/App.tsx:478
+msgid "Author:"
+msgstr ""
+
+#: src/frontend/App.tsx:481
+msgid "Publisher:"
+msgstr ""
+
+#: src/frontend/App.tsx:483
+msgid "Translator:"
+msgstr ""
+
+#: src/frontend/App.tsx:484 src/admin/App.tsx:1447 src/admin/App.tsx:1626
+#: src/admin/App.tsx:2143 src/admin/App.tsx:2516 src/admin/App.tsx:3388
+msgid "⭐ Featured"
+msgstr ""
+
+#: src/frontend/App.tsx:604 src/frontend/App.tsx:699 src/frontend/App.tsx:724
+msgid "💬 View"
+msgstr ""
+
+#: src/frontend/App.tsx:699
+msgid "Read"
+msgstr ""
+
+#: src/frontend/App.tsx:724
+msgid "Details"
+msgstr ""
+
+#: src/frontend/App.tsx:836 src/frontend/App.tsx:948
+msgid "pages"
+msgstr ""
+
+#: src/frontend/App.tsx:838
+msgid "Volumes/Issues"
+msgstr ""
+
+#: src/frontend/App.tsx:838 src/admin/App.tsx:2345
+msgid "total"
+msgstr ""
+
+#: src/frontend/App.tsx:902
+msgid "author:"
+msgstr ""
+
+#: src/frontend/App.tsx:908 src/admin/App.tsx:1540 src/admin/App.tsx:2536
+#: src/admin/App.tsx:3119
+msgid "Translator"
+msgstr ""
+
+#: src/frontend/App.tsx:930
+msgid "Issues"
+msgstr ""
+
+#: src/frontend/App.tsx:930
+msgid "Volumes"
+msgstr ""
+
+#: src/frontend/App.tsx:981
+msgid "📖 Read Now"
+msgstr ""
+
+#: src/frontend/App.tsx:1022 src/admin/App.tsx:2345
+msgid "of"
+msgstr ""
+
+#: src/frontend/App.tsx:1022
+msgid "items"
+msgstr ""
+
+#: src/frontend/App.tsx:1150
+msgid "Loading failed. Please refresh the page."
+msgstr ""
+
+#: src/frontend/App.tsx:1161
+msgid "No items found"
+msgstr ""
+
+#: src/frontend/App.tsx:1163
+msgid "Try adjusting your filters."
+msgstr ""
+
+#: src/frontend/App.tsx:1414
+msgid "Search in book contents... (min. 2 characters)"
+msgstr ""
+
+#: src/admin/App.tsx:371
+msgid "WordPress Media Library"
+msgstr ""
+
+#: src/admin/App.tsx:374
+msgid "Select standard library files"
+msgstr ""
+
+#: src/admin/App.tsx:403
+msgid "Upload & Select File"
+msgstr ""
+
+#: src/admin/App.tsx:414
+msgid "Uploading..."
+msgstr ""
+
+#: src/admin/App.tsx:414
+msgid "Processing..."
+msgstr ""
+
+#: src/admin/App.tsx:432
+msgid "Select Existing JetReader File"
+msgstr ""
+
+#: src/admin/App.tsx:438 src/admin/App.tsx:5044
+msgid "Search files..."
+msgstr ""
+
+#: src/admin/App.tsx:467 src/admin/App.tsx:5147
+msgid "Images"
+msgstr ""
+
+#: src/admin/App.tsx:486 src/admin/App.tsx:5188
+msgid "No files found in this category."
+msgstr ""
+
+#: src/admin/App.tsx:522
+msgid "Choose"
+msgstr ""
+
+#: src/admin/App.tsx:655
+msgid "Total Books"
+msgstr ""
+
+#: src/admin/App.tsx:656
+msgid "Total Articles"
+msgstr ""
+
+#: src/admin/App.tsx:657
+msgid "Total Magazines"
+msgstr ""
+
+#: src/admin/App.tsx:658
+msgid "Total Q&A"
+msgstr ""
+
+#: src/admin/App.tsx:659
+msgid "Total Views"
+msgstr ""
+
+#: src/admin/App.tsx:660
+msgid "Total Reads"
+msgstr ""
+
+#: src/admin/App.tsx:668
+msgid "🚀 JetReader Dashboard"
+msgstr ""
+
+#: src/admin/App.tsx:671
+msgid "Welcome to your digital library overview."
+msgstr ""
+
+#: src/admin/App.tsx:709
+msgid "Quick Actions"
+msgstr ""
+
+#: src/admin/App.tsx:713
+msgid "Manage Library Items"
+msgstr ""
+
+#: src/admin/App.tsx:714
+msgid "Manage Categories"
+msgstr ""
+
+#: src/admin/App.tsx:716
+msgid "Support"
+msgstr ""
+
+#: src/admin/App.tsx:746
+msgid "Embed on Your Site"
+msgstr ""
+
+#: src/admin/App.tsx:749
+msgid "Paste any shortcode into a WordPress page, post, or Text/HTML block:"
+msgstr ""
+
+#: src/admin/App.tsx:756
+msgid "Full Library"
+msgstr ""
+
+#: src/admin/App.tsx:756
+msgid "All items with search, filters, and content-type tabs"
+msgstr ""
+
+#: src/admin/App.tsx:757
+msgid "Books Only"
+msgstr ""
+
+#: src/admin/App.tsx:757
+msgid ""
+"Lists only books, hides the tab bar (type=article, magazine, qa also work)"
+msgstr ""
+
+#: src/admin/App.tsx:758
+msgid "Selected Type Tabs"
+msgstr ""
+
+#: src/admin/App.tsx:758
+msgid ""
+"Tabbed view restricted to the specified types. E.g. types=\"book,magazine\" "
+"shows only the Books and Magazines tabs"
+msgstr ""
+
+#: src/admin/App.tsx:786
+msgid "Click to copy shortcode"
+msgstr ""
+
+#: src/admin/App.tsx:787
+msgid "Copied!"
+msgstr ""
+
+#: src/admin/App.tsx:1113 src/admin/App.tsx:2995
+msgid "❌ Title is required."
+msgstr ""
+
+#: src/admin/App.tsx:1155
+#, javascript-format
+msgid "✅ %d items added successfully."
+msgstr ""
+
+#: src/admin/App.tsx:1156
+#, javascript-format
+msgid "%1$d items added. ❌ %2$d failed."
+msgstr ""
+
+#: src/admin/App.tsx:1175
+msgid "Copy all"
+msgstr ""
+
+#: src/admin/App.tsx:1220
+msgid "📋 Bulk Add Items"
+msgstr ""
+
+#: src/admin/App.tsx:1221
+msgid "Add multiple items at once using a simple tabular format."
+msgstr ""
+
+#: src/admin/App.tsx:1250
+msgid ""
+"⚠️ Entered data has not been saved yet. If you close the window, this data "
+"will be lost."
+msgstr ""
+
+#: src/admin/App.tsx:1251
+msgid ""
+"⚠️ Entered data has not been saved yet. If you change tabs, these rows will "
+"be deleted."
+msgstr ""
+
+#: src/admin/App.tsx:1268
+msgid "Continue"
+msgstr ""
+
+#: src/admin/App.tsx:1280
+msgid "Drag & Drop Multiple Files"
+msgstr ""
+
+#: src/admin/App.tsx:1281
+msgid ""
+"Drag and drop files onto a specific row to populate it, or drop them on the "
+"general form background to automatically upload and create new pre-filled "
+"rows."
+msgstr ""
+
+#: src/admin/App.tsx:1354
+msgid "Drag down…"
+msgstr ""
+
+#: src/admin/App.tsx:1364 src/admin/App.tsx:1710 src/admin/App.tsx:2594
+#: src/admin/App.tsx:3112
+msgid "Book"
+msgstr ""
+
+#: src/admin/App.tsx:1364 src/admin/App.tsx:1711 src/admin/App.tsx:2595
+#: src/admin/App.tsx:3113
+msgid "Article"
+msgstr ""
+
+#: src/admin/App.tsx:1364 src/admin/App.tsx:1712 src/admin/App.tsx:2596
+#: src/admin/App.tsx:3114
+msgid "Magazine"
+msgstr ""
+
+#: src/admin/App.tsx:1372
+msgid "Duplicate row"
+msgstr ""
+
+#: src/admin/App.tsx:1396 src/admin/App.tsx:1403 src/admin/App.tsx:1469
+#: src/admin/App.tsx:1476 src/admin/App.tsx:3106
+msgid "Title *"
+msgstr ""
+
+#: src/admin/App.tsx:1413 src/admin/App.tsx:1486 src/admin/App.tsx:3127
+msgid "🏷️ Category"
+msgstr ""
+
+#: src/admin/App.tsx:1422 src/admin/App.tsx:1495 src/admin/App.tsx:3132
+msgid "Category name..."
+msgstr ""
+
+#: src/admin/App.tsx:1431 src/admin/App.tsx:1568 src/admin/App.tsx:2123
+#: src/admin/App.tsx:2263 src/admin/App.tsx:2494 src/admin/App.tsx:3374
+msgid "Visibility"
+msgstr ""
+
+#: src/admin/App.tsx:1435 src/admin/App.tsx:1572 src/admin/App.tsx:1717
+#: src/admin/App.tsx:2501 src/admin/App.tsx:3376
+msgid "Publish"
+msgstr ""
+
+#: src/admin/App.tsx:1436 src/admin/App.tsx:1573 src/admin/App.tsx:1718
+#: src/admin/App.tsx:2131 src/admin/App.tsx:2502 src/admin/App.tsx:3377
+msgid "Draft"
+msgstr ""
+
+#: src/admin/App.tsx:1437 src/admin/App.tsx:1574 src/admin/App.tsx:1719
+#: src/admin/App.tsx:2132 src/admin/App.tsx:2503 src/admin/App.tsx:3378
+msgid "Private"
+msgstr ""
+
+#: src/admin/App.tsx:1455 src/admin/App.tsx:1458 src/admin/App.tsx:1634
+#: src/admin/App.tsx:1637 src/admin/App.tsx:3225
+msgid "Short description..."
+msgstr ""
+
+#: src/admin/App.tsx:1504 src/admin/App.tsx:2102 src/admin/App.tsx:2261
+#: src/admin/App.tsx:2550 src/admin/App.tsx:3167
+msgid "Author"
+msgstr ""
+
+#: src/admin/App.tsx:1513 src/admin/App.tsx:3175
+msgid "Author name"
+msgstr ""
+
+#: src/admin/App.tsx:1522 src/admin/App.tsx:2568 src/admin/App.tsx:3184
+msgid "Publisher"
+msgstr ""
+
+#: src/admin/App.tsx:1531 src/admin/App.tsx:3192
+msgid "Publisher name"
+msgstr ""
+
+#: src/admin/App.tsx:1547 src/admin/App.tsx:3120
+msgid "Translator name"
+msgstr ""
+
+#: src/admin/App.tsx:1557 src/admin/App.tsx:1560 src/admin/App.tsx:2604
+#: src/admin/App.tsx:3204
+msgid "Year"
+msgstr ""
+
+#: src/admin/App.tsx:1583 src/admin/App.tsx:3309 src/admin/App.tsx:3352
+msgid "File Type"
+msgstr ""
+
+#: src/admin/App.tsx:1587 src/admin/App.tsx:3315 src/admin/App.tsx:3354
+msgid "Select..."
+msgstr ""
+
+#: src/admin/App.tsx:1597 src/admin/App.tsx:3273 src/admin/App.tsx:3325
+#: src/admin/App.tsx:3363
+msgid "Cover Image URL"
+msgstr ""
+
+#: src/admin/App.tsx:1601 src/admin/App.tsx:3365
+msgid "https://..."
+msgstr ""
+
+#: src/admin/App.tsx:1602 src/admin/App.tsx:1616 src/admin/App.tsx:3283
+#: src/admin/App.tsx:3305 src/admin/App.tsx:3334 src/admin/App.tsx:3348
+#: src/admin/App.tsx:3366
+msgid "Select from Media Library"
+msgstr ""
+
+#: src/admin/App.tsx:1611 src/admin/App.tsx:3296 src/admin/App.tsx:3345
+msgid "File Path (URL)"
+msgstr ""
+
+#: src/admin/App.tsx:1615 src/admin/App.tsx:3347
+msgid "/wp-content/uploads/..."
+msgstr ""
+
+#: src/admin/App.tsx:1657
+msgid "➕ Add Row"
+msgstr ""
+
+#: src/admin/App.tsx:1670 src/admin/App.tsx:2672
+msgid "⏳ Saving..."
+msgstr ""
+
+#: src/admin/App.tsx:1670
+msgid "💾 Save All"
+msgstr ""
+
+#: src/admin/App.tsx:1952
+msgid "❌ Change at least one field."
+msgstr ""
+
+#: src/admin/App.tsx:1964
+msgid "items updated."
+msgstr ""
+
+#: src/admin/App.tsx:1966 src/admin/App.tsx:1988
+msgid "failed."
+msgstr ""
+
+#: src/admin/App.tsx:1986
+msgid "items deleted."
+msgstr ""
+
+#: src/admin/App.tsx:2003
+msgid "📚 Library Items"
+msgstr ""
+
+#: src/admin/App.tsx:2005
+msgid "Create, edit, and manage your digital library items."
+msgstr ""
+
+#: src/admin/App.tsx:2013
+msgid "📋 Bulk Add"
+msgstr ""
+
+#: src/admin/App.tsx:2016
+msgid "➕ Add New Item"
+msgstr ""
+
+#: src/admin/App.tsx:2061
+msgid "Search items..."
+msgstr ""
+
+#: src/admin/App.tsx:2072 src/admin/App.tsx:2074
+msgid "⚙️ Filters"
+msgstr ""
+
+#: src/admin/App.tsx:2095
+msgid "All Categories"
+msgstr ""
+
+#: src/admin/App.tsx:2107
+msgid "Author name..."
+msgstr ""
+
+#: src/admin/App.tsx:2112 src/admin/App.tsx:2262
+msgid "Format"
+msgstr ""
+
+#: src/admin/App.tsx:2118
+msgid "All Formats"
+msgstr ""
+
+#: src/admin/App.tsx:2130
+msgid "Published"
+msgstr ""
+
+#: src/admin/App.tsx:2136 src/admin/App.tsx:2264 src/admin/App.tsx:2509
+msgid "Featured"
+msgstr ""
+
+#: src/admin/App.tsx:2144 src/admin/App.tsx:2517
+msgid "Not Featured"
+msgstr ""
+
+#: src/admin/App.tsx:2148
+msgid "Views (min – max)"
+msgstr ""
+
+#: src/admin/App.tsx:2150
+msgid "Min"
+msgstr ""
+
+#: src/admin/App.tsx:2151
+msgid "Max"
+msgstr ""
+
+#: src/admin/App.tsx:2162
+msgid "Only multi-volume"
+msgstr ""
+
+#: src/admin/App.tsx:2175
+msgid "Reset"
+msgstr ""
+
+#: src/admin/App.tsx:2181
+msgid "Apply Filters"
+msgstr ""
+
+#: src/admin/App.tsx:2193
+msgid "⚠️ Failed to load items."
+msgstr ""
+
+#: src/admin/App.tsx:2193
+msgid "Retry"
+msgstr ""
+
+#: src/admin/App.tsx:2201 src/admin/App.tsx:4278
+msgid "item"
+msgstr ""
+
+#: src/admin/App.tsx:2201
+msgid "items selected"
+msgstr ""
+
+#: src/admin/App.tsx:2217
+#, javascript-format
+msgid "Select all %d items"
+msgstr ""
+
+#: src/admin/App.tsx:2225 src/admin/App.tsx:2458
+msgid "✏️ Bulk Edit"
+msgstr ""
+
+#: src/admin/App.tsx:2231
+msgid "🗑️ Delete Selected"
+msgstr ""
+
+#: src/admin/App.tsx:2237 src/admin/App.tsx:5169
+msgid "✕ Deselect"
+msgstr ""
+
+#: src/admin/App.tsx:2255
+msgid "Select / deselect all on this page"
+msgstr ""
+
+#: src/admin/App.tsx:2258
+msgid "Title"
+msgstr ""
+
+#: src/admin/App.tsx:2259 src/admin/App.tsx:2586 src/admin/App.tsx:3110
+msgid "Type"
+msgstr ""
+
+#: src/admin/App.tsx:2265
+msgid "Views"
+msgstr ""
+
+#: src/admin/App.tsx:2266 src/admin/App.tsx:3666 src/admin/App.tsx:3933
+#: src/admin/App.tsx:5208
+msgid "Actions"
+msgstr ""
+
+#: src/admin/App.tsx:2314 src/admin/App.tsx:3690 src/admin/App.tsx:3957
+msgid "Edit"
+msgstr ""
+
+#: src/admin/App.tsx:2320 src/admin/App.tsx:2432 src/admin/App.tsx:5292
+#: src/admin/App.tsx:5397 src/admin/App.tsx:5430
+msgid "Delete"
+msgstr ""
+
+#: src/admin/App.tsx:2336
+msgid "No items found yet."
+msgstr ""
+
+#: src/admin/App.tsx:2337
+msgid ""
+"Click the \"Add New Item\" button to upload your first book or document."
+msgstr ""
+
+#: src/admin/App.tsx:2345
+msgid "Showing page"
+msgstr ""
+
+#: src/admin/App.tsx:2416
+msgid "⚠️ Confirm Deletion"
+msgstr ""
+
+#: src/admin/App.tsx:2418
+msgid ""
+"This action will permanently delete the item, its search index, bookmarks, "
+"and notes."
+msgstr ""
+
+#: src/admin/App.tsx:2432 src/admin/App.tsx:2723
+msgid "Deleting..."
+msgstr ""
+
+#: src/admin/App.tsx:2460
+msgid "Leave fields as \"— No changes —\" to keep current values"
+msgstr ""
+
+#: src/admin/App.tsx:2477 src/admin/App.tsx:2707
+#, javascript-format
+msgid "+ %d more..."
+msgstr ""
+
+#: src/admin/App.tsx:2486
+msgid ""
+"Some selected items contain multiple volumes/issues. Volume files will not "
+"be affected; only the common fields below will be updated."
+msgstr ""
+
+#: src/admin/App.tsx:2500 src/admin/App.tsx:2515 src/admin/App.tsx:2528
+#: src/admin/App.tsx:2542 src/admin/App.tsx:2557 src/admin/App.tsx:2575
+#: src/admin/App.tsx:2593 src/admin/App.tsx:2610
+msgid "— No changes —"
+msgstr ""
+
+#: src/admin/App.tsx:2558
+msgid "Remove Author"
+msgstr ""
+
+#: src/admin/App.tsx:2576
+msgid "Remove Publisher"
+msgstr ""
+
+#: src/admin/App.tsx:2625
+msgid "Change Categories"
+msgstr ""
+
+#: src/admin/App.tsx:2629
+msgid "Please select at least one category."
+msgstr ""
+
+#: src/admin/App.tsx:2672
+#, javascript-format
+msgid "Apply to %d items"
+msgstr ""
+
+#: src/admin/App.tsx:2695
+msgid "⚠️ Delete selected items?"
+msgstr ""
+
+#: src/admin/App.tsx:2697
+msgid ""
+"This action will permanently delete all selected items, their search "
+"indexes, bookmarks, and notes."
+msgstr ""
+
+#: src/admin/App.tsx:2723
+msgid "🗑️ Delete All"
+msgstr ""
+
+#: src/admin/App.tsx:3044
+msgid "✅ Item updated successfully!"
+msgstr ""
+
+#: src/admin/App.tsx:3044
+msgid "✅ Item created successfully."
+msgstr ""
+
+#: src/admin/App.tsx:3047
+msgid "Save failed"
+msgstr ""
+
+#: src/admin/App.tsx:3079
+msgid "Drop file here to upload & autofill"
+msgstr ""
+
+#: src/admin/App.tsx:3080
+msgid "Supports EPUB, PDF, TXT, DOCX"
+msgstr ""
+
+#: src/admin/App.tsx:3086
+msgid "✏️ Edit Item"
+msgstr ""
+
+#: src/admin/App.tsx:3086
+msgid "➕ Create New Item"
+msgstr ""
+
+#: src/admin/App.tsx:3098
+msgid "Drag & Drop Support"
+msgstr ""
+
+#: src/admin/App.tsx:3099
+msgid ""
+"You can drag and drop EPUB, PDF, TXT, or DOCX files anywhere on this form to "
+"upload them and automatically pre-fill the fields."
+msgstr ""
+
+#: src/admin/App.tsx:3107
+msgid "Item title"
+msgstr ""
+
+#: src/admin/App.tsx:3208 src/admin/App.tsx:3209
+msgid "ISBN"
+msgstr ""
+
+#: src/admin/App.tsx:3224 src/admin/App.tsx:3595 src/admin/App.tsx:3665
+#: src/admin/App.tsx:3864 src/admin/App.tsx:3932
+msgid "Description"
+msgstr ""
+
+#: src/admin/App.tsx:3233
+msgid "📚 Volume Information"
+msgstr ""
+
+#: src/admin/App.tsx:3233
+msgid "🗞️ Issue Information"
+msgstr ""
+
+#: src/admin/App.tsx:3237
+msgid "Number of Volumes:"
+msgstr ""
+
+#: src/admin/App.tsx:3237
+msgid "Number of Issues:"
+msgstr ""
+
+#: src/admin/App.tsx:3253
+msgid "Cover Image:"
+msgstr ""
+
+#: src/admin/App.tsx:3254
+msgid "Common for all"
+msgstr ""
+
+#: src/admin/App.tsx:3254
+msgid "Individual for each Volume/Issue"
+msgstr ""
+
+#: src/admin/App.tsx:3273
+msgid "Cover Image URL (For All Volumes)"
+msgstr ""
+
+#: src/admin/App.tsx:3399 src/admin/App.tsx:4181 src/admin/App.tsx:4462
+msgid "💾 Saving..."
+msgstr ""
+
+#: src/admin/App.tsx:3399
+msgid "💾 Save"
+msgstr ""
+
+#: src/admin/App.tsx:3432
+msgid "📚 Books"
+msgstr ""
+
+#: src/admin/App.tsx:3433
+msgid "📄 Articles"
+msgstr ""
+
+#: src/admin/App.tsx:3434
+msgid "🗞️ Magazines"
+msgstr ""
+
+#: src/admin/App.tsx:3435
+msgid "💬 Q&A"
+msgstr ""
+
+#: src/admin/App.tsx:3474 src/admin/App.tsx:3534
+msgid "✅ Category created."
+msgstr ""
+
+#: src/admin/App.tsx:3495
+msgid "✅ Category updated."
+msgstr ""
+
+#: src/admin/App.tsx:3512
+msgid "🗑️ Category deleted."
+msgstr ""
+
+#: src/admin/App.tsx:3519 src/admin/App.tsx:3559
+msgid "❌ Category name is required."
+msgstr ""
+
+#: src/admin/App.tsx:3540 src/admin/App.tsx:3829
+#, javascript-format
+msgid "Permanently delete %d records?"
+msgstr ""
+
+#: src/admin/App.tsx:3548
+#, javascript-format
+msgid "%d categories deleted."
+msgstr ""
+
+#: src/admin/App.tsx:3588
+msgid "✏️ Edit Category"
+msgstr ""
+
+#: src/admin/App.tsx:3591 src/admin/App.tsx:3615 src/admin/App.tsx:3663
+#: src/admin/App.tsx:3860 src/admin/App.tsx:3882 src/admin/App.tsx:3883
+#: src/admin/App.tsx:3930
+msgid "Name"
+msgstr ""
+
+#: src/admin/App.tsx:3599 src/admin/App.tsx:3868
+msgid "Saving..."
+msgstr ""
+
+#: src/admin/App.tsx:3611
+msgid "➕ Add New Category to:"
+msgstr ""
+
+#: src/admin/App.tsx:3616
+msgid "Category name"
+msgstr ""
+
+#: src/admin/App.tsx:3619 src/admin/App.tsx:3886
+msgid "Description (optional)"
+msgstr ""
+
+#: src/admin/App.tsx:3620 src/admin/App.tsx:3887
+msgid "Short description"
+msgstr ""
+
+#: src/admin/App.tsx:3623 src/admin/App.tsx:3890
+msgid "Adding..."
+msgstr ""
+
+#: src/admin/App.tsx:3623 src/admin/App.tsx:3890
+msgid "➕ Add"
+msgstr ""
+
+#: src/admin/App.tsx:3626
+msgid "* Separate multiple entries with commas (e.g. Fiction, Drama, Poetry)"
+msgstr ""
+
+#: src/admin/App.tsx:3633
+msgid "No categories yet. Create one above."
+msgstr ""
+
+#: src/admin/App.tsx:3639 src/admin/App.tsx:3906 src/admin/App.tsx:5162
+msgid "selected"
+msgstr ""
+
+#: src/admin/App.tsx:3645 src/admin/App.tsx:3912
+#, javascript-format
+msgid "Delete Selected (%d)"
+msgstr ""
+
+#: src/admin/App.tsx:3664 src/admin/App.tsx:3931
+msgid "Slug"
+msgstr ""
+
+#: src/admin/App.tsx:3693
+msgid ""
+"Are you sure you want to delete this category? This will remove it from all "
+"associated items."
+msgstr ""
+
+#: src/admin/App.tsx:3837
+#, javascript-format
+msgid "%d records deleted."
+msgstr ""
+
+#: src/admin/App.tsx:3893
+msgid "* Separate multiple entries with commas (e.g. A, B, C)"
+msgstr ""
+
+#: src/admin/App.tsx:3992
+msgid "🏷️ Categories"
+msgstr ""
+
+#: src/admin/App.tsx:3993
+msgid "✍️ Authors"
+msgstr ""
+
+#: src/admin/App.tsx:3994
+msgid "📚 Publishers"
+msgstr ""
+
+#: src/admin/App.tsx:3999
+msgid "📌 Constants"
+msgstr ""
+
+#: src/admin/App.tsx:4000
+msgid "Manage your categories, authors and publishers centrally."
+msgstr ""
+
+#: src/admin/App.tsx:4031
+msgid "➕ Add New Author"
+msgstr ""
+
+#: src/admin/App.tsx:4032
+msgid "✏️ Edit Author"
+msgstr ""
+
+#: src/admin/App.tsx:4033
+msgid "No authors yet. Create one above."
+msgstr ""
+
+#: src/admin/App.tsx:4034
+msgid "✅ Author created."
+msgstr ""
+
+#: src/admin/App.tsx:4035
+msgid "✅ Author updated."
+msgstr ""
+
+#: src/admin/App.tsx:4036
+msgid "🗑️ Author deleted."
+msgstr ""
+
+#: src/admin/App.tsx:4037 src/admin/App.tsx:4053
+msgid "❌ Name is required."
+msgstr ""
+
+#: src/admin/App.tsx:4038 src/admin/App.tsx:4054
+msgid "Are you sure you want to delete this record?"
+msgstr ""
+
+#: src/admin/App.tsx:4047
+msgid "➕ Add New Publisher"
+msgstr ""
+
+#: src/admin/App.tsx:4048
+msgid "✏️ Edit Publisher"
+msgstr ""
+
+#: src/admin/App.tsx:4049
+msgid "No publishers yet. Create one above."
+msgstr ""
+
+#: src/admin/App.tsx:4050
+msgid "✅ Publisher created."
+msgstr ""
+
+#: src/admin/App.tsx:4051
+msgid "✅ Publisher updated."
+msgstr ""
+
+#: src/admin/App.tsx:4052
+msgid "🗑️ Publisher deleted."
+msgstr ""
+
+#: src/admin/App.tsx:4130
+msgid "You have unsaved changes. Are you sure you want to leave?"
+msgstr ""
+
+#: src/admin/App.tsx:4151 src/admin/App.tsx:4187 src/admin/App.tsx:4192
+msgid "✅ Settings saved successfully!"
+msgstr ""
+
+#: src/admin/App.tsx:4156
+msgid "❌ Failed to save settings."
+msgstr ""
+
+#: src/admin/App.tsx:4159
+msgid "❌ Network error."
+msgstr ""
+
+#: src/admin/App.tsx:4175
+msgid ""
+"You have unsaved changes. Press \"Save Settings\" to keep them, otherwise "
+"changes will be lost."
+msgstr ""
+
+#: src/admin/App.tsx:4181 src/admin/App.tsx:4462
+msgid "💾 Save Settings"
+msgstr ""
+
+#: src/admin/App.tsx:4252
+msgid "Gray"
+msgstr ""
+
+#: src/admin/App.tsx:4252
+msgid "Purple"
+msgstr ""
+
+#: src/admin/App.tsx:4294
+msgid "column"
+msgstr ""
+
+#: src/admin/App.tsx:4428
+msgid "Auto (System)"
+msgstr ""
+
+#: src/admin/App.tsx:4540
+msgid "Documentation"
+msgstr ""
+
+#: src/admin/App.tsx:4545
+msgid "Report a Bug"
+msgstr ""
+
+#: src/admin/App.tsx:4550
+msgid "Get Support"
+msgstr ""
+
+#: src/admin/App.tsx:4555
+msgid "Rate the Plugin"
+msgstr ""
+
+#: src/admin/App.tsx:4570
+msgid "Modern Digital Library Plugin"
+msgstr ""
+
+#: src/admin/App.tsx:4599
+msgid "System Information"
+msgstr ""
+
+#: src/admin/App.tsx:4609
+msgid "Active"
+msgstr ""
+
+#: src/admin/App.tsx:4610
+msgid "Inactive"
+msgstr ""
+
+#: src/admin/App.tsx:4631 src/admin/App.tsx:4702
+msgid "Clean Unused Files"
+msgstr ""
+
+#: src/admin/App.tsx:4634
+msgid ""
+"Scan and safely delete orphan files from the uploads/jetreader/ directory "
+"that are not linked to any active book, magazine, or volume. This will not "
+"affect your standard WordPress Media Library."
+msgstr ""
+
+#: src/admin/App.tsx:4644
+msgid "Scanning for unused files..."
+msgstr ""
+
+#: src/admin/App.tsx:4650
+msgid "Successfully cleaned unused files."
+msgstr ""
+
+#: src/admin/App.tsx:4676
+msgid "✓ All files are clean. No unused files found."
+msgstr ""
+
+#: src/admin/App.tsx:4683
+#, javascript-format
+msgid "⚠️ Found %1$d unused files (%2$s)"
+msgstr ""
+
+#: src/admin/App.tsx:4699
+msgid "Cleaning..."
+msgstr ""
+
+#: src/admin/App.tsx:4718
+msgid "⚠️ Confirm File Cleanup"
+msgstr ""
+
+#: src/admin/App.tsx:4721
+#, javascript-format
+msgid ""
+"Are you sure you want to permanently delete %1$d unused files (%2$s) from "
+"the server? This action cannot be undone."
+msgstr ""
+
+#: src/admin/App.tsx:4740
+msgid "Yes, Delete Unused Files"
+msgstr ""
+
+#: src/admin/App.tsx:4828
+msgid "URL copied to clipboard!"
+msgstr ""
+
+#: src/admin/App.tsx:5034
+msgid "📁 File Manager"
+msgstr ""
+
+#: src/admin/App.tsx:5037
+msgid "Manage raw files uploaded to the JetReader repository."
+msgstr ""
+
+#: src/admin/App.tsx:5057
+msgid "Show Ghost Files Only"
+msgstr ""
+
+#: src/admin/App.tsx:5088
+msgid "Upload Files"
+msgstr ""
+
+#: src/admin/App.tsx:5091
+msgid "Drop files here or click to select"
+msgstr ""
+
+#: src/admin/App.tsx:5175
+msgid "Delete Selected"
+msgstr ""
+
+#: src/admin/App.tsx:5204
+msgid "File Name"
+msgstr ""
+
+#: src/admin/App.tsx:5205
+msgid "Size"
+msgstr ""
+
+#: src/admin/App.tsx:5206
+msgid "Upload Date"
+msgstr ""
+
+#: src/admin/App.tsx:5207
+msgid "Linked Item"
+msgstr ""
+
+#: src/admin/App.tsx:5268
+msgid "Not linked to any library item"
+msgstr ""
+
+#: src/admin/App.tsx:5274
+msgid "Copy URL"
+msgstr ""
+
+#: src/admin/App.tsx:5283
+msgid "Rename"
+msgstr ""
+
+#: src/admin/App.tsx:5315
+msgid "Rename File"
+msgstr ""
+
+#: src/admin/App.tsx:5321
+msgid "New File Name"
+msgstr ""
+
+#: src/admin/App.tsx:5361 src/admin/App.tsx:5409
+msgid "Delete File"
+msgstr ""
+
+#: src/admin/App.tsx:5366
+msgid "Are you sure you want to delete this file from disk?"
+msgstr ""
+
+#: src/admin/App.tsx:5377
+msgid ""
+"Warning: This file is currently linked to the library item \"{title}\". "
+"Deleting it will cause the item to become unreadable."
+msgstr ""

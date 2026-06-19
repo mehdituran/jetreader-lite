@@ -43,7 +43,7 @@ import {
     TocEntry,
     detectFormatFromUrl,
 } from './ReaderEngine';
-import { useTranslation } from '../i18n/I18nContext';
+import { __ } from '@wordpress/i18n';
 import { TextLayer } from 'pdfjs-dist';
 
 // Strip external url() references from inline style attributes so EPUB content
@@ -556,7 +556,6 @@ async function setCachedPdfText(key: string, texts: string[]): Promise<void> {
     }
 }
 
-
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Sub-components                                                         */
 /* ═══════════════════════════════════════════════════════════════════════ */
@@ -825,7 +824,6 @@ const PdfSidebar: React.FC<{
     isMobile?: boolean;
     theme: string;
 }> = ({ pdfDoc, totalPages, currentPage, outline, onJump, onClose, isMobile, theme }) => {
-    const { t, locale } = useTranslation();
     const [mode, setMode] = useState<'thumbs' | 'outline'>(outline.length > 0 ? 'outline' : 'thumbs');
     const [fontStep, setFontStep] = useState<SidebarFontStep>('base');
     const activeThumbRef = useRef<HTMLDivElement>(null);
@@ -866,14 +864,14 @@ const PdfSidebar: React.FC<{
                                 onClick={() => setMode('outline')}
                                 className={`flex-1 !py-3 text-[11px] font-extrabold uppercase tracking-widest transition-all !border-b-2 whitespace-nowrap jr-btn-sidebar-tab ${mode === 'outline' ? 'jr-item-active' : '!border-transparent jr-item-idle jr-text-muted'}`}
                             >
-                                {locale === 'tr' ? 'ANA HATLAR' : t('reader.pdfOutlineTab')}
+                                {__( 'Outlines', 'jetreader' )}
                             </button>
                         )}
                         <button
                             onClick={() => setMode('thumbs')}
                             className={`flex-1 !py-3 text-[11px] font-extrabold uppercase tracking-widest transition-all !border-b-2 whitespace-nowrap jr-btn-sidebar-tab ${mode === 'thumbs' ? 'jr-item-active' : '!border-transparent jr-item-idle jr-text-muted'}`}
                         >
-                            {locale === 'tr' ? 'SAYFALAR' : t('reader.pdfPagesTab')}
+                            {__( 'Pages', 'jetreader' )}
                         </button>
                     </div>
                     <div className="flex items-center gap-1 pr-1.5 pl-2 border-l border-black/5 dark:border-white/5">
@@ -882,13 +880,13 @@ const PdfSidebar: React.FC<{
                                 onClick={() => canShrink && setFontStep(FONT_STEPS[fontIdx - 1])}
                                 disabled={!canShrink}
                                 className={`!w-7 !h-7 flex items-center justify-center !rounded transition-colors ${fontBtnCls} jr-item-idle !p-0 disabled:opacity-30 disabled:cursor-not-allowed jr-btn-font-decrease`}
-                                title={t('reader.pdfShrinkFont')}
+                                title={__( 'Decrease font size', 'jetreader' )}
                             >A−</button>
                             <button
                                 onClick={() => canGrow && setFontStep(FONT_STEPS[fontIdx + 1])}
                                 disabled={!canGrow}
                                 className={`!w-7 !h-7 flex items-center justify-center !rounded transition-colors ${fontBtnCls} jr-item-idle !p-0 disabled:opacity-30 disabled:cursor-not-allowed jr-btn-font-increase`}
-                                title={t('reader.pdfGrowFont')}
+                                title={__( 'Increase font size', 'jetreader' )}
                             >A+</button>
                         </div>
                         <button onClick={onClose} className={`!ml-1 !w-7 !h-7 flex items-center justify-center !rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors jr-text-muted jr-item-idle !p-0 jr-btn-sidebar-close`}>✕</button>
@@ -1622,7 +1620,6 @@ const TocSidebar: React.FC<{
     isMobile?: boolean;
     theme: string;
 }> = ({ toc, currentPage, onJump, onClose, isMobile, theme }) => {
-    const { t, locale } = useTranslation();
     const activeRef = useRef<HTMLButtonElement>(null);
     const [fontStep, setFontStep] = useState<SidebarFontStep>('base');
 
@@ -1654,20 +1651,20 @@ const TocSidebar: React.FC<{
             {/* Header */}
             <div className={`flex items-center border-b shrink-0 jr-header`}>
                 <div className="flex flex-1 items-center justify-between">
-                    <span className="px-4 py-3 text-[11px] font-extrabold uppercase tracking-widest leading-none whitespace-nowrap">{t('reader.tocHeader')}</span>
+                    <span className="px-4 py-3 text-[11px] font-extrabold uppercase tracking-widest leading-none whitespace-nowrap">{__( 'Table of Contents', 'jetreader' )}</span>
                     <div className="flex items-center gap-1 pr-1.5 pl-2 border-l border-black/5 dark:border-white/5">
                         <div className="jr-font-controls-container flex items-center gap-1 rounded-md !p-0.5">
                             <button
                                 onClick={() => canShrink && setFontStep(FONT_STEPS[fontIdx - 1])}
                                 disabled={!canShrink}
                                 className={`!w-7 !h-7 flex items-center justify-center !rounded transition-colors ${fontBtnCls} jr-item-idle !p-0 disabled:opacity-30 disabled:cursor-not-allowed jr-btn-font-decrease`}
-                                title={t('reader.pdfShrinkFont')}
+                                title={__( 'Decrease font size', 'jetreader' )}
                             >A−</button>
                             <button
                                 onClick={() => canGrow && setFontStep(FONT_STEPS[fontIdx + 1])}
                                 disabled={!canGrow}
                                 className={`!w-7 !h-7 flex items-center justify-center !rounded transition-colors ${fontBtnCls} jr-item-idle !p-0 disabled:opacity-30 disabled:cursor-not-allowed jr-btn-font-increase`}
-                                title={t('reader.pdfGrowFont')}
+                                title={__( 'Increase font size', 'jetreader' )}
                             >A+</button>
                         </div>
                         <button
@@ -2024,7 +2021,6 @@ const HtmlScrollView: React.FC<{
         // WebKit invisible-text bug is handled via CSS will-change on the container (see className below).
         // The old scrollTop±1 runtime hack caused synchronous layout reflow on every page load.
 
-
         const currentPageForRef = useRef(currentPage);
         useEffect(() => { currentPageForRef.current = currentPage; }, [currentPage]);
 
@@ -2096,8 +2092,6 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
 
     const isPageMode = pageMode === 'page';
 
-    const { t } = useTranslation();
-
     /* ── Volume state ── */
     const [currentVolume, setCurrentVolume] = useState(() => {
         if (initialVolume !== undefined) return initialVolume;
@@ -2121,7 +2115,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
     const activeEncoding = volumes ? volumes[currentVolume]?.encoding ?? encoding : encoding;
 
     const volLabel = (idx: number) =>
-        itemType === 'magazine' ? `${t('reader.volLabelMagazine')} ${idx + 1}` : `${t('reader.volLabelBook')} ${idx + 1}`;
+        itemType === 'magazine' ? `${__( 'Issue', 'jetreader' )} ${idx + 1}` : `${__( 'Volume', 'jetreader' )} ${idx + 1}`;
 
     /* ── Book loading ── */
     const [loading, setLoading] = useState(true);
@@ -2842,7 +2836,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                 setCurrentPage(Math.max(0, Math.min(target, result.pages.length - 1)));
             } catch (err) {
                 if (!cancelled) {
-                    setError(err instanceof Error ? err.message : t('reader.failedToLoad'));
+                    setError(err instanceof Error ? err.message : __( 'Failed to load book.', 'jetreader' ));
                 }
             } finally {
                 if (!cancelled) setLoading(false);
@@ -2947,7 +2941,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
             id: `bm_${Date.now()}`,
             itemId,
             pageIndex: currentPage,
-            label: pages[currentPage]?.label ?? `${t('readerEngine.pageLabel')} ${currentPage + 1}`,
+            label: pages[currentPage]?.label ?? `${__( 'Page', 'jetreader' )} ${currentPage + 1}`,
             color: BOOKMARK_COLORS[0],
             createdAt: new Date().toISOString(),
         };
@@ -3502,7 +3496,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
         return (
             <div className="mt-10 pt-6 border-t border-gray-200/60 dark:border-gray-700/60">
                 <h4 className={`text-xs font-semibold uppercase tracking-widest mb-3 ${isDark ? 'text-gray-500' : isSepia ? 'text-amber-600' : 'text-gray-400'}`}>
-                    {t('reader.notesHeader')} ({currentPageAnnotations.length})
+                    {__( 'Notes', 'jetreader' )} ({currentPageAnnotations.length})
                 </h4>
                 <div className="space-y-3">
                     {currentPageAnnotations.map((annot) => (
@@ -3580,7 +3574,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                 onPageChange={setCurrentPage}
                 onLinkClick={handleEpubLinkClick}
                 onRemoveAnnotation={removeAnnotation}
-                notesHeader={(count) => `${t('reader.notesHeader')} (${count})`}
+                notesHeader={(count) => `${__( 'Notes', 'jetreader' )} (${count})`}
                 textScale={textScale}
                 isVisuallyZoomed={showVisualZoom}
                 suppressZoomSnapRef={suppressPdfZoomSnapRef}
@@ -3610,7 +3604,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                     <a
                         onClick={handleGoBack}
                         href="#"
-                        title={t('reader.backTitle')}
+                        title={__( 'Go back', 'jetreader' )}
                         className="flex items-center"
                     >
                         <img
@@ -3629,7 +3623,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                         <button
                             onClick={handleGoBack}
                             className={`shrink-0 flex items-center justify-center w-8 h-8 rounded-lg border text-sm transition-colors jr-btn-back ${controlBtn}`}
-                            title={t('reader.backTitle')}
+                            title={__( 'Go back', 'jetreader' )}
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
                         </button>
@@ -3640,7 +3634,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                             className={`shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border text-sm transition-colors jr-btn-search jr-btn-search-mobile ${
                                 showSearch ? (isDark ? 'bg-blue-700 border-blue-600 text-white' : 'bg-blue-600 border-blue-600 text-white') : controlBtn
                             }`}
-                            title={t('reader.searchTitle')}
+                            title={__( 'Search (Ctrl+F)', 'jetreader' )}
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
                         </button>
@@ -3650,7 +3644,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                             <button
                                 onClick={onClose}
                                 className={`shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border text-sm transition-colors jr-btn-close ${controlBtn}`}
-                                title={t('reader.closeTitle')}
+                                title={__( 'Close (Esc)', 'jetreader' )}
                             >
                                 ✕
                             </button>
@@ -3678,7 +3672,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                         {showVisualZoom ? (
                             <button onClick={resetVisualZoom}
                                 className={`jr-btn-visual-zoom-reset h-7 px-2.5 text-xs font-semibold border rounded transition-colors ${isDark ? 'bg-blue-700 border-blue-600 text-white' : isSepia ? 'bg-amber-600 border-amber-600 text-white' : 'bg-blue-600 border-blue-600 text-white'}`}
-                                title={t('reader.visualZoomReset')}>
+                                title={__( 'Reset zoom', 'jetreader' )}>
                                 <span ref={zoomPillTextRef}>{Math.round(mobileVisualScale * 100)}%</span>{' '}✕
                             </button>
                         ) : (
@@ -3686,27 +3680,27 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                 const presets = window.innerWidth < 640 ? ZOOM_PRESETS_MOBILE : ZOOM_PRESETS_DESKTOP;
                                 const prevPreset = [...presets].reverse().find(v => v < zoom - 0.01);
                                 const nextPreset = presets.find(v => v > zoom + 0.01);
-                                const zoomLabel = zoom === 1.0 ? t('reader.fit') : `${Math.round(zoom * 100)}%`;
+                                const zoomLabel = zoom === 1.0 ? __( 'Fit', 'jetreader' ) : `${Math.round(zoom * 100)}%`;
                                 return (
                                     <>
                                         <button
                                             onClick={() => prevPreset !== undefined && setZoom(prevPreset)}
                                             disabled={prevPreset === undefined}
                                             className={`w-7 h-7 flex items-center justify-center rounded border text-base font-bold transition-colors disabled:opacity-30 jr-btn-zoom-out ${controlBtn}`}
-                                            title={t('reader.zoomOut')}
+                                            title={__( 'Zoom out', 'jetreader' )}
                                         >−</button>
                                         <button
                                             onClick={() => setZoom(1.0)}
                                             className={`jr-btn-zoom-fit h-7 px-1.5 min-w-[44px] text-xs font-semibold border rounded transition-colors text-center ${
                                                 zoom === 1.0 ? (isDark ? 'bg-blue-700 border-blue-600 text-white' : isSepia ? 'bg-amber-600 border-amber-600 text-white' : 'bg-blue-600 border-blue-600 text-white') : controlBtn
                                             }`}
-                                            title={t('reader.zoomFit')}
+                                            title={__( 'Fit (reset)', 'jetreader' )}
                                         >{zoomLabel}</button>
                                         <button
                                             onClick={() => nextPreset !== undefined && setZoom(nextPreset)}
                                             disabled={nextPreset === undefined}
                                             className={`w-7 h-7 flex items-center justify-center rounded border text-base font-bold transition-colors disabled:opacity-30 jr-btn-zoom-in ${controlBtn}`}
-                                            title={t('reader.zoomIn')}
+                                            title={__( 'Zoom in', 'jetreader' )}
                                         >+</button>
                                     </>
                                 );
@@ -3722,7 +3716,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                 className={`w-8 h-8 flex items-center justify-center rounded-lg border text-sm transition-colors jr-btn-sidebar ${
                                     pdfSidebarOpen ? (isDark ? 'bg-blue-700 border-blue-600 text-white' : 'bg-blue-600 border-blue-600 text-white') : controlBtn
                                 }`}
-                                title={t('reader.pdfSidebarToggle')}
+                                title={__( 'Page panel', 'jetreader' )}
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
                             </button>
@@ -3734,7 +3728,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                 className={`w-8 h-8 flex items-center justify-center rounded-lg border text-sm transition-colors jr-btn-toc ${
                                     tocOpen ? (isDark ? 'bg-blue-700 border-blue-600 text-white' : 'bg-blue-600 border-blue-600 text-white') : controlBtn
                                 }`}
-                                title={t('reader.tocHeader')}
+                                title={__( 'Table of Contents', 'jetreader' )}
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
                             </button>
@@ -3748,12 +3742,12 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                     isDark ? 'hover:border-gray-400 focus:ring-blue-500' : isSepia ? 'hover:border-amber-500 focus:ring-amber-400' : 'hover:border-gray-400 focus:ring-blue-500'
                                 } ${inputCls}`}
                                 style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 3px center', backgroundSize: '7px' }}
-                                title={t('reader.fontSizeTitle')}
+                                title={__( 'Font size', 'jetreader' )}
                             >
-                                <option value="small">{t('reader.small')}</option>
-                                <option value="medium">{t('reader.medium')}</option>
-                                <option value="large">{t('reader.large')}</option>
-                                <option value="xlarge">{t('reader.xlarge')}</option>
+                                <option value="small">{__( 'Small', 'jetreader' )}</option>
+                                <option value="medium">{__( 'Medium', 'jetreader' )}</option>
+                                <option value="large">{__( 'Large', 'jetreader' )}</option>
+                                <option value="xlarge">{__( 'Extra Large', 'jetreader' )}</option>
                             </select>
                         )}
 
@@ -3764,11 +3758,11 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                 isDark ? 'hover:border-gray-400 focus:ring-blue-500' : isSepia ? 'hover:border-amber-500 focus:ring-amber-400' : 'hover:border-gray-400 focus:ring-blue-500'
                             } ${inputCls}`}
                             style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 3px center', backgroundSize: '7px' }}
-                            title={t('reader.themeTitle')}
+                            title={__( 'Theme', 'jetreader' )}
                         >
-                            <option value="light">{t('reader.light')}</option>
-                            <option value="dark">{t('reader.dark')}</option>
-                            <option value="sepia">{t('reader.sepia')}</option>
+                            <option value="light">{__( 'Light', 'jetreader' )}</option>
+                            <option value="dark">{__( 'Dark', 'jetreader' )}</option>
+                            <option value="sepia">{__( 'Sepia', 'jetreader' )}</option>
                         </select>
                     </div>
                 </div>
@@ -3782,7 +3776,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                             onClick={handleGoBack}
                             href="#"
                             className="hidden sm:flex shrink-0 items-center"
-                            title={t('reader.backTitle')}
+                            title={__( 'Go back', 'jetreader' )}
                         >
                             <img
                                 src={hardcodedLogoUrl}
@@ -3795,7 +3789,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                             <button
                                 onClick={onClose}
                                 className={`shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border text-sm transition-colors jr-btn-close ${controlBtn}`}
-                                title={t('reader.closeTitle')}
+                                title={__( 'Close (Esc)', 'jetreader' )}
                             >
                                 ✕
                             </button>
@@ -3806,7 +3800,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                             onClick={showSearch ? closeSearch : openSearch}
                             className={`sm:hidden shrink-0 w-[38px] h-8 flex items-center justify-center rounded-lg border text-sm transition-colors jr-btn-search jr-btn-search-mobile ${showSearch ? (isDark ? 'bg-blue-700 border-blue-600 text-white' : 'bg-blue-600 border-blue-600 text-white') : controlBtn
                                 }`}
-                            title={t('reader.searchTitle')}
+                            title={__( 'Search (Ctrl+F)', 'jetreader' )}
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
                         </button>
@@ -3819,16 +3813,16 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                         <button
                             onClick={handleGoBack}
                             className={`shrink-0 flex items-center gap-1 h-8 px-2 rounded-lg border text-xs font-medium transition-colors jr-btn-back ${controlBtn}`}
-                            title={t('reader.backTitle')}
+                            title={__( 'Go back', 'jetreader' )}
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
-                            <span className="hidden sm:inline">{t('reader.backBtn')}</span>
+                            <span className="hidden sm:inline">{__( 'Back', 'jetreader' )}</span>
                         </button>
 
                         {volumes && volumes.length >= 2 && (
                             <div className={`jr-vol-divider flex items-center gap-1.5 pl-2 ml-0.5 border-l shrink-0 ${isDark ? 'border-gray-700' : isSepia ? 'border-amber-300' : 'border-gray-300'}`}>
                                 <span className={`hidden sm:inline text-[10px] font-semibold tracking-wide ${isDark ? 'text-gray-500' : isSepia ? 'text-amber-600' : 'text-gray-400'}`}>
-                                    {itemType === 'magazine' ? t('reader.volLabelMagazine').toUpperCase() : t('reader.volLabelBook').toUpperCase()}
+                                    {itemType === 'magazine' ? __( 'Issue', 'jetreader' ).toUpperCase() : __( 'Volume', 'jetreader' ).toUpperCase()}
                                 </span>
                                 <select
                                     value={currentVolume}
@@ -3854,7 +3848,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                         <div className="flex items-center gap-0.5 shrink-0">
                             <button onClick={resetVisualZoom}
                                 className={`jr-btn-visual-zoom-reset h-7 px-2.5 text-xs font-semibold border rounded transition-colors ${isDark ? 'bg-blue-700 border-blue-600 text-white' : isSepia ? 'bg-amber-600 border-amber-600 text-white' : 'bg-blue-600 border-blue-600 text-white'}`}
-                                title={t('reader.visualZoomReset')}>
+                                title={__( 'Reset zoom', 'jetreader' )}>
                                 <span ref={zoomPillTextRef}>{Math.round(mobileVisualScale * 100)}%</span>{' '}✕
                             </button>
                         </div>
@@ -3863,7 +3857,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                         const prevPreset = [...presets].reverse().find(v => v < zoom - 0.01);
                         const nextPreset = presets.find(v => v > zoom + 0.01);
                         const zoomLabel = zoom === 1.0
-                            ? t('reader.fit')
+                            ? __( 'Fit', 'jetreader' )
                             : `${Math.round(zoom * 100)}%`;
                         return (
                             <div className="flex items-center gap-0.5 shrink-0">
@@ -3871,7 +3865,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                     onClick={() => prevPreset !== undefined && setZoom(prevPreset)}
                                     disabled={prevPreset === undefined}
                                     className={`w-7 h-7 flex items-center justify-center rounded border text-base font-bold transition-colors disabled:opacity-30 jr-btn-zoom-out ${controlBtn}`}
-                                    title={t('reader.zoomOut')}
+                                    title={__( 'Zoom out', 'jetreader' )}
                                 >−</button>
                                 <button
                                     onClick={() => setZoom(1.0)}
@@ -3879,13 +3873,13 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                         ? isDark ? 'bg-blue-700 border-blue-600 text-white' : isSepia ? 'bg-amber-600 border-amber-600 text-white' : 'bg-blue-600 border-blue-600 text-white'
                                         : controlBtn
                                         }`}
-                                    title={t('reader.zoomFit')}
+                                    title={__( 'Fit (reset)', 'jetreader' )}
                                 >{zoomLabel}</button>
                                 <button
                                     onClick={() => nextPreset !== undefined && setZoom(nextPreset)}
                                     disabled={nextPreset === undefined}
                                     className={`w-7 h-7 flex items-center justify-center rounded border text-base font-bold transition-colors disabled:opacity-30 jr-btn-zoom-in ${controlBtn}`}
-                                    title={t('reader.zoomIn')}
+                                    title={__( 'Zoom in', 'jetreader' )}
                                 >+</button>
                             </div>
                         );
@@ -3901,7 +3895,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                             onClick={showSearch ? closeSearch : openSearch}
                             className={`hidden sm:flex w-[38px] h-8 items-center justify-center rounded-lg border text-sm transition-colors jr-btn-search jr-btn-search-desktop ${showSearch ? (isDark ? 'bg-blue-700 border-blue-600 text-white' : 'bg-blue-600 border-blue-600 text-white') : controlBtn
                                 }`}
-                            title={t('reader.searchTitle')}
+                            title={__( 'Search (Ctrl+F)', 'jetreader' )}
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
                         </button>
@@ -3912,7 +3906,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                 onClick={() => setPdfSidebarOpen((v) => !v)}
                                 className={`w-[38px] h-8 flex items-center justify-center rounded-lg border text-sm transition-colors jr-btn-sidebar ${pdfSidebarOpen ? (isDark ? 'bg-blue-700 border-blue-600 text-white' : 'bg-blue-600 border-blue-600 text-white') : controlBtn
                                     }`}
-                                title={t('reader.pdfSidebarToggle')}
+                                title={__( 'Page panel', 'jetreader' )}
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
                             </button>
@@ -3926,7 +3920,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                     ? (isDark ? 'bg-blue-700 border-blue-600 text-white' : 'bg-blue-600 border-blue-600 text-white')
                                     : controlBtn
                                     }`}
-                                title={dualPage ? t('reader.singlePageView') : t('reader.dualPageView')}
+                                title={dualPage ? __( 'Single page view', 'jetreader' ) : __( 'Dual page view', 'jetreader' )}
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="14" viewBox="0 0 22 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                                     <rect x="1" y="1" width="9" height="13" rx="1" />
@@ -3941,7 +3935,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                 onClick={() => setTocOpen((v) => !v)}
                                 className={`w-[38px] h-8 flex items-center justify-center rounded-lg border text-sm transition-colors jr-btn-toc ${tocOpen ? (isDark ? 'bg-blue-700 border-blue-600 text-white' : 'bg-blue-600 border-blue-600 text-white') : controlBtn
                                     }`}
-                                title={t('reader.tocHeader')}
+                                title={__( 'Table of Contents', 'jetreader' )}
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
                             </button>
@@ -3959,12 +3953,12 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                         : 'hover:border-gray-400 focus:ring-blue-500'
                                     } ${inputCls}`}
                                 style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center' }}
-                                title={t('reader.fontSizeTitle')}
+                                title={__( 'Font size', 'jetreader' )}
                             >
-                                <option value="small">{t('reader.small')}</option>
-                                <option value="medium">{t('reader.medium')}</option>
-                                <option value="large">{t('reader.large')}</option>
-                                <option value="xlarge">{t('reader.xlarge')}</option>
+                                <option value="small">{__( 'Small', 'jetreader' )}</option>
+                                <option value="medium">{__( 'Medium', 'jetreader' )}</option>
+                                <option value="large">{__( 'Large', 'jetreader' )}</option>
+                                <option value="xlarge">{__( 'Extra Large', 'jetreader' )}</option>
                             </select>
                         )}
 
@@ -3979,11 +3973,11 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                     : 'hover:border-gray-400 focus:ring-blue-500'
                                 } ${inputCls}`}
                             style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center' }}
-                            title={t('reader.themeTitle')}
+                            title={__( 'Theme', 'jetreader' )}
                         >
-                            <option value="light">{t('reader.light')}</option>
-                            <option value="dark">{t('reader.dark')}</option>
-                            <option value="sepia">{t('reader.sepia')}</option>
+                            <option value="light">{__( 'Light', 'jetreader' )}</option>
+                            <option value="dark">{__( 'Dark', 'jetreader' )}</option>
+                            <option value="sepia">{__( 'Sepia', 'jetreader' )}</option>
                         </select>
                     </div>
                 </div>
@@ -4010,8 +4004,8 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                     }}
                                     placeholder={
                                         pdfTextExtracting
-                                            ? t('reader.searchIndexing')
-                                            : t('reader.searchPlaceholderText')
+                                            ? __( 'Indexing text, please wait...', 'jetreader' )
+                                            : __( 'Search in text... (min. 2 characters)', 'jetreader' )
                                     }
                                     disabled={pdfTextExtracting}
                                     className={`flex-1 min-w-0 text-base sm:text-xs border rounded-lg px-3 py-1.5 ${inputCls} outline-none focus:ring-2 focus:ring-blue-500/50 disabled:opacity-50`}
@@ -4020,14 +4014,14 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                 {/* Scanned PDF notice */}
                                 {activeFormat === 'pdf' && !pdfTextExtracting && pdfTextCache !== null && pdfTextCache.join('').length < 50 && (
                                     <span className={`text-xs shrink-0 ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
-                                        {t('reader.scannedPdf')}
+                                        {__( 'Scanned PDF', 'jetreader' )}
                                     </span>
                                 )}
 
                                 {/* Indexing pulse */}
                                 {pdfTextExtracting && (
                                     <span className={`text-xs shrink-0 animate-pulse ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                        {t('reader.indexing')}
+                                        {__( 'Indexing...', 'jetreader' )}
                                     </span>
                                 )}
 
@@ -4037,7 +4031,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                         onClick={handleSearch}
                                         className={`shrink-0 px-3 py-1.5 text-xs rounded-lg border font-medium transition-colors jr-btn-search-submit ${controlBtn}`}
                                     >
-                                        {t('common.search')}
+                                        {__( 'Search', 'jetreader' )}
                                     </button>
                                 )}
 
@@ -4047,7 +4041,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                         <button
                                             onClick={searchPrev}
                                             className={`w-6 h-6 flex items-center justify-center rounded border text-sm leading-none jr-btn-search-prev ${controlBtn}`}
-                                            title={t('reader.prevBtn')}
+                                            title={__( 'Previous', 'jetreader' )}
                                         >
                                             ‹
                                         </button>
@@ -4057,7 +4051,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                         <button
                                             onClick={searchNext}
                                             className={`w-6 h-6 flex items-center justify-center rounded border text-sm leading-none jr-btn-search-next ${controlBtn}`}
-                                            title={t('reader.nextBtn')}
+                                            title={__( 'Next', 'jetreader' )}
                                         >
                                             ›
                                         </button>
@@ -4066,7 +4060,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
 
                                 {/* Not found */}
                                 {!pdfTextExtracting && searchDone && searchMatches.length === 0 && (
-                                    <span className="text-xs shrink-0 text-red-400">{t('reader.searchNotFound')}</span>
+                                    <span className="text-xs shrink-0 text-red-400">{__( 'Not found', 'jetreader' )}</span>
                                 )}
 
                                 {/* Close */}
@@ -4138,7 +4132,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                             <div className="text-center">
                                 <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
                                 <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                    {t('reader.loadingBook')}
+                                    {__( 'Loading EPUB/PDF/TXT/DOCX...', 'jetreader' )}
                                 </p>
                             </div>
                         </div>
@@ -4151,7 +4145,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                 <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-3 text-yellow-500" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
                                 <p className="text-red-500 text-sm max-w-sm">{error}</p>
                                 <button onClick={onClose} className="mt-4 text-sm underline opacity-60 hover:opacity-100 jr-btn-error-close">
-                                    {t('reader.close')}
+                                    {__( 'Close', 'jetreader' )}
                                 </button>
                             </div>
                         </div>
@@ -4162,7 +4156,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                         <div className="flex items-center justify-center h-full">
                             <div className="text-center">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-3 opacity-40" aria-hidden="true"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg>
-                                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{t('reader.noContent')}</p>
+                                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{__( 'Content not available.', 'jetreader' )}</p>
                             </div>
                         </div>
                     )}
@@ -4256,11 +4250,11 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                 onClick={() => setCurrentPage((p) => Math.max(p - (dualPage ? 2 : 1), 0))}
                                 disabled={currentPage === 0}
                                 className={`flex items-center justify-center min-w-[36px] sm:px-3 py-2 sm:py-1.5 text-xs border rounded-lg transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed jr-btn-prev ${controlBtn}`}
-                                aria-label={t('reader.prevBtn')}
+                                aria-label={__( 'Previous', 'jetreader' )}
                             >
                                 <span className="hidden sm:inline-flex items-center gap-1.5 transition-opacity hover:opacity-80">
                                     <span className="text-sm font-bold">←</span>
-                                    <span>{t('common.previous')}</span>
+                                    <span>{__( 'Previous', 'jetreader' )}</span>
                                 </span>
                                 <span className="sm:hidden text-lg font-bold">←</span>
                             </button>
@@ -4296,10 +4290,10 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                 onClick={() => setCurrentPage((p) => Math.min(p + (dualPage ? 2 : 1), pages.length - 1))}
                                 disabled={currentPage >= pages.length - 1}
                                 className={`flex items-center justify-center min-w-[36px] sm:px-3 py-2 sm:py-1.5 text-xs border rounded-lg transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed jr-btn-next ${controlBtn}`}
-                                aria-label={t('reader.nextBtn')}
+                                aria-label={__( 'Next', 'jetreader' )}
                             >
                                 <span className="hidden sm:inline-flex items-center gap-1.5 transition-opacity hover:opacity-80">
-                                    <span>{t('common.next')}</span>
+                                    <span>{__( 'Next', 'jetreader' )}</span>
                                     <span className="text-sm font-bold">→</span>
                                 </span>
                                 <span className="sm:hidden text-lg font-bold">→</span>
@@ -4314,14 +4308,14 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                     ? 'bg-yellow-400/20 border-yellow-500/50 text-yellow-600'
                                     : controlBtn
                                     }`}
-                                title={t('reader.bookmarkToggle')}
+                                title={__( 'Toggle bookmark (Ctrl+B)', 'jetreader' )}
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill={currentPageBookmark ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
                             </button>
                             <button
                                 onClick={() => setBottomTab(bottomTab === 'bookmarks' ? null : 'bookmarks')}
                                 className={`px-2 py-1 text-xs border rounded-lg transition-colors jr-btn-bookmarks-tab ${bottomTab === 'bookmarks' ? (isDark ? 'bg-blue-700 border-blue-600 text-white' : 'bg-blue-600 border-blue-600 text-white') : controlBtn}`}
-                                title={t('reader.showBookmarks')}
+                                title={__( 'Show bookmarks', 'jetreader' )}
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /><line x1="7" y1="8" x2="17" y2="8" /></svg>
                                 {bookmarks.length > 0 && ` ${bookmarks.length}`}
@@ -4329,7 +4323,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                             <button
                                 onClick={() => setBottomTab(bottomTab === 'annotations' ? null : 'annotations')}
                                 className={`px-2 py-1 text-xs border rounded-lg transition-colors jr-btn-annotations-tab ${bottomTab === 'annotations' ? (isDark ? 'bg-blue-700 border-blue-600 text-white' : 'bg-blue-600 border-blue-600 text-white') : controlBtn}`}
-                                title={t('reader.showAnnotations')}
+                                title={__( 'Show notes', 'jetreader' )}
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
                                 {annotations.length > 0 && ` ${annotations.length}`}
@@ -4350,11 +4344,11 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                     {bottomTab === 'bookmarks' && (
                                         <>
                                             <h4 className={`text-[10px] font-bold uppercase tracking-widest mb-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                                {t('reader.bookmarksHeader')} ({bookmarks.length})
+                                                {__( 'Bookmarks', 'jetreader' )} ({bookmarks.length})
                                             </h4>
                                             {bookmarks.length === 0 && (
                                                 <p className={`text-xs ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
-                                                    {t('reader.noBookmarks')}
+                                                    {__( 'No bookmarks yet. Press Ctrl+B or click "Bookmark" to save the current page.', 'jetreader' )}
                                                 </p>
                                             )}
                                             <div className="flex flex-wrap gap-2">
@@ -4366,7 +4360,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                                         onClick={() => setCurrentPage(bm.pageIndex)}
                                                         title={bm.label}
                                                     >
-                                                        <span>{t('reader.pageAbbr')} {bm.pageIndex + 1}</span>
+                                                        <span>{__( 'Pg.', 'jetreader' )} {bm.pageIndex + 1}</span>
                                                         {bm.label && (
                                                             <span className={`max-w-[80px] truncate hidden sm:inline ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                                                                 — {bm.label}
@@ -4385,11 +4379,11 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                     {bottomTab === 'annotations' && (
                                         <>
                                             <h4 className={`text-[10px] font-bold uppercase tracking-widest mb-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                                {t('reader.notesHeader')} ({annotations.length})
+                                                {__( 'Notes', 'jetreader' )} ({annotations.length})
                                             </h4>
                                             {annotations.length === 0 && (
                                                 <p className={`text-xs ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
-                                                    {t('reader.noAnnotations')}
+                                                    {__( 'No notes yet. Select text to add highlights with notes.', 'jetreader' )}
                                                 </p>
                                             )}
                                             <div className="space-y-2">
@@ -4410,7 +4404,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                                                 </p>
                                                             )}
                                                             <p className={`mt-0.5 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
-                                                                {t('readerEngine.pageLabel')} {annot.pageIndex + 1}
+                                                                {__( 'Page', 'jetreader' )} {annot.pageIndex + 1}
                                                             </p>
                                                         </div>
                                                         <button
@@ -4446,7 +4440,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                         setShowAnnotationInput(true);
                     }}
                 >
-                    ✏️ {t('reader.addNote')}
+                    ✏️ {__( 'Add Note', 'jetreader' )}
                 </button>
             )}
 
@@ -4478,7 +4472,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                             onClick={(e) => e.stopPropagation()}
                         >
                             <p className={`text-[10px] font-semibold uppercase tracking-wider mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                {t('reader.selectedText')}
+                                {__( 'Selected text:', 'jetreader' )}
                             </p>
                             
                             {/* Scrollable selected text area */}
@@ -4489,7 +4483,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                             <textarea
                                 value={annotationNote}
                                 onChange={(e) => setAnnotationNote(e.target.value)}
-                                placeholder={t('reader.addNotePlaceholder')}
+                                placeholder={__( 'Add a note (optional)...', 'jetreader' )}
                                 className={`w-full text-base sm:text-sm border rounded-lg p-2.5 mb-3 resize-none outline-none focus:ring-2 focus:ring-blue-500/40 ${inputCls}`}
                                 rows={2}
                             />
@@ -4513,7 +4507,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                     onClick={addAnnotation}
                                     className="flex-1 py-2 text-sm bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium jr-btn-annotation-save"
                                 >
-                                    {t('common.save')}
+                                    {__( 'Save', 'jetreader' )}
                                 </button>
                                 <button
                                     onClick={() => {
@@ -4525,7 +4519,7 @@ const ReaderModal: React.FC<ReaderModalProps> = ({
                                     className={`flex-1 py-2 text-sm rounded-xl transition-colors font-medium jr-btn-annotation-cancel ${isDark ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : isSepia ? 'bg-amber-100 text-amber-900 hover:bg-amber-200' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                         }`}
                                 >
-                                    {t('reader.cancelAnnotation')}
+                                    {__( 'Cancel', 'jetreader' )}
                                 </button>
                             </div>
                         </motion.div>

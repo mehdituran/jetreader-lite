@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { QueryClient, QueryClientProvider, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import { I18nProvider, useTranslation } from '../i18n/I18nContext';
+import { __, sprintf } from '@wordpress/i18n';
+import { useLocale } from '../i18n/useLocale';
 import { LangCombobox } from './LangCombobox';
 
 const queryClient = new QueryClient( {
@@ -183,7 +184,7 @@ const JetReaderFileSelectorModal: React.FC<JetReaderFileSelectorModalProps> = ( 
     imageOnly = false,
     title,
 } ) => {
-    const { t } = useTranslation();
+
     const queryClient = useQueryClient();
     const apiBase = ( window as any ).jetreaderSettings?.apiUrl?.replace( /\/$/, '' ) ?? '/wp-json/jetreader/v1';
     const nonce = ( window as any ).jetreaderSettings?.nonce ?? '';
@@ -367,10 +368,10 @@ const JetReaderFileSelectorModal: React.FC<JetReaderFileSelectorModalProps> = ( 
                             >
                                 <span className="text-2xl group-hover:scale-110 transition-transform" role="img" aria-label="world">🌐</span>
                                 <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-                                    { t( 'files.wpMediaLibrary' ) }
+                                    { __( 'WordPress Media Library', 'jetreader' ) }
                                 </div>
                                 <div className="text-xs text-gray-400 dark:text-gray-500">
-                                    { t( 'files.selectStandardLibrary' ) }
+                                    { __( 'Select standard library files', 'jetreader' ) }
                                 </div>
                             </button>
 
@@ -399,7 +400,7 @@ const JetReaderFileSelectorModal: React.FC<JetReaderFileSelectorModalProps> = ( 
                                 />
                                 <span className="text-2xl animate-pulse" role="img" aria-label="upload">📥</span>
                                 <div className="text-sm font-semibold text-gray-700 dark:text-gray-255">
-                                    { t( 'files.uploadAndSelect' ) }
+                                    { __( 'Upload & Select File', 'jetreader' ) }
                                 </div>
                                 <div className="text-xs text-gray-400 dark:text-gray-500">
                                     { imageOnly ? 'PNG, JPG, WEBP, GIF' : 'PDF, EPUB, TXT, DOCX' }
@@ -410,7 +411,7 @@ const JetReaderFileSelectorModal: React.FC<JetReaderFileSelectorModalProps> = ( 
                         { uploadProgress > 0 && (
                             <div className="space-y-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-3 rounded-xl shadow-sm">
                                 <div className="flex justify-between text-xs text-gray-700 dark:text-gray-300 font-semibold">
-                                    <span>{ uploading ? t( 'files.uploading' ) : t( 'files.processing' ) }</span>
+                                    <span>{ uploading ? __( 'Uploading...', 'jetreader' ) : __( 'Processing...', 'jetreader' ) }</span>
                                     <span>{ uploadProgress }%</span>
                                 </div>
                                 <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden">
@@ -428,13 +429,13 @@ const JetReaderFileSelectorModal: React.FC<JetReaderFileSelectorModalProps> = ( 
                         {/* Search & Tabs */}
                         <div className="space-y-3 pt-2">
                             <div className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                                { t( 'files.selectExistingJetReader' ) }
+                                { __( 'Select Existing JetReader File', 'jetreader' ) }
                             </div>
 
                             <div className="flex flex-col sm:flex-row gap-3">
                                 <input
                                     type="text"
-                                    placeholder={ t( 'files.searchPlaceholder' ) }
+                                    placeholder={ __( 'Search files...', 'jetreader' ) }
                                     value={ searchTerm }
                                     onChange={ e => setSearchTerm( e.target.value ) }
                                     className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-750 text-gray-900 dark:text-gray-100 placeholder-gray-450 dark:placeholder-gray-500 flex-1 focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
@@ -463,7 +464,7 @@ const JetReaderFileSelectorModal: React.FC<JetReaderFileSelectorModalProps> = ( 
                                                     { tab === 'epub' && 'EPUB' }
                                                     { tab === 'docx' && 'DOCX' }
                                                     { tab === 'txt' && 'TXT' }
-                                                    { tab === 'images' && t( 'files.tabImages' ) }
+                                                    { tab === 'images' && __( 'Images', 'jetreader' ) }
                                                 </span>
                                                 <span className="text-[10px] px-1.5 py-0.2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full">
                                                     { count }
@@ -482,7 +483,7 @@ const JetReaderFileSelectorModal: React.FC<JetReaderFileSelectorModalProps> = ( 
                             </div>
                         ) : filteredFiles.length === 0 ? (
                             <div className="text-center py-10 text-gray-450 dark:text-gray-500 text-xs">
-                                📁 { t( 'files.noFilesFound' ) }
+                                📁 { __( 'No files found in this category.', 'jetreader' ) }
                             </div>
                         ) : (
                             <div className="max-h-[30vh] overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-xl divide-y divide-gray-150 dark:divide-gray-700 bg-gray-50/20">
@@ -518,7 +519,7 @@ const JetReaderFileSelectorModal: React.FC<JetReaderFileSelectorModalProps> = ( 
                                             type="button"
                                             className="px-2.5 py-1 text-[11px] font-bold bg-white dark:bg-gray-750 hover:bg-primary-600 hover:text-white dark:hover:bg-primary-500 border border-gray-200 dark:border-gray-650 rounded-lg shadow-sm transition-all text-gray-700 dark:text-gray-300"
                                         >
-                                            { t( 'files.choose' ) }
+                                            { __( 'Choose', 'jetreader' ) }
                                         </button>
                                     </div>
                                 ) ) }
@@ -622,7 +623,7 @@ const AdminSpinner: React.FC = () => (
 );
 
 const LectorDashboard: React.FC = () => {
-    const { t } = useTranslation();
+
     const [ stats, setStats ] = React.useState( {
         total_books: 0,
         total_articles: 0,
@@ -651,12 +652,12 @@ const LectorDashboard: React.FC = () => {
     React.useEffect( () => { fetchStats(); }, [] );
 
     const statCards = [
-        { label: t('dashboard.totalBooks'), value: stats.total_books, iconBg: 'bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400', icon: '📚' },
-        { label: t('dashboard.totalArticles'), value: stats.total_articles, iconBg: 'bg-green-500/10 dark:bg-green-500/20 text-green-600 dark:text-green-400', icon: '📄' },
-        { label: t('dashboard.totalMagazines'), value: stats.total_magazines, iconBg: 'bg-purple-500/10 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400', icon: '🗞️' },
-        { label: t('dashboard.totalQA'), value: stats.total_qa, iconBg: 'bg-orange-500/10 dark:bg-orange-500/20 text-orange-600 dark:text-orange-400', icon: '💬' },
-        { label: t('dashboard.totalViews'), value: stats.total_views, iconBg: 'bg-cyan-500/10 dark:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400', icon: '👁️' },
-        { label: t('dashboard.totalReads'), value: stats.total_reads, iconBg: 'bg-pink-500/10 dark:bg-pink-500/20 text-pink-600 dark:text-pink-400', icon: '📖' },
+        { label: __( 'Total Books', 'jetreader' ), value: stats.total_books, iconBg: 'bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400', icon: '📚' },
+        { label: __( 'Total Articles', 'jetreader' ), value: stats.total_articles, iconBg: 'bg-green-500/10 dark:bg-green-500/20 text-green-600 dark:text-green-400', icon: '📄' },
+        { label: __( 'Total Magazines', 'jetreader' ), value: stats.total_magazines, iconBg: 'bg-purple-500/10 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400', icon: '🗞️' },
+        { label: __( 'Total Q&A', 'jetreader' ), value: stats.total_qa, iconBg: 'bg-orange-500/10 dark:bg-orange-500/20 text-orange-600 dark:text-orange-400', icon: '💬' },
+        { label: __( 'Total Views', 'jetreader' ), value: stats.total_views, iconBg: 'bg-cyan-500/10 dark:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400', icon: '👁️' },
+        { label: __( 'Total Reads', 'jetreader' ), value: stats.total_reads, iconBg: 'bg-pink-500/10 dark:bg-pink-500/20 text-pink-600 dark:text-pink-400', icon: '📖' },
     ];
 
     return (
@@ -664,10 +665,10 @@ const LectorDashboard: React.FC = () => {
             <div className="mb-6 flex items-start justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                        {t('dashboard.title')}
+                        {__( '🚀 JetReader Dashboard', 'jetreader' )}
                     </h1>
                     <p className="mt-1 text-gray-500 dark:text-gray-400 text-sm">
-                        {t('dashboard.welcome')}
+                        {__( 'Welcome to your digital library overview.', 'jetreader' )}
                     </p>
                 </div>
                 <button
@@ -705,14 +706,14 @@ const LectorDashboard: React.FC = () => {
             { /* ── Quick Actions ── */ }
             <div style={{ background:'#fff', borderRadius:'16px', border:'1px solid #e5e7eb', padding:'22px', boxShadow:'0 1px 4px rgba(0,0,0,0.05)' }} className="dark:bg-gray-800 dark:border-gray-700">
                 <p style={{ fontSize:'11px', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', color:'#9ca3af', marginBottom:'16px' }}>
-                    { t('dashboard.quickActions') }
+                    { __( 'Quick Actions', 'jetreader' ) }
                 </p>
                 <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))', gap:'12px' }}>
                     { [
-                        { page:'jetreader-items',     icon:'📚', label: t('dashboard.manageLibraryItems'), primary:true  },
-                        { page:'jetreader-constants', icon:'🏷️', label: t('dashboard.manageCategories'),   primary:false },
-                        { page:'jetreader-settings',  icon:'⚙️', label: t('dashboard.settingsLink'),       primary:false },
-                        { page:'jetreader-about',     icon:'💬', label: t('dashboard.supportLink'),         primary:false },
+                        { page:'jetreader-items',     icon:'📚', label: __( 'Manage Library Items', 'jetreader' ), primary:true  },
+                        { page:'jetreader-constants', icon:'🏷️', label: __( 'Manage Categories', 'jetreader' ),   primary:false },
+                        { page:'jetreader-settings',  icon:'⚙️', label: __( 'Settings', 'jetreader' ),       primary:false },
+                        { page:'jetreader-about',     icon:'💬', label: __( 'Support', 'jetreader' ),         primary:false },
                     ].map( (action) => (
                         <NavLink
                             key={ action.page }
@@ -742,19 +743,19 @@ const LectorDashboard: React.FC = () => {
                 { /* Header */ }
                 <div style={{ background:'linear-gradient(135deg,var(--jr-p600,#4f46e5),var(--jr-p800,#3730a3))', padding:'22px 26px' }}>
                     <h2 style={{ fontSize:'18px', fontWeight:700, color:'#fff', margin:0, display:'flex', alignItems:'center', gap:'8px' }}>
-                        📋 { t('dashboard.shortcodeGuideTitle') }
+                        📋 { __( 'Embed on Your Site', 'jetreader' ) }
                     </h2>
                     <p style={{ fontSize:'14px', color:'rgba(255,255,255,0.75)', marginTop:'5px', marginBottom:0 }}>
-                        { t('dashboard.shortcodeGuideDesc') }
+                        { __( 'Paste any shortcode into a WordPress page, post, or Text/HTML block:', 'jetreader' ) }
                     </p>
                 </div>
 
                 { /* Shortcode rows */ }
                 <div>
                     { [
-                        { code:'[jetreader_library]',                       label: t('dashboard.scLibraryLabel'),      desc: t('dashboard.scLibraryDesc'),      badge:'⭐' },
-                        { code:'[jetreader_library type="book"]',           label: t('dashboard.scLibraryBooksLabel'), desc: t('dashboard.scLibraryBooksDesc'), badge:'📚' },
-                        { code:'[jetreader_library types="book,magazine"]', label: t('dashboard.scLibraryTypesLabel'), desc: t('dashboard.scLibraryTypesDesc'), badge:'🗂️' },
+                        { code:'[jetreader_library]',                       label: __( 'Full Library', 'jetreader' ),      desc: __( 'All items with search, filters, and content-type tabs', 'jetreader' ),      badge:'⭐' },
+                        { code:'[jetreader_library type="book"]',           label: __( 'Books Only', 'jetreader' ), desc: __( 'Lists only books, hides the tab bar (type=article, magazine, qa also work)', 'jetreader' ), badge:'📚' },
+                        { code:'[jetreader_library types="book,magazine"]', label: __( 'Selected Type Tabs', 'jetreader' ), desc: __( 'Tabbed view restricted to the specified types. E.g. types="book,magazine" shows only the Books and Magazines tabs', 'jetreader' ), badge:'🗂️' },
                     ].map( ( sc, i, arr ) => (
                         <div
                             key={ sc.code }
@@ -782,8 +783,8 @@ const LectorDashboard: React.FC = () => {
                             <div style={{ paddingLeft:'48px' }}>
                                 <ShortcodeChip
                                     code={ sc.code }
-                                    hint={ t('dashboard.scCopyHint') }
-                                    copied={ t('dashboard.scCopied') }
+                                    hint={ __( 'Click to copy shortcode', 'jetreader' ) }
+                                    copied={ __( 'Copied!', 'jetreader' ) }
                                 />
                             </div>
                         </div>
@@ -797,7 +798,6 @@ const LectorDashboard: React.FC = () => {
 /* ------------------------------------------------------------------ */
 /*  ItemsPage – full CRUD                                              */
 /* ------------------------------------------------------------------ */
-
 
 const FORMATS_ADMIN = [ 'epub', 'pdf', 'txt', 'docx' ];
 
@@ -868,7 +868,7 @@ interface BulkAddModalProps {
 }
 
 const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, flashMessage } ) => {
-    const { t } = useTranslation();
+
     const [ activeType, setActiveType ] = useState<string>( 'book' );
     const [ rows, setRows ] = useState<BulkAddItem[]>( [ { ...EMPTY_BULK_ITEM } ] );
     const [ saving, setSaving ] = useState( false );
@@ -907,10 +907,10 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
     };
 
     const bulkTypeTabs = [
-        { key: 'book',     label: t( 'items.typeTabsBooks' ),     icon: TYPE_SVG.book },
-        { key: 'article',  label: t( 'items.typeTabsArticles' ),  icon: TYPE_SVG.article },
-        { key: 'magazine', label: t( 'items.typeTabsMagazines' ), icon: TYPE_SVG.magazine },
-        { key: 'qa',       label: t( 'items.typeTabsQA' ),        icon: TYPE_SVG.qa },
+        { key: 'book',     label: __( 'Books', 'jetreader' ),     icon: TYPE_SVG.book },
+        { key: 'article',  label: __( 'Articles', 'jetreader' ),  icon: TYPE_SVG.article },
+        { key: 'magazine', label: __( 'Magazines', 'jetreader' ), icon: TYPE_SVG.magazine },
+        { key: 'qa',       label: __( 'Q&A', 'jetreader' ),        icon: TYPE_SVG.qa },
     ];
 
     const { data: bulkCategories = [] } = useQuery<CategoryExtended[]>( {
@@ -1110,7 +1110,7 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
     const handleSave = async () => {
         const validRows = rows.filter( ( r ) => r.title.trim() );
         if ( validRows.length === 0 ) {
-            flashMessage( t( 'items.addItemError' ) );
+            flashMessage( __( '❌ Title is required.', 'jetreader' ) );
             return;
         }
         setSaving( true );
@@ -1152,8 +1152,8 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
         setSaving( false );
         flashMessage(
             fail === 0
-                ? t( 'items.bulkAddSuccess', { N: String( ok ) } )
-                : t( 'items.bulkAddPartial', { OK: String( ok ), FAIL: String( fail ) } )
+                ? sprintf( __( '✅ %d items added successfully.', 'jetreader' ), ok )
+                : sprintf( __( '%1$d items added. ❌ %2$d failed.', 'jetreader' ), ok, fail )
         );
         onSaved();
         onClose();
@@ -1172,7 +1172,7 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
             type="button"
             onClick={ () => copyFieldToAll( idx, field ) }
             disabled={ ! canCopy }
-            title={ t( 'admin.copyAll' ) }
+            title={ __( 'Copy all', 'jetreader' ) }
             className="shrink-0 p-2 rounded-xl text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 disabled:opacity-20 disabled:cursor-not-allowed transition-all active:scale-95 border border-transparent hover:border-blue-200 dark:hover:border-blue-800 bg-transparent flex items-center justify-center w-9 h-9"
         >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -1217,8 +1217,8 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                 </svg>
                             </span>
                             <div>
-                                <h2 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">{ t( 'items.bulkAddTitle' ) }</h2>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ t( 'items.bulkAddSubtitle' ) || 'Add multiple items to your library in one go' }</p>
+                                <h2 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">{ __( '📋 Bulk Add Items', 'jetreader' ) }</h2>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ __( 'Add multiple items at once using a simple tabular format.', 'jetreader' ) || 'Add multiple items to your library in one go' }</p>
                             </div>
                         </div>
                         <button onClick={ onCloseRequest } className="p-2 hover:bg-gray-150 dark:hover:bg-gray-700/60 rounded-xl transition-all text-gray-500 dark:text-gray-400 active:scale-95">✕</button>
@@ -1247,8 +1247,8 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                         <div className="px-6 py-3 bg-amber-50 dark:bg-amber-900/30 border-b border-amber-200 dark:border-amber-700 flex items-center justify-between gap-3 animate-fade-in">
                             <p className="text-sm text-amber-800 dark:text-amber-300">
                                 { pendingClose
-                                    ? t( 'items.bulkCloseWarning' )
-                                    : t( 'items.bulkTabChangeWarning' ) }
+                                    ? __( '⚠️ Entered data has not been saved yet. If you close the window, this data will be lost.', 'jetreader' )
+                                    : __( '⚠️ Entered data has not been saved yet. If you change tabs, these rows will be deleted.', 'jetreader' ) }
                             </p>
                             <div className="flex gap-2 shrink-0">
                                 <button
@@ -1256,7 +1256,7 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                     onClick={ () => { setPendingType( null ); setPendingClose( false ); } }
                                     className="px-3 py-1.5 text-xs rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                                 >
-                                    { t( 'items.bulkTabChangeCancel' ) }
+                                    { __( 'Cancel', 'jetreader' ) }
                                 </button>
                                 <button
                                     type="button"
@@ -1264,8 +1264,8 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                     className="px-3 py-1.5 text-xs rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors"
                                 >
                                     { pendingClose
-                                        ? t( 'items.bulkCloseConfirm' )
-                                        : t( 'items.bulkTabChangeContinue' ) }
+                                        ? __( 'Close', 'jetreader' )
+                                        : __( 'Continue', 'jetreader' ) }
                                 </button>
                             </div>
                         </div>
@@ -1277,8 +1277,8 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                         <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 rounded-xl p-3 text-xs text-blue-700 dark:text-blue-300 flex items-start gap-2.5 shadow-sm">
                             <span className="text-base shrink-0">💡</span>
                             <div>
-                                <p className="font-semibold">{ t( 'items.bulkDragDropHintTitle' ) }</p>
-                                <p className="mt-0.5 opacity-90">{ t( 'items.bulkDragDropHintDesc' ) }</p>
+                                <p className="font-semibold">{ __( 'Drag & Drop Multiple Files', 'jetreader' ) }</p>
+                                <p className="mt-0.5 opacity-90">{ __( 'Drag and drop files onto a specific row to populate it, or drop them on the general form background to automatically upload and create new pre-filled rows.', 'jetreader' ) }</p>
                             </div>
                         </div>
 
@@ -1351,7 +1351,7 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                     <div className="absolute inset-0 bg-blue-500/5 backdrop-blur-[1px] rounded-xl flex items-center justify-center pointer-events-none z-10">
                                         <div className="bg-white dark:bg-gray-850 px-3 py-1.5 rounded-lg shadow-md border border-blue-200 dark:border-blue-900/50 flex items-center gap-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 animate-pulse">
                                             <span>📥</span>
-                                            <span>{ t( 'items.dropToFillRow' ) || 'Drop to populate row' }</span>
+                                            <span>{ __( 'Drag down…', 'jetreader' ) || 'Drop to populate row' }</span>
                                         </div>
                                     </div>
                                 ) }
@@ -1361,7 +1361,7 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                     <div className="flex items-center gap-2">
                                         <span className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 text-xs font-bold shadow-sm">{ idx + 1 }</span>
                                         <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                                            { activeType === 'book' ? t( 'itemForm.typeBook' ) : activeType === 'article' ? t( 'itemForm.typeArticle' ) : activeType === 'magazine' ? t( 'itemForm.typeMagazine' ) : t( 'itemForm.typeQA' ) } #{ idx + 1 }
+                                            { activeType === 'book' ? __( 'Book', 'jetreader' ) : activeType === 'article' ? __( 'Article', 'jetreader' ) : activeType === 'magazine' ? __( 'Magazine', 'jetreader' ) : __( 'Q&A', 'jetreader' ) } #{ idx + 1 }
                                         </span>
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -1369,7 +1369,7 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                         <button
                                             type="button"
                                             onClick={ () => duplicateRow( idx ) }
-                                            title={ t( 'admin.duplicateRow' ) }
+                                            title={ __( 'Duplicate row', 'jetreader' ) }
                                             className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all active:scale-95 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm"
                                         >
                                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -1393,14 +1393,14 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                         {/* Title */}
                                         <div className="md:col-span-2 space-y-1">
                                             <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                                                { t( 'itemForm.titleRequired' ) } <span className="text-red-500">*</span>
+                                                { __( 'Title *', 'jetreader' ) } <span className="text-red-500">*</span>
                                             </label>
                                             <div className="flex items-center gap-1.5">
                                                 <input
                                                     type="text"
                                                     value={ row.title }
                                                     onChange={ ( e ) => updateRow( idx, 'title', e.target.value ) }
-                                                    placeholder={ t( 'itemForm.titleRequired' ) }
+                                                    placeholder={ __( 'Title *', 'jetreader' ) }
                                                     className="jr-input flex-1 text-sm min-w-0"
                                                 />
                                                 <CopyToAll idx={ idx } field="title" />
@@ -1410,7 +1410,7 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                         {/* Category */}
                                         <div className="space-y-1">
                                             <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                                                { t( 'itemForm.categoryLabel' ) }
+                                                { __( '🏷️ Category', 'jetreader' ) }
                                             </label>
                                             <div className="flex items-center gap-1.5">
                                                 <input
@@ -1419,7 +1419,7 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                                     onChange={ ( e ) => updateRow( idx, 'category_names', e.target.value ) }
                                                     list="bulk-categories-list"
                                                     className="jr-input text-sm w-full"
-                                                    placeholder={ t( 'itemForm.categoryPlaceholder' ) || 'e.g. Felsefe, Mantık' }
+                                                    placeholder={ __( 'Category name...', 'jetreader' ) || 'e.g. Felsefe, Mantık' }
                                                 />
                                                 <CopyToAll idx={ idx } field="category_names" />
                                             </div>
@@ -1428,13 +1428,13 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                         {/* Visibility */}
                                         <div className="space-y-1">
                                             <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                                                { t( 'itemForm.visibilityLabel' ) }
+                                                { __( 'Visibility', 'jetreader' ) }
                                             </label>
                                             <div className="flex items-center gap-1.5">
                                                 <select value={ row.visibility } onChange={ ( e ) => updateRow( idx, 'visibility', e.target.value ) } className="jr-input text-sm w-full">
-                                                    <option value="publish">{ t( 'itemForm.visibilityPublish' ) }</option>
-                                                    <option value="draft">{ t( 'itemForm.visibilityDraft' ) }</option>
-                                                    <option value="private">{ t( 'itemForm.visibilityPrivate' ) }</option>
+                                                    <option value="publish">{ __( 'Publish', 'jetreader' ) }</option>
+                                                    <option value="draft">{ __( 'Draft', 'jetreader' ) }</option>
+                                                    <option value="private">{ __( 'Private', 'jetreader' ) }</option>
                                                 </select>
                                                 <CopyToAll idx={ idx } field="visibility" />
                                             </div>
@@ -1444,7 +1444,7 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                         <div className="flex items-center justify-between border border-gray-250 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/10 rounded-xl px-3.5 py-2 hover:border-gray-300 dark:hover:border-gray-655 transition-colors">
                                             <label className="flex items-center gap-2.5 text-xs font-semibold text-gray-655 dark:text-gray-400 uppercase tracking-wide cursor-pointer select-none">
                                                 <input type="checkbox" checked={ row.featured } onChange={ ( e ) => updateRow( idx, 'featured', e.target.checked ) } className="rounded accent-blue-600 w-4 h-4" />
-                                                <span>{ t( 'itemForm.featuredLabel' ) }</span>
+                                                <span>{ __( '⭐ Featured', 'jetreader' ) }</span>
                                             </label>
                                             <CopyToAll idx={ idx } field="featured" />
                                         </div>
@@ -1452,10 +1452,10 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                         {/* Description */}
                                         <div className="md:col-span-2 space-y-1">
                                             <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                                                { t( 'itemForm.descriptionPlaceholder' ) }
+                                                { __( 'Short description...', 'jetreader' ) }
                                             </label>
                                             <div className="flex items-start gap-1.5">
-                                                <textarea value={ row.description } onChange={ ( e ) => updateRow( idx, 'description', e.target.value ) } placeholder={ t( 'itemForm.descriptionPlaceholder' ) } className="jr-input w-full text-sm" rows={ 2 } />
+                                                <textarea value={ row.description } onChange={ ( e ) => updateRow( idx, 'description', e.target.value ) } placeholder={ __( 'Short description...', 'jetreader' ) } className="jr-input w-full text-sm" rows={ 2 } />
                                                 <CopyToAll idx={ idx } field="description" />
                                             </div>
                                         </div>
@@ -1466,14 +1466,14 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                         {/* Title */}
                                         <div className="md:col-span-2 space-y-1">
                                             <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                                                { t( 'itemForm.titleRequired' ) } <span className="text-red-500">*</span>
+                                                { __( 'Title *', 'jetreader' ) } <span className="text-red-500">*</span>
                                             </label>
                                             <div className="flex items-center gap-1.5">
                                                 <input
                                                     type="text"
                                                     value={ row.title }
                                                     onChange={ ( e ) => updateRow( idx, 'title', e.target.value ) }
-                                                    placeholder={ t( 'itemForm.titleRequired' ) }
+                                                    placeholder={ __( 'Title *', 'jetreader' ) }
                                                     className="jr-input flex-1 text-sm min-w-0"
                                                 />
                                                 <CopyToAll idx={ idx } field="title" />
@@ -1483,7 +1483,7 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                         {/* Category */}
                                         <div className="space-y-1">
                                             <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                                                { t( 'itemForm.categoryLabel' ) }
+                                                { __( '🏷️ Category', 'jetreader' ) }
                                             </label>
                                             <div className="flex items-center gap-1.5">
                                                 <input
@@ -1492,7 +1492,7 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                                     onChange={ ( e ) => updateRow( idx, 'category_names', e.target.value ) }
                                                     list="bulk-categories-list"
                                                     className="jr-input text-sm w-full"
-                                                    placeholder={ t( 'itemForm.categoryPlaceholder' ) || 'e.g. Felsefe, Mantık' }
+                                                    placeholder={ __( 'Category name...', 'jetreader' ) || 'e.g. Felsefe, Mantık' }
                                                 />
                                                 <CopyToAll idx={ idx } field="category_names" />
                                             </div>
@@ -1501,7 +1501,7 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                         {/* Author */}
                                         <div className="space-y-1">
                                             <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                                                { t( 'items.authorLabel' ) }
+                                                { __( 'Author', 'jetreader' ) }
                                             </label>
                                             <div className="flex items-center gap-1.5">
                                                 <input
@@ -1510,7 +1510,7 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                                     onChange={ ( e ) => updateRow( idx, 'author', e.target.value ) }
                                                     list="bulk-authors-list"
                                                     className="jr-input w-full text-sm"
-                                                    placeholder={ t( 'itemForm.authorPlaceholder' ) || 'Enter author name' }
+                                                    placeholder={ __( 'Author name', 'jetreader' ) || 'Enter author name' }
                                                 />
                                                 <CopyToAll idx={ idx } field="author" />
                                             </div>
@@ -1519,7 +1519,7 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                         {/* Publisher */}
                                         <div className="space-y-1">
                                             <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                                                { t( 'itemForm.publisherLabel' ) }
+                                                { __( 'Publisher', 'jetreader' ) }
                                             </label>
                                             <div className="flex items-center gap-1.5">
                                                 <input
@@ -1528,7 +1528,7 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                                     onChange={ ( e ) => updateRow( idx, 'publisher', e.target.value ) }
                                                     list="bulk-publishers-list"
                                                     className="jr-input w-full text-sm"
-                                                    placeholder={ t( 'itemForm.publisherPlaceholder' ) || 'Enter publisher name' }
+                                                    placeholder={ __( 'Publisher name', 'jetreader' ) || 'Enter publisher name' }
                                                 />
                                                 <CopyToAll idx={ idx } field="publisher" />
                                             </div>
@@ -1537,14 +1537,14 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                         {/* Translator */}
                                         <div className="space-y-1">
                                             <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                                                { t( 'itemForm.translatorLabel' ) }
+                                                { __( 'Translator', 'jetreader' ) }
                                             </label>
                                             <div className="flex items-center gap-1.5">
                                                 <input
                                                     type="text"
                                                     value={ row.translator }
                                                     onChange={ ( e ) => updateRow( idx, 'translator', e.target.value ) }
-                                                    placeholder={ t( 'itemForm.translatorPlaceholder' ) }
+                                                    placeholder={ __( 'Translator name', 'jetreader' ) }
                                                     className="jr-input text-sm w-full"
                                                 />
                                                 <CopyToAll idx={ idx } field="translator" />
@@ -1554,10 +1554,10 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                         {/* Year */}
                                         <div className="space-y-1">
                                             <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                                                { t( 'itemForm.yearLabel' ) }
+                                                { __( 'Year', 'jetreader' ) }
                                             </label>
                                             <div className="flex items-center gap-1.5">
-                                                <input type="number" value={ row.publication_year } onChange={ ( e ) => updateRow( idx, 'publication_year', e.target.value ) } placeholder={ t( 'itemForm.yearLabel' ) } className="jr-input text-sm w-full" />
+                                                <input type="number" value={ row.publication_year } onChange={ ( e ) => updateRow( idx, 'publication_year', e.target.value ) } placeholder={ __( 'Year', 'jetreader' ) } className="jr-input text-sm w-full" />
                                                 <CopyToAll idx={ idx } field="publication_year" />
                                             </div>
                                         </div>
@@ -1565,13 +1565,13 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                         {/* Visibility */}
                                         <div className="space-y-1">
                                             <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                                                { t( 'itemForm.visibilityLabel' ) }
+                                                { __( 'Visibility', 'jetreader' ) }
                                             </label>
                                             <div className="flex items-center gap-1.5">
                                                 <select value={ row.visibility } onChange={ ( e ) => updateRow( idx, 'visibility', e.target.value ) } className="jr-input text-sm w-full">
-                                                    <option value="publish">{ t( 'itemForm.visibilityPublish' ) }</option>
-                                                    <option value="draft">{ t( 'itemForm.visibilityDraft' ) }</option>
-                                                    <option value="private">{ t( 'itemForm.visibilityPrivate' ) }</option>
+                                                    <option value="publish">{ __( 'Publish', 'jetreader' ) }</option>
+                                                    <option value="draft">{ __( 'Draft', 'jetreader' ) }</option>
+                                                    <option value="private">{ __( 'Private', 'jetreader' ) }</option>
                                                 </select>
                                                 <CopyToAll idx={ idx } field="visibility" />
                                             </div>
@@ -1580,11 +1580,11 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                         {/* File Type */}
                                         <div className="space-y-1">
                                             <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                                                { t( 'itemForm.fileTypeLabel' ) || 'File Type' }
+                                                { __( 'File Type', 'jetreader' ) || 'File Type' }
                                             </label>
                                             <div className="flex items-center gap-1.5">
                                                 <select value={ row.file_type } onChange={ ( e ) => updateRow( idx, 'file_type', e.target.value ) } className="jr-input text-sm w-full">
-                                                    <option value="">{ t( 'itemForm.fileTypeSelect' ) }</option>
+                                                    <option value="">{ __( 'Select...', 'jetreader' ) }</option>
                                                     { fileTypes.map( ( f ) => <option key={ f } value={ f }>{ f.toUpperCase() }</option> ) }
                                                 </select>
                                                 <CopyToAll idx={ idx } field="file_type" />
@@ -1594,12 +1594,12 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                         {/* Cover Image */}
                                         <div className="space-y-1">
                                             <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                                                { t( 'itemForm.coverImageLabel' ) || 'Cover Image' }
+                                                { __( 'Cover Image URL', 'jetreader' ) || 'Cover Image' }
                                             </label>
                                             <div className="flex items-center gap-1.5">
                                                 <div className="flex items-center gap-1 flex-1 min-w-0">
-                                                    <input type="text" value={ row.cover_image } onChange={ ( e ) => updateRow( idx, 'cover_image', e.target.value ) } placeholder={ t( 'itemForm.coverImagePlaceholder' ) } className="jr-input text-sm flex-1 min-w-0" />
-                                                    <WpMediaButton imageOnly title={ t( 'itemForm.browseMedia' ) } onSelect={ ( url ) => updateRow( idx, 'cover_image', url ) } />
+                                                    <input type="text" value={ row.cover_image } onChange={ ( e ) => updateRow( idx, 'cover_image', e.target.value ) } placeholder={ __( 'https://...', 'jetreader' ) } className="jr-input text-sm flex-1 min-w-0" />
+                                                    <WpMediaButton imageOnly title={ __( 'Select from Media Library', 'jetreader' ) } onSelect={ ( url ) => updateRow( idx, 'cover_image', url ) } />
                                                 </div>
                                                 <CopyToAll idx={ idx } field="cover_image" />
                                             </div>
@@ -1608,12 +1608,12 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                         {/* File Path */}
                                         <div className="space-y-1">
                                             <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                                                { t( 'itemForm.filePathLabel' ) || 'File Path' }
+                                                { __( 'File Path (URL)', 'jetreader' ) || 'File Path' }
                                             </label>
                                             <div className="flex items-center gap-1.5">
                                                 <div className="flex items-center gap-1 flex-1 min-w-0">
-                                                    <input type="text" value={ row.file_path } onChange={ ( e ) => updateRow( idx, 'file_path', e.target.value ) } placeholder={ t( 'itemForm.filePathPlaceholder' ) } className="jr-input text-sm flex-1 min-w-0" />
-                                                    <WpMediaButton title={ t( 'itemForm.browseMedia' ) } onSelect={ ( url ) => updateRow( idx, 'file_path', url ) } />
+                                                    <input type="text" value={ row.file_path } onChange={ ( e ) => updateRow( idx, 'file_path', e.target.value ) } placeholder={ __( '/wp-content/uploads/...', 'jetreader' ) } className="jr-input text-sm flex-1 min-w-0" />
+                                                    <WpMediaButton title={ __( 'Select from Media Library', 'jetreader' ) } onSelect={ ( url ) => updateRow( idx, 'file_path', url ) } />
                                                 </div>
                                                 <CopyToAll idx={ idx } field="file_path" />
                                             </div>
@@ -1623,7 +1623,7 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                         <div className="flex items-center justify-between border border-gray-250 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/10 rounded-xl px-3.5 py-2 hover:border-gray-300 dark:hover:border-gray-650 transition-colors mt-5">
                                             <label className="flex items-center gap-2.5 text-xs font-semibold text-gray-650 dark:text-gray-455 uppercase tracking-wide cursor-pointer select-none">
                                                 <input type="checkbox" checked={ row.featured } onChange={ ( e ) => updateRow( idx, 'featured', e.target.checked ) } className="rounded accent-blue-600 w-4 h-4" />
-                                                <span>{ t( 'itemForm.featuredLabel' ) }</span>
+                                                <span>{ __( '⭐ Featured', 'jetreader' ) }</span>
                                             </label>
                                             <CopyToAll idx={ idx } field="featured" />
                                         </div>
@@ -1631,10 +1631,10 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                         {/* Description */}
                                         <div className="md:col-span-2 lg:col-span-3 space-y-1">
                                             <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                                                { t( 'itemForm.descriptionPlaceholder' ) }
+                                                { __( 'Short description...', 'jetreader' ) }
                                             </label>
                                             <div className="flex items-start gap-1.5">
-                                                <textarea value={ row.description } onChange={ ( e ) => updateRow( idx, 'description', e.target.value ) } placeholder={ t( 'itemForm.descriptionPlaceholder' ) } className="jr-input w-full text-sm" rows={ 2 } />
+                                                <textarea value={ row.description } onChange={ ( e ) => updateRow( idx, 'description', e.target.value ) } placeholder={ __( 'Short description...', 'jetreader' ) } className="jr-input w-full text-sm" rows={ 2 } />
                                                 <CopyToAll idx={ idx } field="description" />
                                             </div>
                                         </div>
@@ -1654,11 +1654,11 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                 <line x1="12" y1="5" x2="12" y2="19"/>
                                 <line x1="5" y1="12" x2="19" y2="12"/>
                             </svg>
-                            { t( 'items.bulkAddAddRow' ) }
+                            { __( '➕ Add Row', 'jetreader' ) }
                         </button>
                         <div className="flex gap-3">
                             <button onClick={ onCloseRequest } className="jr-btn-secondary text-sm">
-                                { t( 'common.cancel' ) }
+                                { __( 'Cancel', 'jetreader' ) }
                             </button>
                             <button onClick={ handleSave } disabled={ saving } className="jr-btn-primary text-sm flex items-center gap-1.5">
                                 { saving && (
@@ -1667,7 +1667,7 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                                     </svg>
                                 ) }
-                                <span>{ saving ? t( 'items.bulkSaving' ) : t( 'items.bulkAddSave' ) }</span>
+                                <span>{ saving ? __( '⏳ Saving...', 'jetreader' ) : __( '💾 Save All', 'jetreader' ) }</span>
                             </button>
                         </div>
                     </div>
@@ -1695,28 +1695,28 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ( { isOpen, onClose, onSaved, 
 };
 
 const ItemsPage: React.FC = () => {
-    const { t, locale } = useTranslation();
+    const { locale } = useLocale();
     const queryClient = useQueryClient();
 
     const typeTabs = [
-        { key: '',         label: t( 'items.typeTabsAll' ),       icon: '📋' },
-        { key: 'book',     label: t( 'items.typeTabsBooks' ),     icon: '📚' },
-        { key: 'article',  label: t( 'items.typeTabsArticles' ),  icon: '📄' },
-        { key: 'magazine', label: t( 'items.typeTabsMagazines' ), icon: '🗞️' },
-        { key: 'qa',       label: t( 'items.typeTabsQA' ),        icon: '💬' },
+        { key: '',         label: __( 'All', 'jetreader' ),       icon: '📋' },
+        { key: 'book',     label: __( 'Books', 'jetreader' ),     icon: '📚' },
+        { key: 'article',  label: __( 'Articles', 'jetreader' ),  icon: '📄' },
+        { key: 'magazine', label: __( 'Magazines', 'jetreader' ), icon: '🗞️' },
+        { key: 'qa',       label: __( 'Q&A', 'jetreader' ),        icon: '💬' },
     ];
 
     const typeLabel = ( type: string ) => ( ( {
-        book:     t( 'itemForm.typeBook' ),
-        article:  t( 'itemForm.typeArticle' ),
-        magazine: t( 'itemForm.typeMagazine' ),
-        qa:       t( 'itemForm.typeQA' ),
+        book:     __( 'Book', 'jetreader' ),
+        article:  __( 'Article', 'jetreader' ),
+        magazine: __( 'Magazine', 'jetreader' ),
+        qa:       __( 'Q&A', 'jetreader' ),
     } as Record<string, string> )[ type ] ?? type );
 
     const visibilityLabel = ( v: string ) => ( ( {
-        publish: t( 'itemForm.visibilityPublish' ),
-        draft:   t( 'itemForm.visibilityDraft' ),
-        private: t( 'itemForm.visibilityPrivate' ),
+        publish: __( 'Publish', 'jetreader' ),
+        draft:   __( 'Draft', 'jetreader' ),
+        private: __( 'Private', 'jetreader' ),
     } as Record<string, string> )[ v ] ?? v );
     const [ page, setPage ] = useState( 1 );
     const [ typeFilter, setTypeFilter ] = useState( '' );
@@ -1949,7 +1949,7 @@ const ItemsPage: React.FC = () => {
         if ( bulkForm.categoryChanged )                       payload.category_ids = bulkForm.categoryIds;
 
         if ( Object.keys( payload ).length === 0 ) {
-            flashMessage( t( 'items.bulkNoChange' ) );
+            flashMessage( __( '❌ Change at least one field.', 'jetreader' ) );
             return;
         }
         setBulkSaving( true );
@@ -1961,9 +1961,9 @@ const ItemsPage: React.FC = () => {
             } );
             const json = await r.json();
             const ok   = json.updated ?? 0;
-            flashMessage( `✅ ${ok} ${ t( 'items.itemsBulkUpdated' ) }` );
+            flashMessage( `✅ ${ok} ${ __( 'items updated.', 'jetreader' ) }` );
         } catch {
-            flashMessage( `❌ ${ t( 'items.failed' ) }` );
+            flashMessage( `❌ ${ __( 'failed.', 'jetreader' ) }` );
         } finally {
             setBulkSaving( false );
             setBulkEditOpen( false );
@@ -1983,9 +1983,9 @@ const ItemsPage: React.FC = () => {
             } );
             const json = await r.json();
             const ok   = json.deleted ?? 0;
-            flashMessage( `🗑️ ${ok} ${ t( 'items.itemsBulkDeleted' ) }` );
+            flashMessage( `🗑️ ${ok} ${ __( 'items deleted.', 'jetreader' ) }` );
         } catch {
-            flashMessage( `❌ ${ t( 'items.failed' ) }` );
+            flashMessage( `❌ ${ __( 'failed.', 'jetreader' ) }` );
         } finally {
             setBulkSaving( false );
             setBulkDeleteConfirm( false );
@@ -2000,9 +2000,9 @@ const ItemsPage: React.FC = () => {
         <div className="p-6">
             <div className="flex items-center justify-between mb-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('items.title')}</h1>
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{__( '📚 Library Items', 'jetreader' )}</h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                        {t('items.subtitle')}
+                        {__( 'Create, edit, and manage your digital library items.', 'jetreader' )}
                     </p>
                 </div>
                 <div className="flex gap-2">
@@ -2010,15 +2010,13 @@ const ItemsPage: React.FC = () => {
                         onClick={ () => setBulkAdding( true ) }
                         className="jr-btn-secondary"
                     >
-                        { t( 'items.bulkAddButton' ) }
+                        { __( '📋 Bulk Add', 'jetreader' ) }
                     </button>
                     <button onClick={ () => { setCreating( true ); setEditingItem( null ); } } className="jr-btn-primary">
-                        { t( 'items.addNewItem' ) }
+                        { __( '➕ Add New Item', 'jetreader' ) }
                     </button>
                 </div>
             </div>
-
-
 
             { message && (
                 <div className="mb-4 px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm text-gray-800 dark:text-gray-200">
@@ -2060,7 +2058,7 @@ const ItemsPage: React.FC = () => {
                         value={ searchTerm }
                         onChange={ ( e ) => setSearchTerm( e.target.value ) }
                         onKeyDown={ ( e ) => e.key === 'Enter' && searchItems() }
-                        placeholder={t('items.searchItems')}
+                        placeholder={__( 'Search items...', 'jetreader' )}
                         className="jr-input flex-1 text-sm"
                     />
                     <button onClick={ searchItems } className="jr-btn-secondary text-sm px-3">🔍</button>
@@ -2071,9 +2069,9 @@ const ItemsPage: React.FC = () => {
                                 ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-400 dark:border-blue-600 text-blue-700 dark:text-blue-300'
                                 : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
                         }` }
-                        title={t('items.filters')}
+                        title={__( '⚙️ Filters', 'jetreader' )}
                     >
-                        {t('items.filters')}
+                        {__( '⚙️ Filters', 'jetreader' )}
                         { activeFiltersCount > 0 && (
                             <span className="absolute -top-1.5 -right-1.5 bg-blue-600 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
                                 { activeFiltersCount }
@@ -2088,69 +2086,69 @@ const ItemsPage: React.FC = () => {
                 <div className="mb-5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm">
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
                         <div>
-                            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{t('items.filterCategory')}</label>
+                            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{__( 'Category', 'jetreader' )}</label>
                             <select
                                 value={ pendingFilters.category_id }
                                 onChange={ ( e ) => setPendingFilters( ( p ) => ( { ...p, category_id: e.target.value } ) ) }
                                 className="jr-input w-full text-sm"
                             >
-                                <option value="">{t('common.allCategories')}</option>
+                                <option value="">{__( 'All Categories', 'jetreader' )}</option>
                                 { adminCategories.map( ( cat ) => (
                                     <option key={ cat.id } value={ String( cat.id ) }>{ cat.name }</option>
                                 ) ) }
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{t('items.filterAuthor')}</label>
+                            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{__( 'Author', 'jetreader' )}</label>
                             <input
                                 type="text"
                                 value={ pendingFilters.author }
                                 onChange={ ( e ) => setPendingFilters( ( p ) => ( { ...p, author: e.target.value } ) ) }
-                                placeholder={t('items.filterAuthorPlaceholder')}
+                                placeholder={__( 'Author name...', 'jetreader' )}
                                 className="jr-input w-full text-sm"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{t('items.filterFormat')}</label>
+                            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{__( 'Format', 'jetreader' )}</label>
                             <select
                                 value={ pendingFilters.file_type }
                                 onChange={ ( e ) => setPendingFilters( ( p ) => ( { ...p, file_type: e.target.value } ) ) }
                                 className="jr-input w-full text-sm"
                             >
-                                <option value="">{t('common.allFormats')}</option>
+                                <option value="">{__( 'All Formats', 'jetreader' )}</option>
                                 { FORMATS_ADMIN.map( ( f ) => <option key={ f } value={ f }>{ f.toUpperCase() }</option> ) }
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{t('items.filterVisibility')}</label>
+                            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{__( 'Visibility', 'jetreader' )}</label>
                             <select
                                 value={ pendingFilters.visibility }
                                 onChange={ ( e ) => setPendingFilters( ( p ) => ( { ...p, visibility: e.target.value } ) ) }
                                 className="jr-input w-full text-sm"
                             >
-                                <option value="">{t('common.all')}</option>
-                                <option value="publish">{t('items.filterVisibilityPublished')}</option>
-                                <option value="draft">{t('items.filterVisibilityDraft')}</option>
-                                <option value="private">{t('items.filterVisibilityPrivate')}</option>
+                                <option value="">{__( 'All', 'jetreader' )}</option>
+                                <option value="publish">{__( 'Published', 'jetreader' )}</option>
+                                <option value="draft">{__( 'Draft', 'jetreader' )}</option>
+                                <option value="private">{__( 'Private', 'jetreader' )}</option>
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{t('items.filterFeatured')}</label>
+                            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{__( 'Featured', 'jetreader' )}</label>
                             <select
                                 value={ pendingFilters.featured }
                                 onChange={ ( e ) => setPendingFilters( ( p ) => ( { ...p, featured: e.target.value } ) ) }
                                 className="jr-input w-full text-sm"
                             >
-                                <option value="">{t('common.all')}</option>
-                                <option value="1">{t('items.filterFeaturedYes')}</option>
-                                <option value="0">{t('items.filterFeaturedNo')}</option>
+                                <option value="">{__( 'All', 'jetreader' )}</option>
+                                <option value="1">{__( '⭐ Featured', 'jetreader' )}</option>
+                                <option value="0">{__( 'Not Featured', 'jetreader' )}</option>
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{t('items.filterViewsMinMax')}</label>
+                            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{__( 'Views (min – max)', 'jetreader' )}</label>
                             <div className="flex gap-2">
-                                <input type="number" placeholder={t('items.filterViewsMin')} min={ 0 } value={ pendingFilters.view_min } onChange={ ( e ) => setPendingFilters( ( p ) => ( { ...p, view_min: e.target.value } ) ) } className="jr-input flex-1 w-0 text-sm" />
-                                <input type="number" placeholder={t('items.filterViewsMax')} min={ 0 } value={ pendingFilters.view_max } onChange={ ( e ) => setPendingFilters( ( p ) => ( { ...p, view_max: e.target.value } ) ) } className="jr-input flex-1 w-0 text-sm" />
+                                <input type="number" placeholder={__( 'Min', 'jetreader' )} min={ 0 } value={ pendingFilters.view_min } onChange={ ( e ) => setPendingFilters( ( p ) => ( { ...p, view_min: e.target.value } ) ) } className="jr-input flex-1 w-0 text-sm" />
+                                <input type="number" placeholder={__( 'Max', 'jetreader' )} min={ 0 } value={ pendingFilters.view_max } onChange={ ( e ) => setPendingFilters( ( p ) => ( { ...p, view_max: e.target.value } ) ) } className="jr-input flex-1 w-0 text-sm" />
                             </div>
                         </div>
                         <div className="flex items-end pb-1">
@@ -2161,7 +2159,7 @@ const ItemsPage: React.FC = () => {
                                     onChange={ ( e ) => setPendingFilters( ( p ) => ( { ...p, has_volumes: e.target.checked } ) ) }
                                     className="rounded accent-blue-600 w-4 h-4"
                                 />
-                                <span className="text-sm text-gray-700 dark:text-gray-300">{t('items.filterMultiVolume')}</span>
+                                <span className="text-sm text-gray-700 dark:text-gray-300">{__( 'Only multi-volume', 'jetreader' )}</span>
                             </label>
                         </div>
                     </div>
@@ -2174,13 +2172,13 @@ const ItemsPage: React.FC = () => {
                             } }
                             className="px-4 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                         >
-                            {t('items.resetFilters')}
+                            {__( 'Reset', 'jetreader' )}
                         </button>
                         <button
                             onClick={ () => { setActiveFilters( pendingFilters ); setPage( 1 ); setFilterOpen( false ); } }
                             className="jr-btn-primary text-sm"
                         >
-                            {t('items.applyFilters')}
+                            {__( 'Apply Filters', 'jetreader' )}
                         </button>
                     </div>
                 </div>
@@ -2192,7 +2190,7 @@ const ItemsPage: React.FC = () => {
             {/* Error */}
             { isError && (
                 <div className="text-center py-12 text-red-500">
-                    {t('items.failedToLoad')} <button onClick={ () => refetch() } className="underline">{t('common.retry')}</button>
+                    {__( '⚠️ Failed to load items.', 'jetreader' )} <button onClick={ () => refetch() } className="underline">{__( 'Retry', 'jetreader' )}</button>
                 </div>
             ) }
 
@@ -2200,7 +2198,7 @@ const ItemsPage: React.FC = () => {
             { selectedIds.size > 0 && (
                 <div className="flex items-center gap-3 mb-4 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-xl px-4 py-3 flex-wrap">
                     <span className="text-sm font-semibold text-blue-800 dark:text-blue-200">
-                        ✓ { selectedIds.size } { selectedIds.size === 1 ? t('items.item') : t('items.itemsSelected') }
+                        ✓ { selectedIds.size } { selectedIds.size === 1 ? __( 'item', 'jetreader' ) : __( 'items selected', 'jetreader' ) }
                     </span>
                     { data?.all_ids && data.all_ids.length > data.items.length && (
                         <label className="flex items-center gap-1.5 text-xs text-blue-700 dark:text-blue-300 font-medium cursor-pointer ml-2 select-none border-l border-blue-200 dark:border-blue-800 pl-3">
@@ -2216,7 +2214,7 @@ const ItemsPage: React.FC = () => {
                                 } }
                                 className="rounded accent-blue-600 w-3.5 h-3.5 cursor-pointer"
                             />
-                            <span>{ t( 'items.selectAllMatching', { N: String( data.total ) } ) }</span>
+                            <span>{ sprintf( __( 'Select all %d items', 'jetreader' ), data.total ) }</span>
                         </label>
                     ) }
                     <div className="flex gap-2 ml-auto">
@@ -2224,19 +2222,19 @@ const ItemsPage: React.FC = () => {
                             onClick={ openBulkEdit }
                             className="px-3 py-1.5 text-xs bg-white dark:bg-gray-700 border border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900 transition-colors font-medium"
                         >
-                            {t('items.bulkEdit')}
+                            {__( '✏️ Bulk Edit', 'jetreader' )}
                         </button>
                         <button
                             onClick={ () => setBulkDeleteConfirm( true ) }
                             className="px-3 py-1.5 text-xs bg-white dark:bg-gray-700 border border-red-300 dark:border-red-600 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors font-medium"
                         >
-                            {t('items.bulkDelete')}
+                            {__( '🗑️ Delete Selected', 'jetreader' )}
                         </button>
                         <button
                             onClick={ () => setSelectedIds( new Set() ) }
                             className="px-3 py-1.5 text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
                         >
-                            {t('items.deselect')}
+                            {__( '✕ Deselect', 'jetreader' )}
                         </button>
                     </div>
                 </div>
@@ -2254,18 +2252,18 @@ const ItemsPage: React.FC = () => {
                                         checked={ allPageSelected }
                                         onChange={ toggleSelectAll }
                                         className="rounded accent-blue-600 w-4 h-4 cursor-pointer"
-                                        title={ t( 'admin.selectDeselectAll' ) }
+                                        title={ __( 'Select / deselect all on this page', 'jetreader' ) }
                                     />
                                 </th>
-                                <th className="p-4 font-medium">{t('items.titleColumn')}</th>
-                                <th className="p-4 font-medium">{t('items.typeColumn')}</th>
-                                <th className="p-4 font-medium">{t('items.categoryColumn')}</th>
-                                <th className="p-4 font-medium">{t('items.authorColumn')}</th>
-                                <th className="p-4 font-medium">{t('items.formatColumn')}</th>
-                                <th className="p-4 font-medium">{t('items.visibilityColumn')}</th>
-                                <th className="p-4 font-medium">{t('items.featuredColumn')}</th>
-                                <th className="p-4 font-medium">{t('items.viewsColumn')}</th>
-                                <th className="p-4 font-medium text-right">{t('common.actions')}</th>
+                                <th className="p-4 font-medium">{__( 'Title', 'jetreader' )}</th>
+                                <th className="p-4 font-medium">{__( 'Type', 'jetreader' )}</th>
+                                <th className="p-4 font-medium">{__( 'Category', 'jetreader' )}</th>
+                                <th className="p-4 font-medium">{__( 'Author', 'jetreader' )}</th>
+                                <th className="p-4 font-medium">{__( 'Format', 'jetreader' )}</th>
+                                <th className="p-4 font-medium">{__( 'Visibility', 'jetreader' )}</th>
+                                <th className="p-4 font-medium">{__( 'Featured', 'jetreader' )}</th>
+                                <th className="p-4 font-medium">{__( 'Views', 'jetreader' )}</th>
+                                <th className="p-4 font-medium text-right">{__( 'Actions', 'jetreader' )}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -2299,7 +2297,7 @@ const ItemsPage: React.FC = () => {
                                                 </span>
                                                 { item.volumes && item.volumes.length > 1 && (
                                                     <span className="text-xs bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded-full font-medium">
-                                                        { item.volumes.length } { item.type === 'magazine' ? t( 'reader.volLabelMagazine' ) : t( 'reader.volLabelBook' ) }
+                                                        { item.volumes.length } { item.type === 'magazine' ? __( 'Issue', 'jetreader' ) : __( 'Volume', 'jetreader' ) }
                                                     </span>
                                                 ) }
                                             </div>
@@ -2313,13 +2311,13 @@ const ItemsPage: React.FC = () => {
                                                     onClick={ () => { setEditingItem( item ); setCreating( false ); } }
                                                     className="px-3 py-1.5 text-xs bg-blue-50 text-blue-700 dark:bg-blue-900 dark:text-blue-200 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors"
                                                 >
-                                                    ✏️ { t( 'common.edit' ) }
+                                                    ✏️ { __( 'Edit', 'jetreader' ) }
                                                 </button>
                                                 <button
                                                     onClick={ () => setDeleteConfirm( item.id ) }
                                                     className="px-3 py-1.5 text-xs bg-red-50 text-red-700 dark:bg-red-900 dark:text-red-200 rounded-lg hover:bg-red-100 dark:hover:bg-red-800 transition-colors"
                                                 >
-                                                    🗑️ { t( 'common.delete' ) }
+                                                    🗑️ { __( 'Delete', 'jetreader' ) }
                                                 </button>
                                             </div>
                                         </td>
@@ -2335,8 +2333,8 @@ const ItemsPage: React.FC = () => {
             { data && data.items.length === 0 && (
                 <div className="text-center py-16">
                     <span className="text-5xl block mb-4">📭</span>
-                    <p className="text-gray-500 dark:text-gray-400 text-lg">{t('items.noItemsYet')}</p>
-                    <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">{t('items.noItemsHint')}</p>
+                    <p className="text-gray-500 dark:text-gray-400 text-lg">{__( 'No items found yet.', 'jetreader' )}</p>
+                    <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">{__( 'Click the "Add New Item" button to upload your first book or document.', 'jetreader' )}</p>
                 </div>
             ) }
 
@@ -2344,7 +2342,7 @@ const ItemsPage: React.FC = () => {
             { data && data.pages > 1 && (
                 <div className="flex items-center justify-between mt-6">
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {t('common.showingPage')} { data.page } {t('common.of')} { data.pages } ({ data.total } {t('common.total')})
+                        {__( 'Showing page', 'jetreader' )} { data.page } {__( 'of', 'jetreader' )} { data.pages } ({ data.total } {__( 'total', 'jetreader' )})
                     </p>
                     <div className="flex gap-2">
                         <button
@@ -2352,14 +2350,14 @@ const ItemsPage: React.FC = () => {
                             disabled={ page <= 1 }
                             className="px-3 py-1.5 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                         >
-                            {t('common.previous')}
+                            {__( 'Previous', 'jetreader' )}
                         </button>
                         <button
                             onClick={ () => setPage( ( p ) => Math.min( p + 1, data.pages ) ) }
                             disabled={ page >= data.pages }
                             className="px-3 py-1.5 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                         >
-                            {t('common.next')}
+                            {__( 'Next', 'jetreader' )}
                         </button>
                     </div>
                 </div>
@@ -2415,23 +2413,23 @@ const ItemsPage: React.FC = () => {
                             className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 max-w-sm w-full"
                             onClick={ ( e ) => e.stopPropagation() }
                         >
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">{ t( 'items.deleteConfirm' ) }</h3>
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">{ __( '⚠️ Confirm Deletion', 'jetreader' ) }</h3>
                             <p className="text-gray-600 dark:text-gray-400 text-sm mb-6">
-                                { t( 'items.deleteWarning' ) }
+                                { __( 'This action will permanently delete the item, its search index, bookmarks, and notes.', 'jetreader' ) }
                             </p>
                             <div className="flex gap-3">
                                 <button
                                     onClick={ () => setDeleteConfirm( null ) }
                                     className="flex-1 px-4 py-2 text-sm bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
                                 >
-                                    { t( 'common.cancel' ) }
+                                    { __( 'Cancel', 'jetreader' ) }
                                 </button>
                                 <button
                                     onClick={ () => deleteMutation.mutate( deleteConfirm ) }
                                     disabled={ deleteMutation.isPending }
                                     className="flex-1 px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
                                 >
-                                    { deleteMutation.isPending ? t( 'items.deleting' ) : t( 'common.delete' ) }
+                                    { deleteMutation.isPending ? __( 'Deleting...', 'jetreader' ) : __( 'Delete', 'jetreader' ) }
                                 </button>
                             </div>
                         </motion.div>
@@ -2457,9 +2455,9 @@ const ItemsPage: React.FC = () => {
                             { /* Header */ }
                             <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
                                 <div>
-                                    <h2 className="text-lg font-bold text-gray-900 dark:text-white">{ t( 'items.bulkEditTitle' ) }</h2>
+                                    <h2 className="text-lg font-bold text-gray-900 dark:text-white">{ __( '✏️ Bulk Edit', 'jetreader' ) }</h2>
                                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                        { t( 'items.bulkEditHint' ) }
+                                        { __( 'Leave fields as "— No changes —" to keep current values', 'jetreader' ) }
                                     </p>
                                 </div>
                                 <button onClick={ () => setBulkEditOpen( false ) } className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-500">✕</button>
@@ -2476,7 +2474,7 @@ const ItemsPage: React.FC = () => {
                                     ) ) }
                                     { selectedIds.size > selectedItems.length && (
                                         <span className="inline-flex items-center text-xs text-gray-500 dark:text-gray-400 font-medium px-2.5 py-1 italic bg-gray-100 dark:bg-gray-800 rounded-full">
-                                            { t( 'items.andMore', { count: String( selectedIds.size - selectedItems.length ) } ) }
+                                            { sprintf( __( '+ %d more...', 'jetreader' ), selectedIds.size - selectedItems.length ) }
                                         </span>
                                     ) }
                                 </div>
@@ -2485,7 +2483,7 @@ const ItemsPage: React.FC = () => {
                                 { hasMultiVolumeSelected && (
                                     <div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-3 text-sm text-amber-800 dark:text-amber-300">
                                         <span className="shrink-0">⚠️</span>
-                                        <span>{ t( 'items.multiVolumeWarning' ) }</span>
+                                        <span>{ __( 'Some selected items contain multiple volumes/issues. Volume files will not be affected; only the common fields below will be updated.', 'jetreader' ) }</span>
                                     </div>
                                 ) }
 
@@ -2493,55 +2491,55 @@ const ItemsPage: React.FC = () => {
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     {/* Visibility */}
                                     <div>
-                                        <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{ t( 'itemForm.visibilityLabel' ) }</label>
+                                        <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{ __( 'Visibility', 'jetreader' ) }</label>
                                         <select
                                             value={ bulkForm.visibility }
                                             onChange={ ( e ) => setBulkForm( ( p ) => ( { ...p, visibility: e.target.value } ) ) }
                                             className="jr-input w-full text-sm"
                                         >
-                                            <option value="">{ t( 'common.noChange' ) }</option>
-                                            <option value="publish">{ t( 'itemForm.visibilityPublish' ) }</option>
-                                            <option value="draft">{ t( 'itemForm.visibilityDraft' ) }</option>
-                                            <option value="private">{ t( 'itemForm.visibilityPrivate' ) }</option>
+                                            <option value="">{ __( '— No changes —', 'jetreader' ) }</option>
+                                            <option value="publish">{ __( 'Publish', 'jetreader' ) }</option>
+                                            <option value="draft">{ __( 'Draft', 'jetreader' ) }</option>
+                                            <option value="private">{ __( 'Private', 'jetreader' ) }</option>
                                         </select>
                                     </div>
 
                                     {/* Featured */}
                                     <div>
-                                        <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{ t( 'items.featuredColumn' ) }</label>
+                                        <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{ __( 'Featured', 'jetreader' ) }</label>
                                         <select
                                             value={ bulkForm.featured }
                                             onChange={ ( e ) => setBulkForm( ( p ) => ( { ...p, featured: e.target.value } ) ) }
                                             className="jr-input w-full text-sm"
                                         >
-                                            <option value="">{ t( 'common.noChange' ) }</option>
-                                            <option value="1">{ t( 'items.filterFeaturedYes' ) }</option>
-                                            <option value="0">{ t( 'items.filterFeaturedNo' ) }</option>
+                                            <option value="">{ __( '— No changes —', 'jetreader' ) }</option>
+                                            <option value="1">{ __( '⭐ Featured', 'jetreader' ) }</option>
+                                            <option value="0">{ __( 'Not Featured', 'jetreader' ) }</option>
                                         </select>
                                     </div>
 
                                     {/* Language */}
                                     <div>
-                                        <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{ t( 'items.languageLabel' ) }</label>
+                                        <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{ __( 'Language', 'jetreader' ) }</label>
                                         <LangCombobox
                                             value={ bulkForm.language }
                                             onChange={ ( v ) => setBulkForm( ( p ) => ( { ...p, language: v } ) ) }
                                             uiLocale={ locale }
-                                            placeholder={ t( 'common.noChange' ) }
-                                            searchPlaceholder={ t( 'itemForm.languageSearchPlaceholder' ) }
+                                            placeholder={ __( '— No changes —', 'jetreader' ) }
+                                            searchPlaceholder={ __( 'Search languages...', 'jetreader' ) }
                                         />
                                     </div>
 
                                     {/* Translator */}
                                     <div>
                                         <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
-                                            { t( 'itemForm.translatorLabel' ) }
+                                            { __( 'Translator', 'jetreader' ) }
                                         </label>
                                         <input
                                             type="text"
                                             value={ bulkForm.translator }
                                             onChange={ ( e ) => setBulkForm( ( p ) => ( { ...p, translator: e.target.value, translatorChanged: true } ) ) }
-                                            placeholder={ t( 'common.noChange' ) }
+                                            placeholder={ __( '— No changes —', 'jetreader' ) }
                                             className="jr-input w-full text-sm"
                                         />
                                     </div>
@@ -2549,15 +2547,15 @@ const ItemsPage: React.FC = () => {
                                     {/* Author */}
                                     <div>
                                         <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
-                                            { t( 'items.authorLabel' ) }
+                                            { __( 'Author', 'jetreader' ) }
                                         </label>
                                         <select
                                             value={ bulkForm.author }
                                             onChange={ ( e ) => setBulkForm( ( p ) => ( { ...p, author: e.target.value, authorChanged: true } ) ) }
                                             className="jr-input w-full text-sm"
                                         >
-                                            <option value="">{ t( 'common.noChange' ) }</option>
-                                            <option value="__none__">{ t( 'items.authorRemove' ) }</option>
+                                            <option value="">{ __( '— No changes —', 'jetreader' ) }</option>
+                                            <option value="__none__">{ __( 'Remove Author', 'jetreader' ) }</option>
                                             { formAuthors.map( ( a ) => (
                                                 <option key={ a.id } value={ a.name }>{ a.name }</option>
                                             ) ) }
@@ -2567,15 +2565,15 @@ const ItemsPage: React.FC = () => {
                                     {/* Publisher */}
                                     <div>
                                         <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
-                                            { t( 'itemForm.publisherLabel' ) }
+                                            { __( 'Publisher', 'jetreader' ) }
                                         </label>
                                         <select
                                             value={ bulkForm.publisher }
                                             onChange={ ( e ) => setBulkForm( ( p ) => ( { ...p, publisher: e.target.value, publisherChanged: true } ) ) }
                                             className="jr-input w-full text-sm"
                                         >
-                                            <option value="">{ t( 'common.noChange' ) }</option>
-                                            <option value="__none__">{ t( 'items.publisherRemove' ) }</option>
+                                            <option value="">{ __( '— No changes —', 'jetreader' ) }</option>
+                                            <option value="__none__">{ __( 'Remove Publisher', 'jetreader' ) }</option>
                                             { formPublishers.map( ( p ) => (
                                                 <option key={ p.id } value={ p.name }>{ p.name }</option>
                                             ) ) }
@@ -2585,31 +2583,31 @@ const ItemsPage: React.FC = () => {
                                     {/* Type */}
                                     <div>
                                         <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
-                                            { t( 'itemForm.typeLabel' ) }
+                                            { __( 'Type', 'jetreader' ) }
                                         </label>
                                         <select
                                             value={ bulkForm.type }
                                             onChange={ ( e ) => setBulkForm( ( p ) => ( { ...p, type: e.target.value, typeChanged: true } ) ) }
                                             className="jr-input w-full text-sm"
                                         >
-                                            <option value="">{ t( 'common.noChange' ) }</option>
-                                            <option value="book">{ t( 'itemForm.typeBook' ) }</option>
-                                            <option value="article">{ t( 'itemForm.typeArticle' ) }</option>
-                                            <option value="magazine">{ t( 'itemForm.typeMagazine' ) }</option>
-                                            <option value="qa">{ t( 'itemForm.typeQA' ) }</option>
+                                            <option value="">{ __( '— No changes —', 'jetreader' ) }</option>
+                                            <option value="book">{ __( 'Book', 'jetreader' ) }</option>
+                                            <option value="article">{ __( 'Article', 'jetreader' ) }</option>
+                                            <option value="magazine">{ __( 'Magazine', 'jetreader' ) }</option>
+                                            <option value="qa">{ __( 'Q&A', 'jetreader' ) }</option>
                                         </select>
                                     </div>
 
                                     {/* Publication Year */}
                                     <div>
                                         <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
-                                            { t( 'itemForm.yearLabel' ) }
+                                            { __( 'Year', 'jetreader' ) }
                                         </label>
                                         <input
                                             type="number"
                                             value={ bulkForm.publication_year }
                                             onChange={ ( e ) => setBulkForm( ( p ) => ( { ...p, publication_year: e.target.value, publication_yearChanged: true } ) ) }
-                                            placeholder={ t( 'common.noChange' ) }
+                                            placeholder={ __( '— No changes —', 'jetreader' ) }
                                             className="jr-input w-full text-sm"
                                         />
                                     </div>
@@ -2624,11 +2622,11 @@ const ItemsPage: React.FC = () => {
                                             onChange={ ( e ) => setBulkForm( ( p ) => ( { ...p, categoryChanged: e.target.checked } ) ) }
                                             className="rounded accent-blue-600"
                                         />
-                                        <span>{ t( 'items.changeCategories' ) ?? 'Change Categories' }</span>
+                                        <span>{ __( 'Change Categories', 'jetreader' ) ?? 'Change Categories' }</span>
                                     </label>
                                     { bulkForm.categoryChanged && bulkForm.categoryIds.length === 0 && (
                                         <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                                            ⚠️ { t( 'items.selectCategoryWarning' ) ?? 'Please select at least one category.' }
+                                            ⚠️ { __( 'Please select at least one category.', 'jetreader' ) ?? 'Please select at least one category.' }
                                         </p>
                                     ) }
                                     { bulkForm.categoryChanged && (
@@ -2664,14 +2662,14 @@ const ItemsPage: React.FC = () => {
 
                             <div className="flex gap-3 p-6 border-t border-gray-200 dark:border-gray-700 justify-end">
                                 <button onClick={ () => setBulkEditOpen( false ) } className="px-4 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
-                                    { t( 'common.cancel' ) }
+                                    { __( 'Cancel', 'jetreader' ) }
                                 </button>
                                 <button
                                     onClick={ handleBulkSave }
                                     disabled={ bulkSaving || ( bulkForm.categoryChanged && bulkForm.categoryIds.length === 0 ) }
                                     className="jr-btn-primary text-sm"
                                 >
-                                    { bulkSaving ? t( 'items.bulkSaving' ) : t( 'items.bulkApply', { N: String( selectedIds.size ) } ) }
+                                    { bulkSaving ? __( '⏳ Saving...', 'jetreader' ) : sprintf( __( 'Apply to %d items', 'jetreader' ), selectedIds.size ) }
                                 </button>
                             </div>
                         </motion.div>
@@ -2694,9 +2692,9 @@ const ItemsPage: React.FC = () => {
                             className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 max-w-sm w-full"
                             onClick={ ( e ) => e.stopPropagation() }
                         >
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">{ t( 'items.deleteBulkConfirm' ) }</h3>
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">{ __( '⚠️ Delete selected items?', 'jetreader' ) }</h3>
                             <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
-                                { t( 'items.deleteBulkWarning' ) }
+                                { __( 'This action will permanently delete all selected items, their search indexes, bookmarks, and notes.', 'jetreader' ) }
                             </p>
                             <div className="max-h-28 overflow-y-auto mb-5 flex flex-wrap gap-1.5">
                                 { selectedItems.map( ( item ) => (
@@ -2706,7 +2704,7 @@ const ItemsPage: React.FC = () => {
                                 ) ) }
                                 { selectedIds.size > selectedItems.length && (
                                     <span className="text-xs bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-100 dark:border-gray-700 rounded-full px-2 py-0.5 italic">
-                                        { t( 'items.andMore', { count: String( selectedIds.size - selectedItems.length ) } ) }
+                                        { sprintf( __( '+ %d more...', 'jetreader' ), selectedIds.size - selectedItems.length ) }
                                     </span>
                                 ) }
                             </div>
@@ -2715,14 +2713,14 @@ const ItemsPage: React.FC = () => {
                                     onClick={ () => setBulkDeleteConfirm( false ) }
                                     className="flex-1 px-4 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 transition-colors"
                                 >
-                                    { t( 'common.cancel' ) }
+                                    { __( 'Cancel', 'jetreader' ) }
                                 </button>
                                 <button
                                     onClick={ handleBulkDelete }
                                     disabled={ bulkSaving }
                                     className="flex-1 px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
                                 >
-                                    { bulkSaving ? t( 'items.deleting' ) : t( 'items.deletingAll' ) }
+                                    { bulkSaving ? __( 'Deleting...', 'jetreader' ) : __( '🗑️ Delete All', 'jetreader' ) }
                                 </button>
                             </div>
                         </motion.div>
@@ -2748,7 +2746,7 @@ interface ItemFormModalProps {
 const EMPTY_VOLUME: VolumeEntry = { vol: 1, file_path: '', file_type: '', cover_image: '' };
 
 const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating, onClose, onSaved, flashMessage } ) => {
-    const { t, locale } = useTranslation();
+    const { locale } = useLocale();
     const isOpen = isCreating || editingItem !== null;
 
     const [ form, setForm ] = useState( {
@@ -2776,7 +2774,7 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
     const [ isDragging, setIsDragging ] = useState( false );
 
     const isMultiVolType = ( type: string ) => type === 'book' || type === 'magazine';
-    const volLabel = ( type: string ) => type === 'magazine' ? t( 'reader.volLabelMagazine' ) : t( 'reader.volLabelBook' );
+    const volLabel = ( type: string ) => type === 'magazine' ? __( 'Issue', 'jetreader' ) : __( 'Volume', 'jetreader' );
 
     const handleDragEnter = ( e: React.DragEvent ) => {
         e.preventDefault();
@@ -2994,7 +2992,7 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
 
     const handleSave = async () => {
         if ( ! form.title.trim() ) {
-            flashMessage( t( 'items.addItemError' ) );
+            flashMessage( __( '❌ Title is required.', 'jetreader' ) );
             return;
         }
         setSaving( true );
@@ -3043,10 +3041,10 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
             const json = await res.json();
             if ( json.code ) throw new Error( json.message );
 
-            flashMessage( isEdit ? t( 'items.itemUpdated' ) : t( 'items.itemCreated' ) );
+            flashMessage( isEdit ? __( '✅ Item updated successfully!', 'jetreader' ) : __( '✅ Item created successfully.', 'jetreader' ) );
             onSaved();
         } catch ( err ) {
-            flashMessage( `❌ ${ err instanceof Error ? err.message : t( 'items.saveFailed' ) }` );
+            flashMessage( `❌ ${ err instanceof Error ? err.message : __( 'Save failed', 'jetreader' ) }` );
         } finally {
             setSaving( false );
         }
@@ -3078,14 +3076,14 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
                         <div className="absolute inset-0 bg-blue-500/10 backdrop-blur-sm border-2 border-dashed border-blue-500 rounded-2xl flex flex-col items-center justify-center z-50 pointer-events-none">
                             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl flex flex-col items-center gap-2">
                                 <span className="text-4xl animate-bounce">📥</span>
-                                <p className="text-sm font-semibold text-gray-800 dark:text-white">{ t( 'itemForm.dropToUpload' ) || 'Drop file here to upload & autofill' }</p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">{ t( 'itemForm.supportedFormats' ) || 'Supports EPUB, PDF, TXT, DOCX' }</p>
+                                <p className="text-sm font-semibold text-gray-800 dark:text-white">{ __( 'Drop file here to upload & autofill', 'jetreader' ) || 'Drop file here to upload & autofill' }</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">{ __( 'Supports EPUB, PDF, TXT, DOCX', 'jetreader' ) || 'Supports EPUB, PDF, TXT, DOCX' }</p>
                             </div>
                         </div>
                     ) }
                     <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
                         <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                            { editingItem ? t('itemForm.editTitle') : t('itemForm.createTitle') }
+                            { editingItem ? __( '✏️ Edit Item', 'jetreader' ) : __( '➕ Create New Item', 'jetreader' ) }
                         </h2>
                         <button onClick={ onClose } className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-500 dark:text-gray-400">
                             ✕
@@ -3097,41 +3095,41 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
                         <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 rounded-xl p-3 text-xs text-blue-700 dark:text-blue-300 flex items-start gap-2.5 shadow-sm">
                             <span className="text-base shrink-0">💡</span>
                             <div>
-                                <p className="font-semibold">{ t( 'itemForm.dragDropHintTitle' ) }</p>
-                                <p className="mt-0.5 opacity-90">{ t( 'itemForm.dragDropHintDesc' ) }</p>
+                                <p className="font-semibold">{ __( 'Drag & Drop Support', 'jetreader' ) }</p>
+                                <p className="mt-0.5 opacity-90">{ __( 'You can drag and drop EPUB, PDF, TXT, or DOCX files anywhere on this form to upload them and automatically pre-fill the fields.', 'jetreader' ) }</p>
                             </div>
                         </div>
 
                         {/* Row 1 */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('itemForm.titleRequired')}</label>
-                                <input type="text" value={ form.title } onChange={ ( e ) => updateField( 'title', e.target.value ) } className="jr-input w-full text-sm" placeholder={t('itemForm.titlePlaceholder')} />
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{__( 'Title *', 'jetreader' )}</label>
+                                <input type="text" value={ form.title } onChange={ ( e ) => updateField( 'title', e.target.value ) } className="jr-input w-full text-sm" placeholder={__( 'Item title', 'jetreader' )} />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('itemForm.typeLabel')}</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{__( 'Type', 'jetreader' )}</label>
                                 <select value={ form.type } onChange={ ( e ) => updateField( 'type', e.target.value ) } className="jr-input w-full text-sm">
-                                    <option value="book">{t('itemForm.typeBook')}</option>
-                                    <option value="article">{t('itemForm.typeArticle')}</option>
-                                    <option value="magazine">{t('itemForm.typeMagazine')}</option>
-                                    <option value="qa">{t('itemForm.typeQA')}</option>
+                                    <option value="book">{__( 'Book', 'jetreader' )}</option>
+                                    <option value="article">{__( 'Article', 'jetreader' )}</option>
+                                    <option value="magazine">{__( 'Magazine', 'jetreader' )}</option>
+                                    <option value="qa">{__( 'Q&A', 'jetreader' )}</option>
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ t( 'itemForm.translatorLabel' ) }</label>
-                                <input type="text" disabled={ form.type === 'qa' } value={ form.translator } onChange={ ( e ) => updateField( 'translator', e.target.value ) } className="jr-input w-full text-sm disabled:opacity-50" placeholder={ t( 'itemForm.translatorPlaceholder' ) } />
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ __( 'Translator', 'jetreader' ) }</label>
+                                <input type="text" disabled={ form.type === 'qa' } value={ form.translator } onChange={ ( e ) => updateField( 'translator', e.target.value ) } className="jr-input w-full text-sm disabled:opacity-50" placeholder={ __( 'Translator name', 'jetreader' ) } />
                             </div>
                         </div>
 
                         {/* Row 1.5 – Category, Author, Publisher (single row) */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('itemForm.categoryLabel')}</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{__( '🏷️ Category', 'jetreader' )}</label>
                                 <input
                                     type="text"
                                     value={ formCategoriesText }
                                     onChange={ ( e ) => setFormCategoriesText( e.target.value ) }
-                                    placeholder={ t( 'itemForm.categoryPlaceholder' ) || 'e.g. Felsefe, Mantık' }
+                                    placeholder={ __( 'Category name...', 'jetreader' ) || 'e.g. Felsefe, Mantık' }
                                     className="jr-input w-full text-sm"
                                 />
                                 { formCategories.length > 0 && (
@@ -3166,7 +3164,7 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
                                 ) }
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ t( 'itemForm.authorLabel' ) }</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ __( 'Author', 'jetreader' ) }</label>
                                 <input
                                     type="text"
                                     disabled={ form.type === 'qa' }
@@ -3174,7 +3172,7 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
                                     onChange={ ( e ) => updateField( 'author', e.target.value ) }
                                     list="form-authors-list"
                                     className="jr-input w-full text-sm disabled:opacity-50"
-                                    placeholder={ t( 'itemForm.authorPlaceholder' ) || 'Enter author name' }
+                                    placeholder={ __( 'Author name', 'jetreader' ) || 'Enter author name' }
                                 />
                                 <datalist id="form-authors-list">
                                     { formAuthors.map( ( a ) => (
@@ -3183,7 +3181,7 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
                                 </datalist>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ t( 'itemForm.publisherLabel' ) }</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ __( 'Publisher', 'jetreader' ) }</label>
                                 <input
                                     type="text"
                                     disabled={ form.type === 'qa' }
@@ -3191,7 +3189,7 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
                                     onChange={ ( e ) => updateField( 'publisher', e.target.value ) }
                                     list="form-publishers-list"
                                     className="jr-input w-full text-sm disabled:opacity-50"
-                                    placeholder={ t( 'itemForm.publisherPlaceholder' ) || 'Enter publisher name' }
+                                    placeholder={ __( 'Publisher name', 'jetreader' ) || 'Enter publisher name' }
                                 />
                                 <datalist id="form-publishers-list">
                                     { formPublishers.map( ( p ) => (
@@ -3203,28 +3201,28 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
                         {/* Row 3 */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ t( 'itemForm.yearLabel' ) }</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ __( 'Year', 'jetreader' ) }</label>
                                 <input type="number" disabled={ form.type === 'qa' } value={ form.publication_year } onChange={ ( e ) => updateField( 'publication_year', e.target.value ) } className="jr-input w-full text-sm disabled:opacity-50" placeholder="2024" />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ t( 'itemForm.isbnLabel' ) }</label>
-                                <input type="text" disabled={ form.type === 'qa' } value={ form.isbn } onChange={ ( e ) => updateField( 'isbn', e.target.value ) } className="jr-input w-full text-sm disabled:opacity-50" placeholder={ t( 'itemForm.isbnPlaceholder' ) } />
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ __( 'ISBN', 'jetreader' ) }</label>
+                                <input type="text" disabled={ form.type === 'qa' } value={ form.isbn } onChange={ ( e ) => updateField( 'isbn', e.target.value ) } className="jr-input w-full text-sm disabled:opacity-50" placeholder={ __( 'ISBN', 'jetreader' ) } />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ t( 'itemForm.languageLabel' ) }</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ __( 'Language', 'jetreader' ) }</label>
                                 <LangCombobox
                                     value={ form.language }
                                     onChange={ ( v ) => updateField( 'language', v ) }
                                     uiLocale={ locale }
                                     disabled={ form.type === 'qa' }
-                                    searchPlaceholder={ t( 'itemForm.languageSearchPlaceholder' ) }
+                                    searchPlaceholder={ __( 'Search languages...', 'jetreader' ) }
                                 />
                             </div>
                         </div>
                         {/* Description */}
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ t( 'itemForm.descriptionLabel' ) }</label>
-                            <textarea value={ form.description } onChange={ ( e ) => updateField( 'description', e.target.value ) } className="jr-input w-full text-sm" rows={ 3 } placeholder={ t( 'itemForm.descriptionPlaceholder' ) } />
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ __( 'Description', 'jetreader' ) }</label>
+                            <textarea value={ form.description } onChange={ ( e ) => updateField( 'description', e.target.value ) } className="jr-input w-full text-sm" rows={ 3 } placeholder={ __( 'Short description...', 'jetreader' ) } />
                         </div>
                         {/* Row 4 – file / multi-volume */}
                         { isMultiVolType( form.type ) ? (
@@ -3232,11 +3230,11 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
                                 { /* Header row */ }
                                 <div className="flex items-center justify-between flex-wrap gap-3">
                                     <h3 className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">
-                                        { form.type === 'book' ? t( 'itemForm.volumes.bookHeader' ) : t( 'itemForm.volumes.magazineHeader' ) }
+                                        { form.type === 'book' ? __( '📚 Volume Information', 'jetreader' ) : __( '🗞️ Issue Information', 'jetreader' ) }
                                     </h3>
                                     <div className="flex items-center gap-2">
                                         <label className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-                                            { form.type === 'book' ? t( 'itemForm.volumes.volumeCount' ) : t( 'itemForm.volumes.issueCount' ) }
+                                            { form.type === 'book' ? __( 'Number of Volumes:', 'jetreader' ) : __( 'Number of Issues:', 'jetreader' ) }
                                         </label>
                                         <input
                                             type="number"
@@ -3252,8 +3250,8 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
                                 { /* Cover mode (only when multiple) */ }
                                 { volumes.length > 1 && (
                                     <div className="flex items-center gap-4 text-sm">
-                                        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">{ t( 'itemForm.volumes.coverImageTitle' ) }</span>
-                                        { ( [ [ 'shared', t( 'itemForm.volumes.coverModeShared' ) ], [ 'individual', t( 'itemForm.volumes.coverModeIndividual' ) ] ] as const ).map( ( [ val, lbl ] ) => (
+                                        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">{ __( 'Cover Image:', 'jetreader' ) }</span>
+                                        { ( [ [ 'shared', __( 'Common for all', 'jetreader' ) ], [ 'individual', __( 'Individual for each Volume/Issue', 'jetreader' ) ] ] as const ).map( ( [ val, lbl ] ) => (
                                             <label key={ val } className="flex items-center gap-1.5 cursor-pointer">
                                                 <input
                                                     type="radio"
@@ -3272,7 +3270,7 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
                                 { ( coverMode === 'shared' || volumes.length === 1 ) && (
                                     <div>
                                         <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                                            { volumes.length > 1 ? t( 'itemForm.volumes.coverImageShared' ) : t( 'itemForm.volumes.coverImageSingle' ) }
+                                            { volumes.length > 1 ? __( 'Cover Image URL (For All Volumes)', 'jetreader' ) : __( 'Cover Image URL', 'jetreader' ) }
                                         </label>
                                         <div className="flex items-center gap-2">
                                             <input
@@ -3282,7 +3280,7 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
                                                 className="jr-input flex-1 text-sm"
                                                 placeholder="https://..."
                                             />
-                                            <WpMediaButton imageOnly title={ t( 'itemForm.browseMedia' ) } onSelect={ ( url ) => setSharedCover( url ) } />
+                                            <WpMediaButton imageOnly title={ __( 'Select from Media Library', 'jetreader' ) } onSelect={ ( url ) => setSharedCover( url ) } />
                                         </div>
                                     </div>
                                 ) }
@@ -3291,11 +3289,11 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
                                 { volumes.map( ( vol, idx ) => (
                                     <div key={ idx } className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 space-y-2.5 bg-white dark:bg-gray-800">
                                         <div className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wide">
-                                            { form.type === 'book' ? `📖 ${ t( 'itemForm.volumes.volumeLabel' ) } ${idx + 1}` : `🗞️ ${ t( 'itemForm.volumes.issueLabel' ) } ${idx + 1}` }
+                                            { form.type === 'book' ? `📖 ${ __( 'Volume', 'jetreader' ) } ${idx + 1}` : `🗞️ ${ __( 'Issue', 'jetreader' ) } ${idx + 1}` }
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                                             <div>
-                                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-0.5">{ t( 'itemForm.volumes.filePathLabel' ) }</label>
+                                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-0.5">{ __( 'File Path (URL)', 'jetreader' ) }</label>
                                                 <div className="flex items-center gap-2">
                                                     <input
                                                         type="text"
@@ -3304,17 +3302,17 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
                                                         className="jr-input flex-1 text-sm"
                                                         placeholder="/wp-content/uploads/..."
                                                     />
-                                                    <WpMediaButton title={ t( 'itemForm.browseMedia' ) } onSelect={ ( url ) => updateVolume( idx, 'file_path', url ) } />
+                                                    <WpMediaButton title={ __( 'Select from Media Library', 'jetreader' ) } onSelect={ ( url ) => updateVolume( idx, 'file_path', url ) } />
                                                 </div>
                                             </div>
                                             <div>
-                                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-0.5">{ t( 'itemForm.volumes.fileTypeLabel' ) }</label>
+                                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-0.5">{ __( 'File Type', 'jetreader' ) }</label>
                                                 <select
                                                     value={ vol.file_type }
                                                     onChange={ ( e ) => updateVolume( idx, 'file_type', e.target.value ) }
                                                     className="jr-input w-full text-sm"
                                                 >
-                                                    <option value="">{ t( 'itemForm.volumes.fileTypeSelect' ) }</option>
+                                                    <option value="">{ __( 'Select...', 'jetreader' ) }</option>
                                                     <option value="epub">EPUB</option>
                                                     <option value="pdf">PDF</option>
                                                     <option value="txt">TXT</option>
@@ -3324,7 +3322,7 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
                                         </div>
                                         { coverMode === 'individual' && (
                                             <div>
-                                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-0.5">{ t( 'itemForm.volumes.coverImageUrlLabel' ) }</label>
+                                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-0.5">{ __( 'Cover Image URL', 'jetreader' ) }</label>
                                                 <div className="flex items-center gap-2">
                                                     <input
                                                         type="text"
@@ -3333,7 +3331,7 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
                                                         className="jr-input flex-1 text-sm"
                                                         placeholder="https://..."
                                                     />
-                                                    <WpMediaButton imageOnly title={ t( 'itemForm.browseMedia' ) } onSelect={ ( url ) => updateVolume( idx, 'cover_image', url ) } />
+                                                    <WpMediaButton imageOnly title={ __( 'Select from Media Library', 'jetreader' ) } onSelect={ ( url ) => updateVolume( idx, 'cover_image', url ) } />
                                                 </div>
                                             </div>
                                         ) }
@@ -3344,16 +3342,16 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
                             <>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ t( 'itemForm.filePathLabel' ) }</label>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ __( 'File Path (URL)', 'jetreader' ) }</label>
                                         <div className="flex items-center gap-2">
-                                            <input type="text" value={ form.file_path } onChange={ ( e ) => updateField( 'file_path', e.target.value ) } className="jr-input flex-1 text-sm" placeholder={ t( 'itemForm.filePathPlaceholder' ) } />
-                                            <WpMediaButton title={ t( 'itemForm.browseMedia' ) } onSelect={ ( url ) => updateField( 'file_path', url ) } />
+                                            <input type="text" value={ form.file_path } onChange={ ( e ) => updateField( 'file_path', e.target.value ) } className="jr-input flex-1 text-sm" placeholder={ __( '/wp-content/uploads/...', 'jetreader' ) } />
+                                            <WpMediaButton title={ __( 'Select from Media Library', 'jetreader' ) } onSelect={ ( url ) => updateField( 'file_path', url ) } />
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ t( 'itemForm.fileTypeLabel' ) }</label>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ __( 'File Type', 'jetreader' ) }</label>
                                         <select value={ form.file_type } onChange={ ( e ) => updateField( 'file_type', e.target.value ) } className="jr-input w-full text-sm">
-                                            <option value="">{ t( 'itemForm.fileTypeSelect' ) }</option>
+                                            <option value="">{ __( 'Select...', 'jetreader' ) }</option>
                                             <option value="epub">EPUB</option>
                                             <option value="pdf">PDF</option>
                                             <option value="txt">TXT</option>
@@ -3362,10 +3360,10 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ t( 'itemForm.coverImageLabel' ) }</label>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ __( 'Cover Image URL', 'jetreader' ) }</label>
                                     <div className="flex items-center gap-2">
-                                        <input type="text" value={ form.cover_image } onChange={ ( e ) => updateField( 'cover_image', e.target.value ) } className="jr-input flex-1 text-sm" placeholder={ t( 'itemForm.coverImagePlaceholder' ) } />
-                                        <WpMediaButton imageOnly title={ t( 'itemForm.browseMedia' ) } onSelect={ ( url ) => updateField( 'cover_image', url ) } />
+                                        <input type="text" value={ form.cover_image } onChange={ ( e ) => updateField( 'cover_image', e.target.value ) } className="jr-input flex-1 text-sm" placeholder={ __( 'https://...', 'jetreader' ) } />
+                                        <WpMediaButton imageOnly title={ __( 'Select from Media Library', 'jetreader' ) } onSelect={ ( url ) => updateField( 'cover_image', url ) } />
                                     </div>
                                 </div>
                             </>
@@ -3373,11 +3371,11 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
                         {/* Row 5 – visibility + featured */}
                         <div className="flex items-center gap-6">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ t( 'itemForm.visibilityLabel' ) }</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ __( 'Visibility', 'jetreader' ) }</label>
                                 <select value={ form.visibility } onChange={ ( e ) => updateField( 'visibility', e.target.value ) } className="jr-input text-sm">
-                                    <option value="publish">{ t( 'itemForm.visibilityPublish' ) }</option>
-                                    <option value="draft">{ t( 'itemForm.visibilityDraft' ) }</option>
-                                    <option value="private">{ t( 'itemForm.visibilityPrivate' ) }</option>
+                                    <option value="publish">{ __( 'Publish', 'jetreader' ) }</option>
+                                    <option value="draft">{ __( 'Draft', 'jetreader' ) }</option>
+                                    <option value="private">{ __( 'Private', 'jetreader' ) }</option>
                                 </select>
                             </div>
                             <label className="flex items-center gap-2 cursor-pointer mt-5">
@@ -3387,7 +3385,7 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
                                     onChange={ ( e ) => updateField( 'featured', e.target.checked ) }
                                     className="rounded"
                                 />
-                                <span className="text-sm text-gray-700 dark:text-gray-300">{ t( 'itemForm.featuredLabel' ) }</span>
+                                <span className="text-sm text-gray-700 dark:text-gray-300">{ __( '⭐ Featured', 'jetreader' ) }</span>
                             </label>
                         </div>
 
@@ -3395,10 +3393,10 @@ const ItemFormModal: React.FC<ItemFormModalProps> = ( { editingItem, isCreating,
 
                     <div className="flex gap-3 p-6 border-t border-gray-200 dark:border-gray-700 justify-end">
                         <button onClick={ onClose } className="px-4 py-2 text-sm bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">
-                            { t( 'common.cancel' ) }
+                            { __( 'Cancel', 'jetreader' ) }
                         </button>
                         <button onClick={ handleSave } disabled={ saving } className="jr-btn-primary text-sm">
-                            { saving ? t( 'itemForm.saving' ) : t( 'itemForm.saveButton' ) }
+                            { saving ? __( '💾 Saving...', 'jetreader' ) : __( '💾 Save', 'jetreader' ) }
                         </button>
                     </div>
                 </motion.div>
@@ -3427,14 +3425,14 @@ interface SimpleRecord {
 }
 
 const CategoriesTab: React.FC<{ flashMessage: ( msg: string ) => void }> = ( { flashMessage } ) => {
-    const { t } = useTranslation();
+
     const queryClient = useQueryClient();
 
     const categoryTypeTabs = [
-        { key: 'book',     label: t( 'categories.tabBooks' ) },
-        { key: 'article',  label: t( 'categories.tabArticles' ) },
-        { key: 'magazine', label: t( 'categories.tabMagazines' ) },
-        { key: 'qa',       label: t( 'categories.tabQA' ) },
+        { key: 'book',     label: __( '📚 Books', 'jetreader' ) },
+        { key: 'article',  label: __( '📄 Articles', 'jetreader' ) },
+        { key: 'magazine', label: __( '🗞️ Magazines', 'jetreader' ) },
+        { key: 'qa',       label: __( '💬 Q&A', 'jetreader' ) },
     ];
     const [ activeTab, setActiveTab ] = useState( 'book' );
     const [ newName, setNewName ] = useState( '' );
@@ -3473,7 +3471,7 @@ const CategoriesTab: React.FC<{ flashMessage: ( msg: string ) => void }> = ( { f
             queryClient.invalidateQueries( { queryKey: [ 'categories' ] } );
             setNewName( '' );
             setNewDescription( '' );
-            flashMessage( t( 'categories.categoryCreated' ) );
+            flashMessage( __( '✅ Category created.', 'jetreader' ) );
         },
         onError: ( err: Error ) => flashMessage( `❌ ${err.message}` ),
     } );
@@ -3494,7 +3492,7 @@ const CategoriesTab: React.FC<{ flashMessage: ( msg: string ) => void }> = ( { f
             setEditingCat( null );
             setEditName( '' );
             setEditDescription( '' );
-            flashMessage( t( 'categories.categoryUpdated' ) );
+            flashMessage( __( '✅ Category updated.', 'jetreader' ) );
         },
         onError: ( err: Error ) => flashMessage( `❌ ${err.message}` ),
     } );
@@ -3511,14 +3509,14 @@ const CategoriesTab: React.FC<{ flashMessage: ( msg: string ) => void }> = ( { f
         },
         onSuccess: () => {
             queryClient.invalidateQueries( { queryKey: [ 'categories' ] } );
-            flashMessage( t( 'categories.categoryDeleted' ) );
+            flashMessage( __( '🗑️ Category deleted.', 'jetreader' ) );
         },
         onError: ( err: Error ) => flashMessage( `❌ ${err.message}` ),
     } );
 
     const handleCreate = async () => {
         const names = newName.split( ',' ).map( ( n ) => n.trim() ).filter( Boolean );
-        if ( names.length === 0 ) { flashMessage( t( 'categories.categoryNameRequired' ) ); return; }
+        if ( names.length === 0 ) { flashMessage( __( '❌ Category name is required.', 'jetreader' ) ); return; }
         if ( names.length === 1 ) {
             createMutation.mutate( { name: names[0], description: newDescription.trim(), type: activeTab } );
             return;
@@ -3533,13 +3531,13 @@ const CategoriesTab: React.FC<{ flashMessage: ( msg: string ) => void }> = ( { f
         queryClient.invalidateQueries( { queryKey: [ 'categories' ] } );
         setNewName( '' );
         setNewDescription( '' );
-        flashMessage( t( 'categories.categoryCreated' ) );
+        flashMessage( __( '✅ Category created.', 'jetreader' ) );
     };
 
     const handleBulkDeleteCats = async () => {
         if ( selectedCatIds.size === 0 ) return;
         const count = selectedCatIds.size;
-        if ( ! window.confirm( t( 'constants.confirmBulkDelete', { N: String( count ) } ) ) ) return;
+        if ( ! window.confirm( sprintf( __( 'Permanently delete %d records?', 'jetreader' ), count ) ) ) return;
         setBulkDeleting( true );
         for ( const id of selectedCatIds ) {
             await fetch( `${API_BASE}/categories/${id}`, { method: 'DELETE', headers: { 'X-WP-Nonce': getNonce() } } );
@@ -3547,7 +3545,7 @@ const CategoriesTab: React.FC<{ flashMessage: ( msg: string ) => void }> = ( { f
         queryClient.invalidateQueries( { queryKey: [ 'categories' ] } );
         setSelectedCatIds( new Set() );
         setBulkDeleting( false );
-        flashMessage( t( 'categories.bulkDeleted', { N: String( count ) } ) );
+        flashMessage( sprintf( __( '%d categories deleted.', 'jetreader' ), count ) );
     };
 
     const openEdit = ( cat: CategoryExtended ) => {
@@ -3558,7 +3556,7 @@ const CategoriesTab: React.FC<{ flashMessage: ( msg: string ) => void }> = ( { f
 
     const handleUpdate = () => {
         if ( ! editingCat ) return;
-        if ( ! editName.trim() ) { flashMessage( t( 'categories.categoryNameRequired' ) ); return; }
+        if ( ! editName.trim() ) { flashMessage( __( '❌ Category name is required.', 'jetreader' ) ); return; }
         updateMutation.mutate( { id: editingCat.id, name: editName.trim(), description: editDescription.trim() } );
     };
 
@@ -3587,21 +3585,21 @@ const CategoriesTab: React.FC<{ flashMessage: ( msg: string ) => void }> = ( { f
             {/* Edit form (inline) */}
             { editingCat && (
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-indigo-200 dark:border-indigo-700 mb-6">
-                    <h2 className="font-semibold text-gray-900 dark:text-white mb-4">{ t( 'categories.editCategory' ) }</h2>
+                    <h2 className="font-semibold text-gray-900 dark:text-white mb-4">{ __( '✏️ Edit Category', 'jetreader' ) }</h2>
                     <div className="flex gap-3 flex-wrap items-end">
                         <div className="flex-1 min-w-[200px]">
-                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{ t( 'common.name' ) }</label>
+                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{ __( 'Name', 'jetreader' ) }</label>
                             <input type="text" value={ editName } onChange={ ( e ) => setEditName( e.target.value ) } onKeyDown={ ( e ) => e.key === 'Enter' && handleUpdate() } className="jr-input w-full text-sm" />
                         </div>
                         <div className="flex-1 min-w-[200px]">
-                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{ t( 'common.description' ) }</label>
+                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{ __( 'Description', 'jetreader' ) }</label>
                             <input type="text" value={ editDescription } onChange={ ( e ) => setEditDescription( e.target.value ) } onKeyDown={ ( e ) => e.key === 'Enter' && handleUpdate() } className="jr-input w-full text-sm" />
                         </div>
                         <button onClick={ handleUpdate } disabled={ updateMutation.isPending } className="jr-btn-primary text-sm">
-                            { updateMutation.isPending ? t( 'categories.saving' ) : t( 'common.save' ) }
+                            { updateMutation.isPending ? __( 'Saving...', 'jetreader' ) : __( 'Save', 'jetreader' ) }
                         </button>
                         <button onClick={ () => setEditingCat( null ) } className="px-4 py-2 text-sm bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">
-                            { t( 'common.cancel' ) }
+                            { __( 'Cancel', 'jetreader' ) }
                         </button>
                     </div>
                 </div>
@@ -3610,44 +3608,44 @@ const CategoriesTab: React.FC<{ flashMessage: ( msg: string ) => void }> = ( { f
             {/* Create form */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700 mb-6">
                 <h2 className="font-semibold text-gray-900 dark:text-white mb-4">
-                    { t( 'categories.addNew' ) } <span className="text-blue-600 dark:text-blue-400">{ categoryTypeTabs.find( ( tab ) => tab.key === activeTab )?.label }</span>
+                    { __( '➕ Add New Category to:', 'jetreader' ) } <span className="text-blue-600 dark:text-blue-400">{ categoryTypeTabs.find( ( tab ) => tab.key === activeTab )?.label }</span>
                 </h2>
                 <div className="flex gap-3 flex-wrap items-end">
                     <div className="flex-1 min-w-[200px]">
-                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{ t( 'common.name' ) }</label>
-                        <input type="text" value={ newName } onChange={ ( e ) => setNewName( e.target.value ) } onKeyDown={ ( e ) => e.key === 'Enter' && handleCreate() } className="jr-input w-full text-sm" placeholder={ t( 'categories.categoryNamePlaceholder' ) } />
+                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{ __( 'Name', 'jetreader' ) }</label>
+                        <input type="text" value={ newName } onChange={ ( e ) => setNewName( e.target.value ) } onKeyDown={ ( e ) => e.key === 'Enter' && handleCreate() } className="jr-input w-full text-sm" placeholder={ __( 'Category name', 'jetreader' ) } />
                     </div>
                     <div className="flex-1 min-w-[200px]">
-                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{ t( 'common.descriptionOptional' ) }</label>
-                        <input type="text" value={ newDescription } onChange={ ( e ) => setNewDescription( e.target.value ) } onKeyDown={ ( e ) => e.key === 'Enter' && handleCreate() } className="jr-input w-full text-sm" placeholder={ t( 'common.descriptionPlaceholder' ) } />
+                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{ __( 'Description (optional)', 'jetreader' ) }</label>
+                        <input type="text" value={ newDescription } onChange={ ( e ) => setNewDescription( e.target.value ) } onKeyDown={ ( e ) => e.key === 'Enter' && handleCreate() } className="jr-input w-full text-sm" placeholder={ __( 'Short description', 'jetreader' ) } />
                     </div>
                     <button onClick={ handleCreate } disabled={ createMutation.isPending } className="jr-btn-primary text-sm">
-                        { createMutation.isPending ? t( 'categories.adding' ) : t( 'categories.addButton' ) }
+                        { createMutation.isPending ? __( 'Adding...', 'jetreader' ) : __( '➕ Add', 'jetreader' ) }
                     </button>
                 </div>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">{ t( 'categories.multiAddHint' ) }</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">{ __( '* Separate multiple entries with commas (e.g. Fiction, Drama, Poetry)', 'jetreader' ) }</p>
             </div>
 
             {/* Category list */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
                 { isLoading && <AdminSpinner /> }
                 { ! isLoading && categories.length === 0 && (
-                    <div className="p-8 text-center text-gray-500">{ t( 'categories.noCategories' ) }</div>
+                    <div className="p-8 text-center text-gray-500">{ __( 'No categories yet. Create one above.', 'jetreader' ) }</div>
                 ) }
                 { categories.length > 0 && (
                     <>
                         { selectedCatIds.size > 0 && (
                             <div className="flex items-center gap-3 px-4 py-2.5 bg-blue-50 dark:bg-blue-950/40 border-b border-blue-200 dark:border-blue-800 rounded-t-xl">
-                                <span className="text-sm text-blue-700 dark:text-blue-300 font-medium">{ selectedCatIds.size } { t( 'common.selected' ) }</span>
+                                <span className="text-sm text-blue-700 dark:text-blue-300 font-medium">{ selectedCatIds.size } { __( 'selected', 'jetreader' ) }</span>
                                 <button
                                     onClick={ handleBulkDeleteCats }
                                     disabled={ bulkDeleting }
                                     className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
                                 >
-                                    { bulkDeleting ? '...' : t( 'categories.bulkDeleteSelected', { N: String( selectedCatIds.size ) } ) }
+                                    { bulkDeleting ? '...' : sprintf( __( 'Delete Selected (%d)', 'jetreader' ), selectedCatIds.size ) }
                                 </button>
                                 <button onClick={ () => setSelectedCatIds( new Set() ) } className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 underline ml-auto">
-                                    { t( 'common.cancel' ) }
+                                    { __( 'Cancel', 'jetreader' ) }
                                 </button>
                             </div>
                         ) }
@@ -3662,10 +3660,10 @@ const CategoriesTab: React.FC<{ flashMessage: ( msg: string ) => void }> = ( { f
                                             className="rounded accent-blue-600"
                                         />
                                     </th>
-                                    <th className="p-4 font-medium">{ t( 'common.name' ) }</th>
-                                    <th className="p-4 font-medium">{ t( 'common.slug' ) }</th>
-                                    <th className="p-4 font-medium">{ t( 'common.description' ) }</th>
-                                    <th className="p-4 font-medium text-right">{ t( 'common.actions' ) }</th>
+                                    <th className="p-4 font-medium">{ __( 'Name', 'jetreader' ) }</th>
+                                    <th className="p-4 font-medium">{ __( 'Slug', 'jetreader' ) }</th>
+                                    <th className="p-4 font-medium">{ __( 'Description', 'jetreader' ) }</th>
+                                    <th className="p-4 font-medium text-right">{ __( 'Actions', 'jetreader' ) }</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -3689,10 +3687,10 @@ const CategoriesTab: React.FC<{ flashMessage: ( msg: string ) => void }> = ( { f
                                         <td className="p-4 text-right">
                                             <div className="flex gap-1 justify-end">
                                                 <button onClick={ () => openEdit( cat ) } className="px-3 py-1.5 text-xs bg-blue-50 text-blue-700 dark:bg-blue-900 dark:text-blue-200 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors">
-                                                    ✏️ { t( 'common.edit' ) }
+                                                    ✏️ { __( 'Edit', 'jetreader' ) }
                                                 </button>
                                                 <button
-                                                    onClick={ () => { if ( window.confirm( t( 'categories.deleteConfirm' ) ) ) deleteMutation.mutate( cat.id ); } }
+                                                    onClick={ () => { if ( window.confirm( __( 'Are you sure you want to delete this category? This will remove it from all associated items.', 'jetreader' ) ) ) deleteMutation.mutate( cat.id ); } }
                                                     disabled={ deleteMutation.isPending }
                                                     className="px-3 py-1.5 text-xs bg-red-50 text-red-700 dark:bg-red-900 dark:text-red-200 rounded-lg hover:bg-red-100 dark:hover:bg-red-800 transition-colors"
                                                 >🗑️</button>
@@ -3726,7 +3724,7 @@ const SimpleRecordTab: React.FC<{
     deleteConfirmMsg: string;
     flashMessage: ( msg: string ) => void;
 }> = ( { endpoint, queryKey, addNewLabel, editLabel, noItemsLabel, createdMsg, updatedMsg, deletedMsg, nameRequiredMsg, deleteConfirmMsg, flashMessage } ) => {
-    const { t } = useTranslation();
+
     const qc = useQueryClient();
 
     const [ newName, setNewName ] = useState( '' );
@@ -3828,7 +3826,7 @@ const SimpleRecordTab: React.FC<{
     const handleBulkDelete = async () => {
         if ( selectedRecIds.size === 0 ) return;
         const count = selectedRecIds.size;
-        if ( ! window.confirm( t( 'constants.confirmBulkDelete', { N: String( count ) } ) ) ) return;
+        if ( ! window.confirm( sprintf( __( 'Permanently delete %d records?', 'jetreader' ), count ) ) ) return;
         setBulkDeleting( true );
         for ( const id of selectedRecIds ) {
             await fetch( `${API_BASE}/${endpoint}/${id}`, { method: 'DELETE', headers: { 'X-WP-Nonce': getNonce() } } );
@@ -3836,7 +3834,7 @@ const SimpleRecordTab: React.FC<{
         qc.invalidateQueries( { queryKey: [ queryKey ] } );
         setSelectedRecIds( new Set() );
         setBulkDeleting( false );
-        flashMessage( t( 'constants.bulkDeleted', { N: String( count ) } ) );
+        flashMessage( sprintf( __( '%d records deleted.', 'jetreader' ), count ) );
     };
 
     const openEdit = ( rec: SimpleRecord ) => {
@@ -3859,18 +3857,18 @@ const SimpleRecordTab: React.FC<{
                     <h2 className="font-semibold text-gray-900 dark:text-white mb-4">{ editLabel }</h2>
                     <div className="flex gap-3 flex-wrap items-end">
                         <div className="flex-1 min-w-[200px]">
-                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{ t( 'common.name' ) }</label>
+                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{ __( 'Name', 'jetreader' ) }</label>
                             <input type="text" value={ editName } onChange={ ( e ) => setEditName( e.target.value ) } onKeyDown={ ( e ) => e.key === 'Enter' && handleUpdate() } className="jr-input w-full text-sm" />
                         </div>
                         <div className="flex-1 min-w-[200px]">
-                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{ t( 'common.description' ) }</label>
+                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{ __( 'Description', 'jetreader' ) }</label>
                             <input type="text" value={ editDescription } onChange={ ( e ) => setEditDescription( e.target.value ) } onKeyDown={ ( e ) => e.key === 'Enter' && handleUpdate() } className="jr-input w-full text-sm" />
                         </div>
                         <button onClick={ handleUpdate } disabled={ updateMutation.isPending } className="jr-btn-primary text-sm">
-                            { updateMutation.isPending ? t( 'constants.saving' ) : t( 'common.save' ) }
+                            { updateMutation.isPending ? __( 'Saving...', 'jetreader' ) : __( 'Save', 'jetreader' ) }
                         </button>
                         <button onClick={ () => setEditingRec( null ) } className="px-4 py-2 text-sm bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">
-                            { t( 'common.cancel' ) }
+                            { __( 'Cancel', 'jetreader' ) }
                         </button>
                     </div>
                 </div>
@@ -3881,18 +3879,18 @@ const SimpleRecordTab: React.FC<{
                 <h2 className="font-semibold text-gray-900 dark:text-white mb-4">{ addNewLabel }</h2>
                 <div className="flex gap-3 flex-wrap items-end">
                     <div className="flex-1 min-w-[200px]">
-                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{ t( 'common.name' ) }</label>
-                        <input type="text" value={ newName } onChange={ ( e ) => setNewName( e.target.value ) } onKeyDown={ ( e ) => e.key === 'Enter' && handleCreate() } className="jr-input w-full text-sm" placeholder={ t( 'constants.namePlaceholder' ) } />
+                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{ __( 'Name', 'jetreader' ) }</label>
+                        <input type="text" value={ newName } onChange={ ( e ) => setNewName( e.target.value ) } onKeyDown={ ( e ) => e.key === 'Enter' && handleCreate() } className="jr-input w-full text-sm" placeholder={ __( 'Name', 'jetreader' ) } />
                     </div>
                     <div className="flex-1 min-w-[200px]">
-                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{ t( 'common.descriptionOptional' ) }</label>
-                        <input type="text" value={ newDescription } onChange={ ( e ) => setNewDescription( e.target.value ) } onKeyDown={ ( e ) => e.key === 'Enter' && handleCreate() } className="jr-input w-full text-sm" placeholder={ t( 'common.descriptionPlaceholder' ) } />
+                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{ __( 'Description (optional)', 'jetreader' ) }</label>
+                        <input type="text" value={ newDescription } onChange={ ( e ) => setNewDescription( e.target.value ) } onKeyDown={ ( e ) => e.key === 'Enter' && handleCreate() } className="jr-input w-full text-sm" placeholder={ __( 'Short description', 'jetreader' ) } />
                     </div>
                     <button onClick={ handleCreate } disabled={ createMutation.isPending } className="jr-btn-primary text-sm">
-                        { createMutation.isPending ? t( 'constants.adding' ) : t( 'constants.addButton' ) }
+                        { createMutation.isPending ? __( 'Adding...', 'jetreader' ) : __( '➕ Add', 'jetreader' ) }
                     </button>
                 </div>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">{ t( 'constants.multiAddHint' ) }</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">{ __( '* Separate multiple entries with commas (e.g. A, B, C)', 'jetreader' ) }</p>
             </div>
 
             {/* Record list */}
@@ -3905,16 +3903,16 @@ const SimpleRecordTab: React.FC<{
                     <>
                         { selectedRecIds.size > 0 && (
                             <div className="flex items-center gap-3 px-4 py-2.5 bg-blue-50 dark:bg-blue-950/40 border-b border-blue-200 dark:border-blue-800 rounded-t-xl">
-                                <span className="text-sm text-blue-700 dark:text-blue-300 font-medium">{ selectedRecIds.size } { t( 'common.selected' ) }</span>
+                                <span className="text-sm text-blue-700 dark:text-blue-300 font-medium">{ selectedRecIds.size } { __( 'selected', 'jetreader' ) }</span>
                                 <button
                                     onClick={ handleBulkDelete }
                                     disabled={ bulkDeleting }
                                     className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
                                 >
-                                    { bulkDeleting ? '...' : t( 'constants.bulkDeleteSelected', { N: String( selectedRecIds.size ) } ) }
+                                    { bulkDeleting ? '...' : sprintf( __( 'Delete Selected (%d)', 'jetreader' ), selectedRecIds.size ) }
                                 </button>
                                 <button onClick={ () => setSelectedRecIds( new Set() ) } className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 underline ml-auto">
-                                    { t( 'common.cancel' ) }
+                                    { __( 'Cancel', 'jetreader' ) }
                                 </button>
                             </div>
                         ) }
@@ -3929,10 +3927,10 @@ const SimpleRecordTab: React.FC<{
                                             className="rounded accent-blue-600"
                                         />
                                     </th>
-                                    <th className="p-4 font-medium">{ t( 'common.name' ) }</th>
-                                    <th className="p-4 font-medium">{ t( 'common.slug' ) }</th>
-                                    <th className="p-4 font-medium">{ t( 'common.description' ) }</th>
-                                    <th className="p-4 font-medium text-right">{ t( 'common.actions' ) }</th>
+                                    <th className="p-4 font-medium">{ __( 'Name', 'jetreader' ) }</th>
+                                    <th className="p-4 font-medium">{ __( 'Slug', 'jetreader' ) }</th>
+                                    <th className="p-4 font-medium">{ __( 'Description', 'jetreader' ) }</th>
+                                    <th className="p-4 font-medium text-right">{ __( 'Actions', 'jetreader' ) }</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -3956,7 +3954,7 @@ const SimpleRecordTab: React.FC<{
                                         <td className="p-4 text-right">
                                             <div className="flex gap-1 justify-end">
                                                 <button onClick={ () => openEdit( rec ) } className="px-3 py-1.5 text-xs bg-blue-50 text-blue-700 dark:bg-blue-900 dark:text-blue-200 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors">
-                                                    ✏️ { t( 'common.edit' ) }
+                                                    ✏️ { __( 'Edit', 'jetreader' ) }
                                                 </button>
                                                 <button
                                                     onClick={ () => { if ( window.confirm( deleteConfirmMsg ) ) deleteMutation.mutate( rec.id ); } }
@@ -3981,7 +3979,7 @@ const SimpleRecordTab: React.FC<{
 /* ------------------------------------------------------------------ */
 
 const ConstantsPage: React.FC = () => {
-    const { t } = useTranslation();
+
     const [ message, setMessage ] = useState( '' );
     const [ mainTab, setMainTab ] = useState<'categories' | 'authors' | 'publishers'>( 'categories' );
 
@@ -3991,15 +3989,15 @@ const ConstantsPage: React.FC = () => {
     };
 
     const mainTabs = [
-        { key: 'categories' as const, label: t( 'constants.tabCategories' ) },
-        { key: 'authors'    as const, label: t( 'constants.tabAuthors' ) },
-        { key: 'publishers' as const, label: t( 'constants.tabPublishers' ) },
+        { key: 'categories' as const, label: __( '🏷️ Categories', 'jetreader' ) },
+        { key: 'authors'    as const, label: __( '✍️ Authors', 'jetreader' ) },
+        { key: 'publishers' as const, label: __( '📚 Publishers', 'jetreader' ) },
     ];
 
     return (
         <div className="p-6">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">{ t( 'constants.title' ) }</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">{ t( 'constants.subtitle' ) }</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">{ __( '📌 Constants', 'jetreader' ) }</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">{ __( 'Manage your categories, authors and publishers centrally.', 'jetreader' ) }</p>
 
             { message && (
                 <div className="mb-4 px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm text-gray-800 dark:text-gray-200">
@@ -4030,14 +4028,14 @@ const ConstantsPage: React.FC = () => {
                 <SimpleRecordTab
                     endpoint="authors"
                     queryKey="authors"
-                    addNewLabel={ t( 'constants.addNewAuthor' ) }
-                    editLabel={ t( 'constants.editAuthor' ) }
-                    noItemsLabel={ t( 'constants.noAuthors' ) }
-                    createdMsg={ t( 'constants.authorCreated' ) }
-                    updatedMsg={ t( 'constants.authorUpdated' ) }
-                    deletedMsg={ t( 'constants.authorDeleted' ) }
-                    nameRequiredMsg={ t( 'constants.nameRequired' ) }
-                    deleteConfirmMsg={ t( 'constants.deleteConfirm' ) }
+                    addNewLabel={ __( '➕ Add New Author', 'jetreader' ) }
+                    editLabel={ __( '✏️ Edit Author', 'jetreader' ) }
+                    noItemsLabel={ __( 'No authors yet. Create one above.', 'jetreader' ) }
+                    createdMsg={ __( '✅ Author created.', 'jetreader' ) }
+                    updatedMsg={ __( '✅ Author updated.', 'jetreader' ) }
+                    deletedMsg={ __( '🗑️ Author deleted.', 'jetreader' ) }
+                    nameRequiredMsg={ __( '❌ Name is required.', 'jetreader' ) }
+                    deleteConfirmMsg={ __( 'Are you sure you want to delete this record?', 'jetreader' ) }
                     flashMessage={ flashMessage }
                 />
             ) }
@@ -4046,14 +4044,14 @@ const ConstantsPage: React.FC = () => {
                 <SimpleRecordTab
                     endpoint="publishers"
                     queryKey="publishers"
-                    addNewLabel={ t( 'constants.addNewPublisher' ) }
-                    editLabel={ t( 'constants.editPublisher' ) }
-                    noItemsLabel={ t( 'constants.noPublishers' ) }
-                    createdMsg={ t( 'constants.publisherCreated' ) }
-                    updatedMsg={ t( 'constants.publisherUpdated' ) }
-                    deletedMsg={ t( 'constants.publisherDeleted' ) }
-                    nameRequiredMsg={ t( 'constants.nameRequired' ) }
-                    deleteConfirmMsg={ t( 'constants.deleteConfirm' ) }
+                    addNewLabel={ __( '➕ Add New Publisher', 'jetreader' ) }
+                    editLabel={ __( '✏️ Edit Publisher', 'jetreader' ) }
+                    noItemsLabel={ __( 'No publishers yet. Create one above.', 'jetreader' ) }
+                    createdMsg={ __( '✅ Publisher created.', 'jetreader' ) }
+                    updatedMsg={ __( '✅ Publisher updated.', 'jetreader' ) }
+                    deletedMsg={ __( '🗑️ Publisher deleted.', 'jetreader' ) }
+                    nameRequiredMsg={ __( '❌ Name is required.', 'jetreader' ) }
+                    deleteConfirmMsg={ __( 'Are you sure you want to delete this record?', 'jetreader' ) }
                     flashMessage={ flashMessage }
                 />
             ) }
@@ -4094,7 +4092,7 @@ const sanitizeSlug = ( val: string ) => {
 };
 
 const SettingsPage: React.FC = () => {
-    const { t } = useTranslation();
+
     const [ settings, setSettings ] = React.useState<Record<string, any>>( {} );
     const [ loading, setLoading ] = React.useState( true );
     const [ saving, setSaving ] = React.useState( false );
@@ -4129,11 +4127,11 @@ const SettingsPage: React.FC = () => {
         const handler = ( e: BeforeUnloadEvent ) => {
             if ( ! isDirty ) return;
             e.preventDefault();
-            e.returnValue = t( 'settings.leaveWarning' );
+            e.returnValue = __( 'You have unsaved changes. Are you sure you want to leave?', 'jetreader' );
         };
         window.addEventListener( 'beforeunload', handler );
         return () => window.removeEventListener( 'beforeunload', handler );
-    }, [ isDirty, t ] );
+    }, [ isDirty ] );
 
     const saveSettings = async () => {
         setSaving( true );
@@ -4150,15 +4148,15 @@ const SettingsPage: React.FC = () => {
             } );
             const data = await res.json();
             if ( data && ! data.code ) {
-                setMessage( t( 'settings.saved' ) );
+                setMessage( __( '✅ Settings saved successfully!', 'jetreader' ) );
                 setSettings( data.settings );
                 savedRef.current = JSON.stringify( data.settings );
                 setIsDirty( false );
             } else {
-                setMessage( t( 'settings.saveFailed' ) );
+                setMessage( __( '❌ Failed to save settings.', 'jetreader' ) );
             }
         } catch {
-            setMessage( t( 'settings.networkError' ) );
+            setMessage( __( '❌ Network error.', 'jetreader' ) );
         } finally {
             setSaving( false );
             setTimeout( () => setMessage( '' ), 3000 );
@@ -4174,24 +4172,24 @@ const SettingsPage: React.FC = () => {
             { isDirty && (
                 <div className="mb-5 flex items-center gap-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-lg px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
                     <span className="shrink-0 text-base">⚠️</span>
-                    <span className="flex-1">{ t( 'settings.unsavedWarning' ) }</span>
+                    <span className="flex-1">{ __( 'You have unsaved changes. Press "Save Settings" to keep them, otherwise changes will be lost.', 'jetreader' ) }</span>
                     <button
                         onClick={ saveSettings }
                         disabled={ saving }
                         className="shrink-0 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60"
                     >
-                        { saving ? t( 'settings.saving' ) : t( 'settings.saveButton' ) }
+                        { saving ? __( '💾 Saving...', 'jetreader' ) : __( '💾 Save Settings', 'jetreader' ) }
                     </button>
                 </div>
             ) }
             { message && (
                 <div className={`mb-5 flex items-center gap-3 border rounded-lg px-4 py-3 text-sm ${
-                    message === t( 'settings.saved' )
+                    message === __( '✅ Settings saved successfully!', 'jetreader' )
                         ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200'
                         : 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700 text-red-800 dark:text-red-200'
                 }`}>
                     <span className="shrink-0 text-base">
-                        { message === t( 'settings.saved' ) ? '✅' : '❌' }
+                        { message === __( '✅ Settings saved successfully!', 'jetreader' ) ? '✅' : '❌' }
                     </span>
                     <span className="flex-1">{ message }</span>
                 </div>
@@ -4222,7 +4220,6 @@ const SettingsPage: React.FC = () => {
                     />
                 </div>
 
-
                 {/* Primary Color Palette */}
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
                     <h3 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
@@ -4252,7 +4249,7 @@ const SettingsPage: React.FC = () => {
                                     <span className={ `text-xs font-medium truncate max-w-full ${
                                         isSelected ? 'text-indigo-600 dark:text-indigo-400 font-bold' : 'text-gray-600 dark:text-gray-300'
                                     }` }>
-                                        { t( `colors.${ p.slug }` ) || p.slug }
+                                        { ( { gray: __( 'Gray', 'jetreader' ), purple: __( 'Purple', 'jetreader' ) } as Record<string, string> )[ p.slug ] || p.slug }
                                     </span>
                                 </button>
                             );
@@ -4278,7 +4275,7 @@ const SettingsPage: React.FC = () => {
                                 className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 w-full"
                             >
                                 { [ 12, 24, 48, 96 ].map( ( n ) => (
-                                    <option key={ n } value={ n }>{ n } { t( 'items.item' ) }</option>
+                                    <option key={ n } value={ n }>{ n } { __( 'item', 'jetreader' ) }</option>
                                 ) ) }
                             </select>
                         </div>
@@ -4294,7 +4291,7 @@ const SettingsPage: React.FC = () => {
                                 className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 w-full"
                             >
                                 { [ 2, 3, 4, 5, 6 ].map( ( n ) => (
-                                    <option key={ n } value={ n }>{ n } { t( 'settings.columnUnit' ) }</option>
+                                    <option key={ n } value={ n }>{ n } { __( 'column', 'jetreader' ) }</option>
                                 ) ) }
                             </select>
                         </div>
@@ -4413,10 +4410,10 @@ const SettingsPage: React.FC = () => {
                                 onChange={ ( e ) => updateSetting( 'reader_font_size', e.target.value ) }
                                 className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 w-full"
                             >
-                                <option value="small">{ t( 'settings.fontSizeSmall' ) }</option>
-                                <option value="medium">{ t( 'settings.fontSizeMedium' ) }</option>
-                                <option value="large">{ t( 'settings.fontSizeLarge' ) }</option>
-                                <option value="xlarge">{ t( 'settings.fontSizeXLarge' ) }</option>
+                                <option value="small">{ __( 'Small', 'jetreader' ) }</option>
+                                <option value="medium">{ __( 'Medium', 'jetreader' ) }</option>
+                                <option value="large">{ __( 'Large', 'jetreader' ) }</option>
+                                <option value="xlarge">{ __( 'Extra Large', 'jetreader' ) }</option>
                             </select>
                         </div>
                         <div>
@@ -4428,10 +4425,10 @@ const SettingsPage: React.FC = () => {
                                 onChange={ ( e ) => updateSetting( 'reader_theme', e.target.value ) }
                                 className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 w-full"
                             >
-                                <option value="auto">{ t( 'settings.themeAuto' ) }</option>
-                                <option value="light">{ t( 'settings.themeLight' ) }</option>
-                                <option value="dark">{ t( 'settings.themeDark' ) }</option>
-                                <option value="sepia">{ t( 'settings.themeSepia' ) }</option>
+                                <option value="auto">{ __( 'Auto (System)', 'jetreader' ) }</option>
+                                <option value="light">{ __( 'Light', 'jetreader' ) }</option>
+                                <option value="dark">{ __( 'Dark', 'jetreader' ) }</option>
+                                <option value="sepia">{ __( 'Sepia', 'jetreader' ) }</option>
                             </select>
                         </div>
                     </div>
@@ -4462,7 +4459,7 @@ const SettingsPage: React.FC = () => {
                     disabled={ ! isDirty || saving }
                     className="jr-btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    { saving ? t( 'settings.saving' ) : t( 'settings.saveButton' ) }
+                    { saving ? __( '💾 Saving...', 'jetreader' ) : __( '💾 Save Settings', 'jetreader' ) }
                 </button>
                 { message && <p className="text-sm text-gray-700 dark:text-gray-300">{ message }</p> }
             </div>
@@ -4471,7 +4468,7 @@ const SettingsPage: React.FC = () => {
 };
 
 const AboutPage: React.FC = () => {
-    const { t } = useTranslation();
+
     const info = ( window as any ).jetreaderSettings?.systemInfo;
     const apiBase  = ( window as any ).jetreaderSettings?.apiUrl?.replace( /\/$/, '' ) ?? '/wp-json/jetreader/v1';
     const nonce    = ( window as any ).jetreaderSettings?.nonce ?? '';
@@ -4540,22 +4537,22 @@ const AboutPage: React.FC = () => {
     const links = [
         {
             icon: '📚',
-            label: t( 'about.docs' ),
+            label: __( 'Documentation', 'jetreader' ),
             href: 'https://wplector.com',
         },
         {
             icon: '🐛',
-            label: t( 'about.reportBug' ),
+            label: __( 'Report a Bug', 'jetreader' ),
             href: 'https://wplector.com',
         },
         {
             icon: '✉️',
-            label: t( 'about.support' ),
+            label: __( 'Get Support', 'jetreader' ),
             href: 'https://wplector.com',
         },
         {
             icon: '⭐',
-            label: t( 'about.rate' ),
+            label: __( 'Rate the Plugin', 'jetreader' ),
             href: 'https://wordpress.org/plugins/jetreader/',
         },
     ];
@@ -4570,7 +4567,7 @@ const AboutPage: React.FC = () => {
                         <span className="text-5xl">📖</span>
                         <div>
                             <h1 className="text-2xl font-bold">JetReader</h1>
-                            <p className="text-primary-100 text-sm mt-1">{ t( 'about.tagline' ) }</p>
+                            <p className="text-primary-100 text-sm mt-1">{ __( 'Modern Digital Library Plugin', 'jetreader' ) }</p>
                         </div>
                         <span className="ml-auto bg-white/20 rounded-full px-3 py-1 text-sm font-mono">
                             v{ info?.pluginVersion ?? '—' }
@@ -4599,7 +4596,7 @@ const AboutPage: React.FC = () => {
             { /* System info card */ }
             <div className="rounded-2xl bg-white dark:bg-gray-800 shadow-sm border border-gray-200 dark:border-gray-700 p-6">
                 <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">
-                    { t( 'about.systemInfo' ) }
+                    { __( 'System Information', 'jetreader' ) }
                 </h2>
                 <dl className="space-y-3">
                     { [
@@ -4609,8 +4606,8 @@ const AboutPage: React.FC = () => {
                         {
                             label: 'Elementor',
                             value: info?.elementor
-                                ? `${ t( 'about.active' ) } (${ info.elementor })`
-                                : t( 'about.inactive' ),
+                                ? `${ __( 'Active', 'jetreader' ) } (${ info.elementor })`
+                                : __( 'Inactive', 'jetreader' ),
                         },
                     ].map( ( row ) => (
                         <div key={ row.label } className="flex justify-between items-center">
@@ -4631,10 +4628,10 @@ const AboutPage: React.FC = () => {
                     </div>
                     <div className="flex-1">
                         <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">
-                            { t( 'about.cleanUnusedTitle' ) }
+                            { __( 'Clean Unused Files', 'jetreader' ) }
                         </h2>
                         <p className="text-sm text-gray-550 dark:text-gray-400 mt-1 leading-relaxed">
-                            { t( 'about.cleanUnusedDesc' ) }
+                            { __( 'Scan and safely delete orphan files from the uploads/jetreader/ directory that are not linked to any active book, magazine, or volume. This will not affect your standard WordPress Media Library.', 'jetreader' ) }
                         </p>
 
                         <div className="mt-4">
@@ -4644,13 +4641,13 @@ const AboutPage: React.FC = () => {
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
                                     </svg>
-                                    <span>{ t( 'about.scanning' ) }</span>
+                                    <span>{ __( 'Scanning for unused files...', 'jetreader' ) }</span>
                                 </div>
                             ) : cleanResult ? (
                                 <div className="rounded-xl bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900/40 p-4 text-sm text-green-800 dark:text-green-300">
                                     <div className="flex justify-between items-start">
                                         <div>
-                                            <p className="font-semibold">{ t( 'about.cleanSuccess' ) }</p>
+                                            <p className="font-semibold">{ __( 'Successfully cleaned unused files.', 'jetreader' ) }</p>
                                             <p className="text-xs text-green-600 dark:text-green-400 mt-1">
                                                 Deleted { cleanResult.count } files ({ formatBytes( cleanResult.size ) }).
                                             </p>
@@ -4676,14 +4673,14 @@ const AboutPage: React.FC = () => {
                             ) : unusedCount === 0 ? (
                                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-green-50 dark:bg-green-950/30 text-green-750 dark:text-green-400 border border-green-100 dark:border-green-900/30">
                                     <span>✨</span>
-                                    <span>{ t( 'about.noUnusedFiles' ) }</span>
+                                    <span>{ __( '✓ All files are clean. No unused files found.', 'jetreader' ) }</span>
                                 </div>
                             ) : (
                                 <div className="flex flex-col gap-3">
                                     <div className="inline-flex self-start items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-amber-50 dark:bg-amber-950/30 text-amber-750 dark:text-amber-400 border border-amber-100 dark:border-amber-900/30">
                                         <span>⚠️</span>
                                         <span>
-                                            { t( 'about.unusedFound', { count: unusedCount, size: formatBytes( unusedSize ) } ) }
+                                            { sprintf( __( '⚠️ Found %1$d unused files (%2$s)', 'jetreader' ), unusedCount, formatBytes( unusedSize ) ) }
                                         </span>
                                     </div>
 
@@ -4699,10 +4696,10 @@ const AboutPage: React.FC = () => {
                                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
                                                 </svg>
-                                                { t( 'about.cleaning' ) }
+                                                { __( 'Cleaning...', 'jetreader' ) }
                                             </>
                                         ) : (
-                                            t( 'about.cleanButton' )
+                                            __( 'Clean Unused Files', 'jetreader' )
                                         ) }
                                     </button>
                                 </div>
@@ -4718,10 +4715,10 @@ const AboutPage: React.FC = () => {
                     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl max-w-md w-full border border-gray-100 dark:border-gray-700 overflow-hidden transform scale-100 transition-all duration-300">
                         <div className="p-6">
                             <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-                                { t( 'about.confirmTitle' ) }
+                                { __( '⚠️ Confirm File Cleanup', 'jetreader' ) }
                             </h3>
                             <p className="mt-3 text-sm text-gray-655 dark:text-gray-405 leading-relaxed">
-                                { t( 'about.confirmMsg', { count: unusedCount, size: formatBytes( unusedSize ) } ) }
+                                { sprintf( __( 'Are you sure you want to permanently delete %1$d unused files (%2$s) from the server? This action cannot be undone.', 'jetreader' ), unusedCount, formatBytes( unusedSize ) ) }
                             </p>
                             <p className="mt-3 text-xs text-amber-600 dark:text-amber-400 font-medium">
                                 * This will only remove unlinked files from the <code className="bg-amber-50 dark:bg-amber-950/20 px-1 py-0.5 rounded font-mono font-bold">uploads/jetreader/</code> directory. Standard WordPress Media Library is not affected.
@@ -4733,14 +4730,14 @@ const AboutPage: React.FC = () => {
                                 onClick={ () => setShowConfirm( false ) }
                                 className="px-4 py-2 text-sm font-medium text-gray-750 dark:text-gray-305 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                             >
-                                { t( 'common.cancel' ) }
+                                { __( 'Cancel', 'jetreader' ) }
                             </button>
                             <button
                                 type="button"
                                 onClick={ handleClean }
                                 className="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-500 rounded-lg shadow-sm hover:shadow transition-all"
                             >
-                                { t( 'about.confirmBtn' ) }
+                                { __( 'Yes, Delete Unused Files', 'jetreader' ) }
                             </button>
                         </div>
                     </div>
@@ -4751,7 +4748,7 @@ const AboutPage: React.FC = () => {
 };
 
 const FilesPage: React.FC = () => {
-    const { t } = useTranslation();
+
     const queryClient = useQueryClient();
     const apiBase  = ( window as any ).jetreaderSettings?.apiUrl?.replace( /\/$/, '' ) ?? '/wp-json/jetreader/v1';
     const nonce    = ( window as any ).jetreaderSettings?.nonce ?? '';
@@ -4795,8 +4792,6 @@ const FilesPage: React.FC = () => {
         }
     });
 
-
-
     // Filtered files logic
     const filteredFiles = files.filter( f => {
         // Search term check
@@ -4830,7 +4825,7 @@ const FilesPage: React.FC = () => {
     // Copy to clipboard
     const copyUrlToClipboard = ( url: string ) => {
         navigator.clipboard.writeText( url );
-        setCopyNotice( t( 'files.urlCopied' ) );
+        setCopyNotice( __( 'URL copied to clipboard!', 'jetreader' ) );
         setTimeout( () => setCopyNotice( '' ), 2000 );
     };
 
@@ -5036,17 +5031,17 @@ const FilesPage: React.FC = () => {
             <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                        { t( 'files.title' ) }
+                        { __( '📁 File Manager', 'jetreader' ) }
                     </h1>
                     <p className="mt-1 text-gray-500 dark:text-gray-400 text-sm">
-                        { t( 'files.subtitle' ) }
+                        { __( 'Manage raw files uploaded to the JetReader repository.', 'jetreader' ) }
                     </p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
                     <input
                         type="text"
-                        placeholder={ t( 'files.searchPlaceholder' ) }
+                        placeholder={ __( 'Search files...', 'jetreader' ) }
                         value={ searchTerm }
                         onChange={ e => setSearchTerm( e.target.value ) }
                         className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 w-64"
@@ -5059,7 +5054,7 @@ const FilesPage: React.FC = () => {
                             onChange={ e => setGhostOnly( e.target.checked ) }
                             className="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
                         />
-                        <span>{ t( 'files.ghostFilesOnly' ) }</span>
+                        <span>{ __( 'Show Ghost Files Only', 'jetreader' ) }</span>
                     </label>
                 </div>
             </div>
@@ -5090,10 +5085,10 @@ const FilesPage: React.FC = () => {
                         </svg>
                     </div>
                     <p className="text-sm font-semibold text-gray-700 dark:text-gray-250">
-                        { t( 'files.uploadFiles' ) }
+                        { __( 'Upload Files', 'jetreader' ) }
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        { t( 'files.dropToUpload' ) }
+                        { __( 'Drop files here or click to select', 'jetreader' ) }
                     </p>
                 </div>
             </div>
@@ -5149,7 +5144,7 @@ const FilesPage: React.FC = () => {
                                 { tab === 'epub' && 'EPUB' }
                                 { tab === 'docx' && 'DOCX' }
                                 { tab === 'txt' && 'TXT' }
-                                { tab === 'images' && t( 'files.tabImages' ) }
+                                { tab === 'images' && __( 'Images', 'jetreader' ) }
                             </span>
                             <span className={ `text-xs px-2 py-0.5 rounded-full ${
                                 isActive ? 'bg-primary-100 text-primary-800 dark:bg-primary-950/40 dark:text-primary-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
@@ -5164,20 +5159,20 @@ const FilesPage: React.FC = () => {
             { selectedFiles.length > 0 && (
                 <div className="bg-primary-50 dark:bg-primary-950/20 border border-primary-100 dark:border-primary-900/40 p-4 rounded-xl mb-4 flex items-center justify-between shadow-sm">
                     <span className="text-sm text-primary-800 dark:text-primary-300 font-medium">
-                        📎 { selectedFiles.length } { t( 'common.selected' ) }
+                        📎 { selectedFiles.length } { __( 'selected', 'jetreader' ) }
                     </span>
                     <div className="flex gap-2">
                         <button
                             onClick={ () => setSelectedFiles([]) }
                             className="bg-white dark:bg-gray-800 hover:bg-gray-50 text-gray-700 dark:text-gray-250 border border-gray-200 dark:border-gray-750 text-xs px-3 py-1.5 rounded-lg transition-colors font-semibold"
                         >
-                            { t( 'items.deselect' ) }
+                            { __( '✕ Deselect', 'jetreader' ) }
                         </button>
                         <button
                             onClick={ () => setBulkDeleteConfirm( true ) }
                             className="bg-red-650 hover:bg-red-750 text-white text-xs px-3 py-1.5 rounded-lg transition-colors font-semibold shadow-sm hover:shadow"
                         >
-                            { t( 'files.bulkDelete' ) }
+                            { __( 'Delete Selected', 'jetreader' ) }
                         </button>
                     </div>
                 </div>
@@ -5190,7 +5185,7 @@ const FilesPage: React.FC = () => {
             ) : filteredFiles.length === 0 ? (
                 <div className="bg-white dark:bg-gray-800 rounded-2xl shadow p-12 text-center border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400">
                     <div className="text-3xl mb-2">📁</div>
-                    <p className="text-sm font-semibold">{ t( 'files.noFilesFound' ) }</p>
+                    <p className="text-sm font-semibold">{ __( 'No files found in this category.', 'jetreader' ) }</p>
                 </div>
             ) : (
                 <div className="bg-white dark:bg-gray-800 rounded-2xl shadow border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -5206,11 +5201,11 @@ const FilesPage: React.FC = () => {
                                             className="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
                                         />
                                     </th>
-                                    <th className="p-4">{ t( 'files.fileName' ) }</th>
-                                    <th className="p-4 w-28">{ t( 'files.fileSize' ) }</th>
-                                    <th className="p-4 w-44">{ t( 'files.uploadDate' ) }</th>
-                                    <th className="p-4">{ t( 'files.linkedItem' ) }</th>
-                                    <th className="p-4 w-36 text-right">{ t( 'files.actions' ) }</th>
+                                    <th className="p-4">{ __( 'File Name', 'jetreader' ) }</th>
+                                    <th className="p-4 w-28">{ __( 'Size', 'jetreader' ) }</th>
+                                    <th className="p-4 w-44">{ __( 'Upload Date', 'jetreader' ) }</th>
+                                    <th className="p-4">{ __( 'Linked Item', 'jetreader' ) }</th>
+                                    <th className="p-4 w-36 text-right">{ __( 'Actions', 'jetreader' ) }</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -5270,13 +5265,13 @@ const FilesPage: React.FC = () => {
                                                     </div>
                                                 ) : (
                                                     <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 border border-amber-200/40 dark:border-amber-800/20 px-2 py-0.5 rounded-full select-none">
-                                                        ⚠️ { t( 'files.ghostFile' ) }
+                                                        ⚠️ { __( 'Not linked to any library item', 'jetreader' ) }
                                                     </span>
                                                 ) }
                                             </td>
                                             <td className="p-4 text-right space-x-1.5 whitespace-nowrap">
                                                 <button
-                                                    title={ t( 'files.copyUrl' ) }
+                                                    title={ __( 'Copy URL', 'jetreader' ) }
                                                     onClick={ () => copyUrlToClipboard( file.url ) }
                                                     className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors inline-block"
                                                 >
@@ -5285,7 +5280,7 @@ const FilesPage: React.FC = () => {
                                                     </svg>
                                                 </button>
                                                 <button
-                                                    title={ t( 'files.rename' ) }
+                                                    title={ __( 'Rename', 'jetreader' ) }
                                                     onClick={ () => { setRenamingFile( file.name ); setNewName( file.name.substring( 0, file.name.lastIndexOf('.') ) || file.name ); setRenameError( '' ); } }
                                                     className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors inline-block"
                                                 >
@@ -5294,7 +5289,7 @@ const FilesPage: React.FC = () => {
                                                     </svg>
                                                 </button>
                                                 <button
-                                                    title={ t( 'files.delete' ) }
+                                                    title={ __( 'Delete', 'jetreader' ) }
                                                     onClick={ () => setDeletingFile( file ) }
                                                     className="p-1.5 text-gray-400 hover:text-red-650 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors inline-block"
                                                 >
@@ -5317,13 +5312,13 @@ const FilesPage: React.FC = () => {
                     <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-2xl rounded-2xl w-full max-w-md overflow-hidden">
                         <div className="p-6 border-b border-gray-150 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800">
                             <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                📝 { t( 'files.renameTitle' ) }
+                                📝 { __( 'Rename File', 'jetreader' ) }
                             </h3>
                         </div>
                         <div className="p-6 space-y-4">
                             <div className="space-y-1.5">
                                 <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider block">
-                                    { t( 'files.renameLabel' ) }
+                                    { __( 'New File Name', 'jetreader' ) }
                                 </label>
                                 <input
                                     type="text"
@@ -5344,14 +5339,14 @@ const FilesPage: React.FC = () => {
                                 onClick={ () => setRenamingFile( null ) }
                                 className="bg-white dark:bg-gray-850 hover:bg-gray-50 text-gray-700 dark:text-gray-250 border border-gray-300 text-xs px-4 py-2 rounded-lg transition-colors font-semibold disabled:opacity-50"
                             >
-                                { t( 'common.cancel' ) }
+                                { __( 'Cancel', 'jetreader' ) }
                             </button>
                             <button
                                 disabled={ renameProcessing || ! newName.trim() || newName.trim() === renamingFile.substring( 0, renamingFile.lastIndexOf('.') ) }
                                 onClick={ handleRename }
                                 className="bg-primary-600 hover:bg-primary-750 disabled:bg-primary-300 disabled:dark:bg-primary-900/45 text-white text-xs px-4 py-2 rounded-lg transition-colors font-semibold flex items-center gap-1.5 shadow-sm hover:shadow"
                             >
-                                { renameProcessing ? 'Processing...' : t( 'common.save' ) }
+                                { renameProcessing ? 'Processing...' : __( 'Save', 'jetreader' ) }
                             </button>
                         </div>
                     </div>
@@ -5363,12 +5358,12 @@ const FilesPage: React.FC = () => {
                     <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-2xl rounded-2xl w-full max-w-md overflow-hidden">
                         <div className="p-6 border-b border-gray-150 dark:border-gray-700 bg-red-50/10 dark:bg-gray-800">
                             <h3 className="font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
-                                ⚠️ { t( 'files.deleteConfirmTitle' ) }
+                                ⚠️ { __( 'Delete File', 'jetreader' ) }
                             </h3>
                         </div>
                         <div className="p-6 space-y-4">
                             <p className="text-sm text-gray-600 dark:text-gray-300">
-                                { t( 'files.deleteConfirmMsg' ) }
+                                { __( 'Are you sure you want to delete this file from disk?', 'jetreader' ) }
                             </p>
                             <p className="font-mono text-xs p-2 rounded bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-700 truncate max-w-full text-gray-900 dark:text-white">
                                 { deletingFile.name }
@@ -5379,7 +5374,7 @@ const FilesPage: React.FC = () => {
                                     <ul className="list-disc list-inside space-y-1">
                                         { deletingFile.linked_items.map( ( item: any ) => (
                                             <li key={ item.id } className="truncate">
-                                                { t( 'files.deleteLinkedWarning' ).replace( '{title}', item.title ) }
+                                                { __( 'Warning: This file is currently linked to the library item "{title}". Deleting it will cause the item to become unreadable.', 'jetreader' ).replace( '{title}', item.title ) }
                                             </li>
                                         ) ) }
                                     </ul>
@@ -5392,14 +5387,14 @@ const FilesPage: React.FC = () => {
                                 onClick={ () => setDeletingFile( null ) }
                                 className="bg-white dark:bg-gray-850 hover:bg-gray-50 text-gray-700 dark:text-gray-250 border border-gray-300 text-xs px-4 py-2 rounded-lg transition-colors font-semibold disabled:opacity-50"
                             >
-                                { t( 'common.cancel' ) }
+                                { __( 'Cancel', 'jetreader' ) }
                             </button>
                             <button
                                 disabled={ deleteProcessing }
                                 onClick={ handleDelete }
                                 className="bg-red-600 hover:bg-red-750 text-white text-xs px-4 py-2 rounded-lg transition-colors font-semibold flex items-center gap-1.5 shadow-sm hover:shadow"
                             >
-                                { deleteProcessing ? 'Deleting...' : t( 'common.delete' ) }
+                                { deleteProcessing ? 'Deleting...' : __( 'Delete', 'jetreader' ) }
                             </button>
                         </div>
                     </div>
@@ -5411,7 +5406,7 @@ const FilesPage: React.FC = () => {
                     <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-2xl rounded-2xl w-full max-w-md overflow-hidden">
                         <div className="p-6 border-b border-gray-150 dark:border-gray-700 bg-red-50/10 dark:bg-gray-800">
                             <h3 className="font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
-                                ⚠️ { t( 'files.deleteConfirmTitle' ) }
+                                ⚠️ { __( 'Delete File', 'jetreader' ) }
                             </h3>
                         </div>
                         <div className="p-6 space-y-4">
@@ -5425,14 +5420,14 @@ const FilesPage: React.FC = () => {
                                 onClick={ () => setBulkDeleteConfirm( false ) }
                                 className="bg-white dark:bg-gray-850 hover:bg-gray-550 text-gray-700 dark:text-gray-250 border border-gray-300 text-xs px-4 py-2 rounded-lg transition-colors font-semibold disabled:opacity-50"
                             >
-                                { t( 'common.cancel' ) }
+                                { __( 'Cancel', 'jetreader' ) }
                             </button>
                             <button
                                 disabled={ deleteProcessing }
                                 onClick={ handleBulkDelete }
                                 className="bg-red-600 hover:bg-red-750 text-white text-xs px-4 py-2 rounded-lg transition-colors font-semibold flex items-center gap-1.5 shadow-sm hover:shadow"
                             >
-                                { deleteProcessing ? 'Deleting...' : t( 'common.delete' ) }
+                                { deleteProcessing ? 'Deleting...' : __( 'Delete', 'jetreader' ) }
                             </button>
                         </div>
                     </div>
@@ -5528,11 +5523,9 @@ const App: React.FC = () => {
     return (
         <NavigationContext.Provider value={ { currentPage, navigateTo } }>
             <QueryClientProvider client={ queryClient }>
-                <I18nProvider>
-                    <div className="jetreader-admin min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white">
-                        { renderPage() }
-                    </div>
-                </I18nProvider>
+                <div className="jetreader-admin min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white">
+                    { renderPage() }
+                </div>
             </QueryClientProvider>
         </NavigationContext.Provider>
     );

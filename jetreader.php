@@ -11,7 +11,7 @@
  * Plugin Name:       JetReader – Book Library, EPUB & PDF Reader (Lite)
  * Plugin URI:        https://wplector.com
  * Description:       Digital library plugin with modern reader experience. Supports EPUB, PDF, TXT, DOCX.
- * Version:           1.0.3
+ * Version:           1.1.0
  * Requires at least: 6.4
  * Requires PHP:      8.2
  * Author:            Mehdi Turan
@@ -34,7 +34,7 @@ if ( ! defined( 'WPINC' ) ) {
  * Current plugin version.
  * Start at version 1.0.0 and use SemVer - https://semver.org
  */
-define( 'JETREADER_VERSION', '1.0.3' );
+define( 'JETREADER_VERSION', '1.1.0' );
 define( 'JETREADER_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'JETREADER_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'JETREADER_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
@@ -82,93 +82,3 @@ function jetreader_run() {
 }
 
 jetreader_run();
-
-/**
- * Get translations for a given locale from lang/ JSON files.
- *
- * @param string $locale Language code (e.g. 'en', 'tr', 'ar').
- * @return array Translation array or empty array on failure.
- */
-function jetreader_get_translations( $locale ) {
-    // Sanitize locale to prevent directory traversal
-    $locale = preg_replace( '/[^a-zA-Z0-9_-]/', '', $locale );
-    if ( empty( $locale ) ) {
-        $locale = 'en';
-    }
-
-    $file = JETREADER_PLUGIN_DIR . 'lang/' . $locale . '.json';
-
-    if ( ! file_exists( $file ) ) {
-        return array();
-    }
-
-    $file_mtime = filemtime( $file );
-    $cache_key = 'jetreader_trans_' . $locale . '_' . JETREADER_VERSION . '_' . $file_mtime;
-    if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-        delete_transient( $cache_key );
-        $cached = false;
-    } else {
-        $cached = get_transient( $cache_key );
-    }
-    if ( false !== $cached ) {
-        return $cached;
-    }
-
-    $content = file_get_contents( $file );
-    if ( false === $content ) {
-        return array();
-    }
-
-    $decoded = json_decode( $content, true );
-    $result  = is_array( $decoded ) ? $decoded : array();
-    set_transient( $cache_key, $result, DAY_IN_SECONDS );
-    return $result;
-}
-
-/**
- * Get list of available languages from lang/ directory.
- *
- * Scans the lang/ folder for *.json files and builds an array
- * of { code, name } objects.
- *
- * @return array Array of { code, name } language objects.
- */
-function jetreader_get_available_languages() {
-    $langs = array();
-    $dir   = JETREADER_PLUGIN_DIR . 'lang/';
-
-    if ( is_dir( $dir ) ) {
-        $files = glob( $dir . '*.json' );
-        if ( is_array( $files ) ) {
-            $names = array(
-                'en' => 'English',
-                'tr' => 'Türkçe',
-                'ar' => 'العربية',
-                'de' => 'Deutsch',
-                'es' => 'Español',
-                'fr' => 'Français',
-                'it' => 'Italiano',
-                'pt' => 'Português',
-                'ru' => 'Русский',
-                'zh' => '中文',
-            );
-            foreach ( $files as $file ) {
-                $code = basename( $file, '.json' );
-                $name = $names[ $code ] ?? strtoupper( $code );
-                $langs[] = array(
-                    'code' => $code,
-                    'name' => $name,
-                );
-            }
-        }
-    }
-
-    if ( empty( $langs ) ) {
-        $langs[] = array(
-            'code' => 'en',
-            'name' => 'English',
-        );
-    }
-
-    return $langs;
-}

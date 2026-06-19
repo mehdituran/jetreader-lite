@@ -2,6 +2,9 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import '../index.css';
 import App from './App';
+import { bootstrapLocale } from '../i18n/bootstrapLocale';
+
+bootstrapLocale();
 
 const container = document.getElementById( 'jetreader-admin-app' );
 

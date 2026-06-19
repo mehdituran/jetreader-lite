@@ -81,16 +81,6 @@ export default defineConfig( {
                     return 'assets/[name].[ext]';
                 },
             },
-            // Only @wordpress/* are true externals — they are provided as
-            // window.wp.* globals by the block editor. React must be bundled
-            // because WordPress does not expose it as a resolvable ESM specifier.
-            external: [
-                '@wordpress/blocks',
-                '@wordpress/block-editor',
-                '@wordpress/components',
-                '@wordpress/i18n',
-                '@wordpress/icons',
-            ],
         },
     },
     css: {

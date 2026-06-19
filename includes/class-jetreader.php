@@ -214,17 +214,9 @@ class JetReader {
      * Add admin menu pages.
      */
     public function add_admin_menu() {
-        $settings        = get_option( 'jetreader_settings', array() );
-        $plugin_language = isset( $settings['plugin_language'] ) ? $settings['plugin_language'] : 'en';
-        $trans           = jetreader_get_translations( $plugin_language );
-
-        $tb = function ( $key ) use ( $trans ) {
-            return isset( $trans['php_backend'][ $key ] ) ? $trans['php_backend'][ $key ] : $key;
-        };
-
         add_menu_page(
-            $tb( 'menuMain' ),
-            $tb( 'menuMain' ),
+            __( 'JetReader', 'jetreader' ),
+            __( 'JetReader', 'jetreader' ),
             'manage_options',
             'jetreader',
             array( $this, 'render_admin_app' ),
@@ -234,8 +226,8 @@ class JetReader {
 
         add_submenu_page(
             'jetreader',
-            $tb( 'menuDashboard' ),
-            $tb( 'menuDashboard' ),
+            __( 'Dashboard', 'jetreader' ),
+            __( 'Dashboard', 'jetreader' ),
             'manage_options',
             'jetreader',
             array( $this, 'render_admin_app' )
@@ -243,8 +235,8 @@ class JetReader {
 
         add_submenu_page(
             'jetreader',
-            $tb( 'menuLibraryItems' ),
-            $tb( 'menuLibraryItems' ),
+            __( 'Library Items', 'jetreader' ),
+            __( 'Library Items', 'jetreader' ),
             'manage_options',
             'jetreader-items',
             array( $this, 'render_admin_app' )
@@ -252,8 +244,8 @@ class JetReader {
 
         add_submenu_page(
             'jetreader',
-            $tb( 'menuConstants' ),
-            $tb( 'menuConstants' ),
+            __( 'Constants', 'jetreader' ),
+            __( 'Constants', 'jetreader' ),
             'manage_options',
             'jetreader-constants',
             array( $this, 'render_admin_app' )
@@ -261,24 +253,21 @@ class JetReader {
 
         add_submenu_page(
             'jetreader',
-            $tb( 'menuSettings' ),
-            $tb( 'menuSettings' ),
+            __( 'Settings', 'jetreader' ),
+            __( 'Settings', 'jetreader' ),
             'manage_options',
             'jetreader-settings',
             array( $this, 'render_admin_app' )
         );
 
-
         add_submenu_page(
             'jetreader',
-            $tb( 'menuAbout' ),
-            $tb( 'menuAbout' ),
+            __( 'About', 'jetreader' ),
+            __( 'About', 'jetreader' ),
             'manage_options',
             'jetreader-about',
             array( $this, 'render_admin_app' )
         );
-
-
     }
 
     /**
@@ -286,6 +275,25 @@ class JetReader {
      */
     public function render_admin_app() {
         echo '<div id="jetreader-admin-app"></div>';
+    }
+
+    /**
+     * Pass JS translations for a script handle to the bundled @wordpress/i18n
+     * copy via window.jetreaderL10n, set before the script tag runs.
+     *
+     * Our JS bundles include their own copy of @wordpress/i18n (it isn't
+     * loaded as window.wp.i18n), so wp_set_script_translations()'s automatic
+     * injection — which targets that global — would never reach our __()
+     * calls. Each entry's main.tsx reads window.jetreaderL10n on boot and
+     * calls its own setLocaleData() with it instead.
+     *
+     * @param string $handle Script handle.
+     */
+    public static function inject_script_translations( $handle ) {
+        $json = load_script_textdomain( $handle, 'jetreader', JETREADER_PLUGIN_DIR . 'languages' );
+        if ( $json ) {
+            wp_add_inline_script( $handle, 'window.jetreaderL10n = ' . $json . ';', 'before' );
+        }
     }
 
     /**
@@ -376,9 +384,9 @@ class JetReader {
                 $is_debug ? filemtime( $entry_file ) : JETREADER_VERSION,
                 true
             );
+            self::inject_script_translations( 'jetreader-' . $entry );
 
-            $settings        = get_option( 'jetreader_settings', array() );
-            $plugin_language = isset( $settings['plugin_language'] ) ? $settings['plugin_language'] : 'en';
+            $settings = get_option( 'jetreader_settings', array() );
 
             wp_localize_script(
                 'jetreader-' . $entry,
@@ -387,9 +395,8 @@ class JetReader {
                     'apiUrl'             => rest_url( 'jetreader/v1/' ),
                     'nonce'              => wp_create_nonce( 'wp_rest' ),
                     'pluginUrl'          => JETREADER_PLUGIN_URL,
-                    'locale'             => $plugin_language,
-                    'translations'       => jetreader_get_translations( $plugin_language ),
-                    'availableLanguages' => jetreader_get_available_languages(),
+                    'locale'             => strtolower( substr( get_locale(), 0, 2 ) ),
+                    'isRtl'              => is_rtl(),
                     'isLoggedIn'         => is_user_logged_in(),
                     'siteUrl'            => get_site_url(),
                     'systemInfo'         => array(

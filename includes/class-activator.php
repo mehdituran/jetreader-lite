@@ -83,7 +83,6 @@ class JetReader_Activator {
             'items_per_page'       => 20,
             'annotation_enabled'   => true,
             'copy_enabled'         => true,
-            'plugin_language'      => 'en',
             'primary_palette'      => 'gray',
             // CPT URL slugs
             'cpt_slug_book'        => 'jetreader-books',

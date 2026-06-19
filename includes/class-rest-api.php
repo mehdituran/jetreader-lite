@@ -2215,15 +2215,6 @@ class JetReader_REST_API {
                 continue;
             }
 
-            // Check if key is plugin_language
-            if ( 'plugin_language' === $key ) {
-                $val = preg_replace( '/[^a-zA-Z0-9_-]/', '', $value );
-                if ( ! empty( $val ) && strlen( $val ) <= 10 ) {
-                    $settings[ $key ] = $val;
-                }
-                continue;
-            }
-
             // Check if key is a CPT slug
             if ( in_array( $key, $allowed_slugs, true ) ) {
                 $val = sanitize_title( $value );
@@ -2323,9 +2314,7 @@ class JetReader_REST_API {
             'show_detail_description' => $bool( 'show_detail_description', true ),
             'reader_font_size'     => $str( 'reader_font_size', 'medium' ),
             'reader_theme'         => $str( 'reader_theme', 'auto' ),
-            'plugin_language'      => $str( 'plugin_language', 'en' ),
             'primary_palette'      => $str( 'primary_palette', 'gray' ),
-            'available_languages'  => jetreader_get_available_languages(),
             'reader_logo_url'      => JETREADER_PLUGIN_URL . 'assets/logo/jetreader.png',
         ) );
     }

@@ -30,7 +30,8 @@ const getReaderEngine = () => {
     }
     return readerEnginePromise;
 };
-import { I18nProvider, useTranslation } from '../i18n/I18nContext';
+import { __ } from '@wordpress/i18n';
+import { useLocale } from '../i18n/useLocale';
 import { WORLD_LANGUAGES } from '../data/world-languages';
 import { LangCombobox } from '../admin/LangCombobox';
 
@@ -66,13 +67,13 @@ const CONTENT_TYPES = [
 
 type ContentTypeKey = '' | 'book' | 'article' | 'magazine' | 'qa';
 
-function getTypeLabel( key: ContentTypeKey | '', t: ( k: string ) => string ): string {
+function getTypeLabel( key: ContentTypeKey | '' ): string {
     const map: Record<string, string> = {
-        '':         t( 'frontend.typeTabsAll' ),
-        'book':     t( 'frontend.typeTabsBooks' ),
-        'article':  t( 'frontend.typeTabsArticles' ),
-        'magazine': t( 'frontend.typeTabsMagazines' ),
-        'qa':       t( 'frontend.typeTabsQA' ),
+        '':         __( 'All', 'jetreader' ),
+        'book':     __( 'Books', 'jetreader' ),
+        'article':  __( 'Articles', 'jetreader' ),
+        'magazine': __( 'Magazines', 'jetreader' ),
+        'qa':       __( 'Q&A', 'jetreader' ),
     };
     return map[ key ] ?? key;
 }
@@ -291,7 +292,7 @@ const inputStyle: React.CSSProperties = {
 const FilterSidebar = React.memo<SidebarProps>( ( {
     settings, categories, authors, publishers, filters, onFilterChange, onClear, onMobileClose, onCollapse,
 } ) => {
-    const { t, locale } = useTranslation();
+    const { locale } = useLocale();
 
     const toggleCategory = React.useCallback( ( id: number ) => {
         const next = filters.categoryIds.includes( id )
@@ -330,7 +331,7 @@ const FilterSidebar = React.memo<SidebarProps>( ( {
             { /* Header */ }
             <div style={ { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', paddingBottom: '12px', borderBottom: '2px solid var(--jr-p100, #e0e7ff)' } }>
                 <span style={ { fontWeight: 700, fontSize: '13px', color: 'var(--jr-p700, #3730a3)', letterSpacing: '0.01em', display: 'flex', alignItems: 'center', gap: '6px' } }>
-                    { t( 'frontend.filters' ) }
+                    { __( 'Filters', 'jetreader' ) }
                     { activeCount > 0 && (
                         <span style={ { background: 'var(--jr-p500, #6366f1)', color: '#fff', fontSize: '11px', fontWeight: 800, borderRadius: '99px', padding: '1px 7px', lineHeight: '18px' } }>
                             { activeCount }
@@ -343,7 +344,7 @@ const FilterSidebar = React.memo<SidebarProps>( ( {
                             onClick={ onClear }
                             style={ { fontSize: '11px', color: 'var(--jr-p600, #4f46e5)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' } }
                         >
-                            { t( 'frontend.clearAll' ) }
+                            { __( 'Clear all', 'jetreader' ) }
                         </button>
                     ) }
                     { onCollapse && (
@@ -370,7 +371,7 @@ const FilterSidebar = React.memo<SidebarProps>( ( {
 
                 { /* Category multi-select */ }
                 { settings.show_filter_category && categories.length > 0 && (
-                    <SidebarSection title={ t( 'frontend.sidebarCategory' ) }>
+                    <SidebarSection title={ __( 'Category', 'jetreader' ) }>
                         <div className="scrollbar-palette" style={ { display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '180px', overflowY: 'auto', paddingRight: '4px' } }>
                             { categories.map( ( cat ) => {
                                 const isSelected = filters.categoryIds.includes( cat.id );
@@ -402,24 +403,24 @@ const FilterSidebar = React.memo<SidebarProps>( ( {
                 ) }
 
                 { settings.show_filter_language && (
-                    <SidebarSection title={ t( 'frontend.sidebarLanguage' ) } defaultOpen={ false }>
+                    <SidebarSection title={ __( 'Language', 'jetreader' ) } defaultOpen={ false }>
                         <LangCombobox
                             value={ filters.language }
                             onChange={ ( code ) => onFilterChange( { language: code } ) }
                             uiLocale={ locale }
-                            placeholder={ t( 'frontend.allLanguages' ) }
-                            searchPlaceholder={ t( 'itemForm.languageSearchPlaceholder' ) || '🔍' }
+                            placeholder={ __( 'All Languages', 'jetreader' ) }
+                            searchPlaceholder={ __( 'Search languages...', 'jetreader' ) || '🔍' }
                         />
                     </SidebarSection>
                 ) }
 
                 { /* Year range filter */ }
                 { settings.show_filter_year && (
-                    <SidebarSection title={ t( 'frontend.sidebarYear' ) } defaultOpen={ false }>
+                    <SidebarSection title={ __( 'Publication Year', 'jetreader' ) } defaultOpen={ false }>
                         <div style={ { display: 'flex', alignItems: 'center', gap: '6px' } }>
                             <input
                                 type="number"
-                                placeholder={ t( 'frontend.yearFrom' ) }
+                                placeholder={ __( 'From', 'jetreader' ) }
                                 value={ filters.yearFrom }
                                 onChange={ ( e ) => onFilterChange( { yearFrom: e.target.value } ) }
                                 min={ 1000 }
@@ -430,7 +431,7 @@ const FilterSidebar = React.memo<SidebarProps>( ( {
                             <span style={ { fontSize: '12px', color: '#9ca3af', flexShrink: 0 } }>–</span>
                             <input
                                 type="number"
-                                placeholder={ t( 'frontend.yearTo' ) }
+                                placeholder={ __( 'To', 'jetreader' ) }
                                 value={ filters.yearTo }
                                 onChange={ ( e ) => onFilterChange( { yearTo: e.target.value } ) }
                                 min={ 1000 }
@@ -459,28 +460,28 @@ const ActiveFilterChips = React.memo<{
     onRemoveAuthorName: ( name: string ) => void;
     onRemovePublisherName: ( name: string ) => void;
 }>( ( { filters, categories, onRemove, onRemoveCategoryId, onRemoveAuthorName, onRemovePublisherName } ) => {
-    const { t, locale } = useTranslation();
+    const { locale } = useLocale();
 
     const chips: { label: string; onDismiss: () => void }[] = [];
 
     filters.categoryIds.forEach( ( id ) => {
         const cat = categories.find( ( c ) => c.id === id );
         chips.push( {
-            label: `${ t( 'frontend.filterChipCategory' ) } ${ cat?.name ?? id }`,
+            label: `${ __( 'Category:', 'jetreader' ) } ${ cat?.name ?? id }`,
             onDismiss: () => onRemoveCategoryId( id ),
         } );
     } );
-    if ( filters.language ) chips.push( { label: `${ t( 'frontend.filterChipLang' ) } ${ getLangDisplayName( filters.language, locale ) }`, onDismiss: () => onRemove( 'language' ) } );
-    if ( filters.yearFrom ) chips.push( { label: `${ t( 'frontend.filterChipFrom' ) } ${ filters.yearFrom }`, onDismiss: () => onRemove( 'yearFrom' ) } );
-    if ( filters.yearTo )   chips.push( { label: `${ t( 'frontend.filterChipTo' ) } ${ filters.yearTo }`,     onDismiss: () => onRemove( 'yearTo' ) } );
+    if ( filters.language ) chips.push( { label: `${ __( 'Language:', 'jetreader' ) } ${ getLangDisplayName( filters.language, locale ) }`, onDismiss: () => onRemove( 'language' ) } );
+    if ( filters.yearFrom ) chips.push( { label: `${ __( 'From:', 'jetreader' ) } ${ filters.yearFrom }`, onDismiss: () => onRemove( 'yearFrom' ) } );
+    if ( filters.yearTo )   chips.push( { label: `${ __( 'To:', 'jetreader' ) } ${ filters.yearTo }`,     onDismiss: () => onRemove( 'yearTo' ) } );
     filters.authorNames.forEach( ( name ) =>
-        chips.push( { label: `${ t( 'frontend.filterChipAuthor' ) } ${ name }`, onDismiss: () => onRemoveAuthorName( name ) } )
+        chips.push( { label: `${ __( 'Author:', 'jetreader' ) } ${ name }`, onDismiss: () => onRemoveAuthorName( name ) } )
     );
     filters.publisherNames.forEach( ( name ) =>
-        chips.push( { label: `${ t( 'frontend.filterChipPublisher' ) || 'Publisher:' } ${ name }`, onDismiss: () => onRemovePublisherName( name ) } )
+        chips.push( { label: `${ __( 'Publisher:', 'jetreader' ) || 'Publisher:' } ${ name }`, onDismiss: () => onRemovePublisherName( name ) } )
     );
-    if ( filters.translator )  chips.push( { label: `${ t( 'frontend.filterChipTranslator' ) || 'Translator:' } ${ filters.translator }`, onDismiss: () => onRemove( 'translator' ) } );
-    if ( filters.featured ) chips.push( { label: t( 'frontend.filterChipFeatured' ), onDismiss: () => onRemove( 'featured' ) } );
+    if ( filters.translator )  chips.push( { label: `${ __( 'Translator:', 'jetreader' ) || 'Translator:' } ${ filters.translator }`, onDismiss: () => onRemove( 'translator' ) } );
+    if ( filters.featured ) chips.push( { label: __( '⭐ Featured', 'jetreader' ), onDismiss: () => onRemove( 'featured' ) } );
 
     if ( chips.length === 0 ) return null;
 
@@ -516,7 +517,7 @@ const ItemCard = React.memo<{
     showImage = true, showTitle = true,
     isQAView = false,
 } ) => {
-    const { t } = useTranslation();
+
     const isQA    = item.type === 'qa';
     const hasFile = !! item.file_path;
     const typeIcon = { book: '📖', article: '📄', magazine: '🗞️', qa: '💬' }[ item.type ] ?? '📖';
@@ -600,7 +601,7 @@ const ItemCard = React.memo<{
                         e.currentTarget.style.borderColor = 'var(--jr-p200, #c7d2fe)';
                     } }
                 >
-                    { t( 'frontend.cardView' ) }
+                    { __( '💬 View', 'jetreader' ) }
                 </button>
             </motion.div>
         );
@@ -695,7 +696,7 @@ const ItemCard = React.memo<{
                             <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                             </svg>
-                            { isQA ? t( 'frontend.cardView' ) : t( 'frontend.cardRead' ) }
+                            { isQA ? __( '💬 View', 'jetreader' ) : __( 'Read', 'jetreader' ) }
                         </button>
                     ) }
                     <button
@@ -720,7 +721,7 @@ const ItemCard = React.memo<{
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                         ) }
-                        { isQA ? t( 'frontend.cardView' ) : t( 'frontend.cardInfo' ) }
+                        { isQA ? __( '💬 View', 'jetreader' ) : __( 'Details', 'jetreader' ) }
                     </button>
                 </div>
             </div>
@@ -780,7 +781,7 @@ const InfoModal: React.FC<{
     onRead: ( selectedVolumeIdx?: number ) => void;
     settings?: PublicSettings;
 }> = ( { item, onClose, onRead, settings } ) => {
-    const { t, locale } = useTranslation();
+    const { locale } = useLocale();
     const [ selectedVolIdx, setSelectedVolIdx ] = React.useState<number | null>( null );
 
     // Lock body scroll while modal is open to prevent scrollbar-width layout shift
@@ -832,9 +833,9 @@ const InfoModal: React.FC<{
     };
 
     const metaFields = ( [
-        [ t( 'frontend.infoModalPages' ),     item.page_count && item.page_count > 0 ? `${ item.page_count } ${ t( 'reader.pages' ) }` : null ],
+        [ __( 'Pages', 'jetreader' ),     item.page_count && item.page_count > 0 ? `${ item.page_count } ${ __( 'pages', 'jetreader' ) }` : null ],
         item.volumes && item.volumes.length > 1
-            ? [ t( 'frontend.infoModalVolumes' ), `${ item.volumes.length } ${ t( 'frontend.infoModalVolumesCount' ) }` ]
+            ? [ __( 'Volumes/Issues', 'jetreader' ), `${ item.volumes.length } ${ __( 'total', 'jetreader' ) }` ]
             : null,
     ] as ( [ string, string | null ] | null )[] )
         .filter( ( p ): p is [ string, string ] => !! p && !! p[1] );
@@ -898,13 +899,13 @@ const InfoModal: React.FC<{
                                     { item.author && settings?.show_detail_author !== false && (
                                         <p className="m-0 text-sm text-[var(--jr-modal-meta,#64748b)] flex items-center gap-1.5">
                                             <span className="text-xs">✍️</span>
-                                            <span>{ t( 'frontend.infoModalBy' ) } <strong className="font-semibold text-[var(--jr-modal-text,#334155)]">{ item.author }</strong></span>
+                                            <span>{ __( 'author:', 'jetreader' ) } <strong className="font-semibold text-[var(--jr-modal-text,#334155)]">{ item.author }</strong></span>
                                         </p>
                                     ) }
                                     { item.translator && (
                                         <p className="m-0 text-[13px] text-[var(--jr-modal-meta,#64748b)] flex items-center gap-1.5">
                                             <span className="text-xs">🌐</span>
-                                            <span>{ t( 'frontend.infoModalTranslator' ) }: <strong className="font-semibold text-[var(--jr-modal-text,#334155)]">{ item.translator }</strong></span>
+                                            <span>{ __( 'Translator', 'jetreader' ) }: <strong className="font-semibold text-[var(--jr-modal-text,#334155)]">{ item.translator }</strong></span>
                                         </p>
                                     ) }
                                 </div>
@@ -926,7 +927,7 @@ const InfoModal: React.FC<{
                             { item.volumes && item.volumes.length > 1 && (
                                 <div className="mb-5">
                                     <p className="m-0 mb-2 text-[11px] font-bold tracking-[0.07em] uppercase text-[var(--jr-modal-meta,#94a3b8)] flex items-center gap-1.5 flex-wrap">
-                                        <span>{ item.type === 'magazine' ? t( 'frontend.infoModalVolumesListMagazine' ) : t( 'frontend.infoModalVolumesListBook' ) }</span>
+                                        <span>{ item.type === 'magazine' ? __( 'Issues', 'jetreader' ) : __( 'Volumes', 'jetreader' ) }</span>
                                     </p>
                                     <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2">
                                         { item.volumes.map( ( vol, idx ) => {
@@ -940,11 +941,11 @@ const InfoModal: React.FC<{
                                                     <span className="text-sm shrink-0">{ item.type === 'magazine' ? '🗞️' : '📖' }</span>
                                                     <div className="flex flex-col min-w-0 flex-1 leading-snug">
                                                         <span className="whitespace-nowrap overflow-hidden text-ellipsis">
-                                                            { item.type === 'magazine' ? `${ t( 'frontend.infoModalVolItemMagazine' ) } ${ idx + 1 }` : `${ t( 'frontend.infoModalVolItemBook' ) } ${ idx + 1 }` }
+                                                            { item.type === 'magazine' ? `${ __( 'Issue', 'jetreader' ) } ${ idx + 1 }` : `${ __( 'Volume', 'jetreader' ) } ${ idx + 1 }` }
                                                         </span>
                                                         { vol.page_count && vol.page_count > 0 ? (
                                                             <span className={ `text-[10px] font-medium mt-0.5 ${ isSelected ? 'text-[var(--jr-p600,#4f46e5)]' : 'text-[var(--jr-modal-meta,#94a3b8)]' }` }>
-                                                                { vol.page_count } { t( 'reader.pages' ) }
+                                                                { vol.page_count } { __( 'pages', 'jetreader' ) }
                                                             </span>
                                                         ) : null }
                                                     </div>
@@ -977,12 +978,12 @@ const InfoModal: React.FC<{
                                 <button
                                     onClick={ handleRead }
                                     className="jr-btn-primary flex-none"
-                                >{ t( 'frontend.infoModalReadNow' ) }</button>
+                                >{ __( '📖 Read Now', 'jetreader' ) }</button>
                             ) }
                             <button
                                 onClick={ onClose }
                                 className="jr-btn-secondary flex-none ml-auto"
-                            >{ t( 'frontend.infoModalClose' ) }</button>
+                            >{ __( 'Close', 'jetreader' ) }</button>
                         </div>
                     </div>
                 </div>
@@ -1003,7 +1004,7 @@ const Pagination: React.FC<{
     perPage: number;
     onChange: ( p: number ) => void;
 }> = ( { page, pages, total, perPage, onChange } ) => {
-    const { t } = useTranslation();
+
     if ( pages <= 1 ) return null;
 
     const range: ( number | '…' )[] = [];
@@ -1018,7 +1019,7 @@ const Pagination: React.FC<{
     return (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
             <p className="text-sm text-gray-500 dark:text-gray-400 order-2 sm:order-1">
-                { ( page - 1 ) * perPage + 1 }–{ Math.min( page * perPage, total ) } { t( 'frontend.paginatedOf' ) } { total } { t( 'frontend.paginatedItems' ) }
+                { ( page - 1 ) * perPage + 1 }–{ Math.min( page * perPage, total ) } { __( 'of', 'jetreader' ) } { total } { __( 'items', 'jetreader' ) }
             </p>
             <div className="flex items-center gap-1 order-1 sm:order-2">
                 <button
@@ -1072,7 +1073,7 @@ interface LibraryContentProps {
 const LibraryContent: React.FC<LibraryContentProps> = ( {
     settings, activeType, filters, searchTerm, forcedType,
 } ) => {
-    const { t } = useTranslation();
+
     const [ page, setPage ] = useState( 1 );
     const [ readerItem, setReaderItem ] = useState<LibraryItem | null>( null );
     const [ infoItem,   setInfoItem   ] = useState<LibraryItem | null>( null );
@@ -1146,7 +1147,7 @@ const LibraryContent: React.FC<LibraryContentProps> = ( {
     if ( isError ) return (
         <div className="text-center py-20">
             <span className="text-4xl">⚠️</span>
-            <p className="mt-3 text-gray-500 dark:text-gray-400">{ t( 'frontend.failedToLoad' ) }</p>
+            <p className="mt-3 text-gray-500 dark:text-gray-400">{ __( 'Loading failed. Please refresh the page.', 'jetreader' ) }</p>
         </div>
     );
 
@@ -1157,9 +1158,9 @@ const LibraryContent: React.FC<LibraryContentProps> = ( {
             { items.length === 0 ? (
                 <div className="text-center py-24">
                     <span className="text-6xl">📭</span>
-                    <h2 className="text-xl font-semibold text-gray-800 dark:text-white mt-4">{ t( 'frontend.emptyTitle' ) }</h2>
+                    <h2 className="text-xl font-semibold text-gray-800 dark:text-white mt-4">{ __( 'No items found', 'jetreader' ) }</h2>
                     <p className="text-gray-500 dark:text-gray-400 mt-2 text-sm">
-                        { t( 'frontend.emptyAdjustFilters' ) }
+                        { __( 'Try adjusting your filters.', 'jetreader' ) }
                     </p>
                 </div>
             ) : (
@@ -1245,7 +1246,7 @@ const normalizeType = ( t: string ): ContentTypeKey => {
 };
 
 const AppInner: React.FC<AppProps> = ( { libraryType, libraryTypes = '' } ) => {
-    const { t, direction } = useTranslation();
+    const { isRtl } = useLocale();
     const { data: settings, isLoading: settingsLoading } = usePublicSettings();
 
     // Parse comma-separated 'types' attribute, e.g. "book,magazine"
@@ -1365,7 +1366,7 @@ const AppInner: React.FC<AppProps> = ( { libraryType, libraryTypes = '' } ) => {
 
 
     return (
-        <div dir={ direction } className="jetreader-frontend w-full">
+        <div dir={ isRtl ? 'rtl' : 'ltr' } className="jetreader-frontend w-full">
 
             { /* ── Tab navigation ── */ }
             { ! forcedType && (
@@ -1381,7 +1382,7 @@ const AppInner: React.FC<AppProps> = ( { libraryType, libraryTypes = '' } ) => {
                             }` }
                         >
                             <span>{ type.icon }</span>
-                            <span>{ getTypeLabel( type.key, t ) }</span>
+                            <span>{ getTypeLabel( type.key ) }</span>
                         </button>
                     ) ) }
                 </div>
@@ -1398,7 +1399,7 @@ const AppInner: React.FC<AppProps> = ( { libraryType, libraryTypes = '' } ) => {
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={ 2 } d="M3 4h18M7 12h10M11 20h2" />
                         </svg>
-                        { t( 'frontend.filtersMobile' ) }
+                        { __( 'Filters', 'jetreader' ) }
                     </button>
                 ) }
 
@@ -1410,7 +1411,7 @@ const AppInner: React.FC<AppProps> = ( { libraryType, libraryTypes = '' } ) => {
                             value={ searchInput }
                             onChange={ ( e ) => setSearchInput( e.target.value ) }
                             onKeyDown={ ( e ) => e.key === 'Enter' && handleSearch() }
-                            placeholder={ t( 'frontend.searchPlaceholder' ) }
+                            placeholder={ __( 'Search in book contents... (min. 2 characters)', 'jetreader' ) }
                             className="jr-input text-sm"
                         />
                         <button onClick={ handleSearch } className="jr-btn-primary text-sm px-4 shrink-0">
@@ -1495,9 +1496,9 @@ const AppInner: React.FC<AppProps> = ( { libraryType, libraryTypes = '' } ) => {
                             onClick={ () => setMobileSidebar( false ) }
                         />
                         <motion.div
-                            initial={ { x: direction === 'rtl' ? '100%' : '-100%' } } animate={ { x: 0 } } exit={ { x: direction === 'rtl' ? '100%' : '-100%' } }
+                            initial={ { x: isRtl ? '100%' : '-100%' } } animate={ { x: 0 } } exit={ { x: isRtl ? '100%' : '-100%' } }
                             transition={ { type: 'tween', duration: 0.25 } }
-                            className={ `fixed top-0 ${ direction === 'rtl' ? 'right-0' : 'left-0' } h-full w-72 bg-white dark:bg-gray-900 z-[9999] p-5 shadow-2xl overflow-y-auto lg:hidden` }
+                            className={ `fixed top-0 ${ isRtl ? 'right-0' : 'left-0' } h-full w-72 bg-white dark:bg-gray-900 z-[9999] p-5 shadow-2xl overflow-y-auto lg:hidden` }
                         >
                             <FilterSidebar
                                 settings={ cfg }
@@ -1520,9 +1521,7 @@ const AppInner: React.FC<AppProps> = ( { libraryType, libraryTypes = '' } ) => {
 
 const App: React.FC<AppProps> = ( props ) => (
     <QueryClientProvider client={ queryClient }>
-        <I18nProvider>
-            <AppInner libraryType={ props.libraryType } libraryTypes={ props.libraryTypes } />
-        </I18nProvider>
+        <AppInner libraryType={ props.libraryType } libraryTypes={ props.libraryTypes } />
     </QueryClientProvider>
 );
 

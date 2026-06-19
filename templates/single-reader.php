@@ -44,8 +44,7 @@ if ( $raw_volumes && is_string( $raw_volumes ) ) {
     }
 }
 
-$settings        = get_option( 'jetreader_settings', array() );
-$plugin_language = $settings['plugin_language'] ?? 'en';
+$plugin_locale = strtolower( substr( get_locale(), 0, 2 ) );
 
 // ── Strip WordPress scripts that conflict with React on this page ─────────────
 // The emoji detection script installs a MutationObserver on document.body that
@@ -92,20 +91,20 @@ if ( ! wp_script_is( 'jetreader-frontend', 'enqueued' ) ) {
             JETREADER_VERSION,
             true // in footer — output by wp_footer() below
         );
+        JetReader::inject_script_translations( 'jetreader-reader' );
 
         wp_localize_script(
             'jetreader-reader',
             'jetreaderSettings',
             array(
-                'apiUrl'             => rest_url( 'jetreader/v1/' ),
-                'nonce'              => wp_create_nonce( 'wp_rest' ),
-                'pluginUrl'          => JETREADER_PLUGIN_URL,
-                'locale'             => $plugin_language,
-                'translations'       => jetreader_get_translations( $plugin_language ),
-                'availableLanguages' => jetreader_get_available_languages(),
-                'isLoggedIn'         => is_user_logged_in(),
-                'siteUrl'            => get_site_url(),
-                'pageMode'           => 'page',
+                'apiUrl'     => rest_url( 'jetreader/v1/' ),
+                'nonce'      => wp_create_nonce( 'wp_rest' ),
+                'pluginUrl'  => JETREADER_PLUGIN_URL,
+                'locale'     => $plugin_locale,
+                'isRtl'      => is_rtl(),
+                'isLoggedIn' => is_user_logged_in(),
+                'siteUrl'    => get_site_url(),
+                'pageMode'   => 'page',
             )
         );
     }
@@ -198,7 +197,7 @@ wp_add_inline_style(
     data-cover-url="<?php echo esc_url( $cover_url ); ?>"
     data-author="<?php echo esc_attr( $author ); ?>"
     data-permalink="<?php echo esc_url( $permalink ); ?>"
-    data-language="<?php echo esc_attr( $plugin_language ); ?>"
+    data-language="<?php echo esc_attr( $plugin_locale ); ?>"
     data-encoding="<?php echo esc_attr( $encoding ); ?>"
     <?php if ( $volumes_json ) : ?>data-volumes="<?php echo esc_attr( $volumes_json ); ?>"<?php endif; ?>
     role="main"

@@ -38,18 +38,17 @@ class JetReader_CPT {
      * Register all four CPTs. Called on 'init' hook.
      */
     public static function register(): void {
-        $settings = get_option( 'jetreader_settings', array() );
-        $locale   = $settings['plugin_language'] ?? 'en';
-        $trans    = jetreader_get_translations( $locale );
-        $tb       = static function ( $key ) use ( $trans ) {
-            return $trans['cpt'][ $key ] ?? $key;
-        };
+        // Labels ARE translated (only shown in admin screens / REST).
+        $i18n_labels = array(
+            'book'     => __( 'Books', 'jetreader' ),
+            'article'  => __( 'Articles', 'jetreader' ),
+            'magazine' => __( 'Magazines', 'jetreader' ),
+            'qa'       => __( 'Q&A', 'jetreader' ),
+        );
 
         foreach ( self::$type_map as $type => $def ) {
             $rewrite = $def['rewrite'];
-
-            // Labels ARE translated (only shown in admin screens / REST).
-            $label = $tb( 'label_' . $type ) ?: $def['label'];
+            $label   = $i18n_labels[ $type ] ?? $def['label'];
 
             register_post_type(
                 $def['slug'],
@@ -57,12 +56,16 @@ class JetReader_CPT {
                     'labels'          => array(
                         'name'               => $label,
                         'singular_name'      => $label,
-                        'add_new_item'       => sprintf( '%s %s', $tb( 'addNew' ) ?: 'Add New', $label ),
-                        'edit_item'          => sprintf( '%s %s', $tb( 'edit' ) ?: 'Edit', $label ),
-                        'view_item'          => sprintf( '%s %s', $tb( 'view' ) ?: 'View', $label ),
-                        'search_items'       => sprintf( '%s %s', $tb( 'searchLabel' ) ?: 'Search', $label ),
-                        'not_found'          => $tb( 'notFound' ) ?: 'Not found',
-                        'not_found_in_trash' => $tb( 'notFoundTrash' ) ?: 'Not found in Trash',
+                        /* translators: %s: post type label, e.g. "Books" */
+                        'add_new_item'       => sprintf( __( 'Add New %s', 'jetreader' ), $label ),
+                        /* translators: %s: post type label, e.g. "Books" */
+                        'edit_item'          => sprintf( __( 'Edit %s', 'jetreader' ), $label ),
+                        /* translators: %s: post type label, e.g. "Books" */
+                        'view_item'          => sprintf( __( 'View %s', 'jetreader' ), $label ),
+                        /* translators: %s: post type label, e.g. "Books" */
+                        'search_items'       => sprintf( __( 'Search %s', 'jetreader' ), $label ),
+                        'not_found'          => __( 'Not found', 'jetreader' ),
+                        'not_found_in_trash' => __( 'Not found in Trash', 'jetreader' ),
                     ),
                     'public'              => true,
                     'exclude_from_search' => true,

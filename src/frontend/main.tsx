@@ -5,8 +5,10 @@ import App from './App';
 import type { ReaderFormat } from '../reader/ReaderEngine';
 
 const ReaderModal = lazy( () => import( '../reader/ReaderModal' ) );
-import { I18nProvider } from '../i18n/I18nContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { bootstrapLocale } from '../i18n/bootstrapLocale';
+
+bootstrapLocale();
 
 const queryClient = new QueryClient( {
     defaultOptions: { queries: { staleTime: 1000 * 60 * 3, retry: 1 } },

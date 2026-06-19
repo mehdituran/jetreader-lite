@@ -3,7 +3,7 @@ Contributors: mehdituran
 Tags: ebook, epub, pdf, reader, library
 Requires at least: 6.4
 Tested up to: 7.0
-Stable tag: 1.0.3
+Stable tag: 1.1.0
 Requires PHP: 8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -69,7 +69,7 @@ The compiled assets bundle the following third-party libraries:
 * **Keen Slider** (MIT License) - https://keen-slider.io/
 
 === Localization & Translation ===
-Frontend UI translations are stored in `lang/*.json` and are loaded dynamically by the React app; PHP strings use WordPress i18n and are located under the `languages/` directory.
+JetReader is fully translation-ready: PHP strings use WordPress i18n functions (`__()`, `_e()`, etc.) and the React admin/frontend/reader interfaces use `@wordpress/i18n`, so the plugin follows your site's active language (including per-page languages set by Polylang/WPML) automatically. The translation template is at `languages/jetreader.pot`.
 
 == Frequently Asked Questions ==
 
@@ -106,6 +106,12 @@ See the Screenshots section below for the required images and how to place them.
 5. Admin — Add / Edit Item — The document form with metadata fields, tag selector, uploader, and visibility controls.
 
 == Changelog ==
+
+= 1.1.0 =
+* Localization: replaced the custom `lang/*.json` + `t()` translation system with native WordPress i18n (`__()`, `_e()`, `sprintf()`) across PHP and the React admin/frontend/reader interfaces, so the plugin is now translatable through standard `.po`/`.mo` files and works correctly with Polylang/WPML.
+* The plugin's text direction (RTL/LTR) now follows WordPress's own `is_rtl()` instead of a custom per-language setting.
+* Removed the unused "Plugin Language" backend setting and the `lang/` directory; admin menu and CPT labels are now translated through core WordPress functions instead of a custom JSON lookup.
+* Regenerated `languages/jetreader.pot` to include all translatable strings from both PHP and the React/TypeScript source.
 
 = 1.0.3 =
 * Security: file rename endpoint now rejects any new file name that changes the file extension, preventing uploads from being renamed to executable file types.

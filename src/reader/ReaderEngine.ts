@@ -21,15 +21,11 @@ import * as pdfjsLib from 'pdfjs-dist';
 import { unzipSync, strFromU8 } from 'fflate';
 import mammoth from 'mammoth';
 import DOMPurify from 'dompurify';
+import { __ } from '@wordpress/i18n';
 
 // Use locally bundled worker — vite.config copies it to dist/js/ at build time.
 const _pluginUrl = ( window as any ).jetreaderSettings?.pluginUrl ?? '';
 pdfjsLib.GlobalWorkerOptions.workerSrc = `${ _pluginUrl.replace( /\/$/, '' ) }/dist/js/pdf.worker.min.mjs`;
-
-function re( key: string ): string {
-    const t = ( window as any ).jetreaderSettings?.translations?.readerEngine;
-    return t?.[ key ] ?? key;
-}
 
 export type ReaderFormat = 'epub' | 'pdf' | 'txt' | 'docx' | 'doc';
 
@@ -246,7 +242,7 @@ export class ReaderEngine {
         const resolvedUrl = resolveFileUrl( fileUrl );
         const response = await fetch( resolvedUrl );
         if ( ! response.ok ) {
-            throw new Error( `${re( 'failedToFetch' )}: ${response.statusText}` );
+            throw new Error( `${__( 'Failed to fetch file', 'jetreader' )}: ${response.statusText}` );
         }
         const arrayBuffer = await response.arrayBuffer();
         const uint8 = new Uint8Array( arrayBuffer );
@@ -258,7 +254,7 @@ export class ReaderEngine {
             case 'txt':  result = this.loadTxt( uint8, encoding ); break;
             case 'docx': result = await this.loadDocx( uint8 ); break;
             case 'doc':  result = await this.loadDoc( uint8 ); break;
-            default: throw new Error( `${re( 'unsupportedFormat' )}: ${activeFormat}` );
+            default: throw new Error( `${__( 'Unsupported format', 'jetreader' )}: ${activeFormat}` );
         }
 
         // Store in memory cache
@@ -286,7 +282,7 @@ export class ReaderEngine {
         const pdf = await loadingTask.promise;
         const totalPages = pdf.numPages;
 
-        let bookTitle = re( 'untitledPdf' );
+        let bookTitle = __( 'Untitled PDF', 'jetreader' );
         try {
             const meta = await pdf.getMetadata();
             const info = meta.info as Record<string, unknown>;
@@ -300,9 +296,9 @@ export class ReaderEngine {
         // open in <1s instead of waiting for sequential getTextContent() on every page.
         const pages: ReaderPage[] = Array.from( { length: totalPages }, ( _, i ) => ( {
             index: i,
-            content: `${re( 'pageLabel' )} ${i + 1}`,
+            content: `${__( 'Page', 'jetreader' )} ${i + 1}`,
             pdfPageNumber: i + 1,
-            label: `${re( 'pageLabel' )} ${i + 1}`,
+            label: `${__( 'Page', 'jetreader' )} ${i + 1}`,
         } ) );
 
         // Extract PDF outline (Dokümanın ana hatları) — same API Chrome uses.
@@ -377,15 +373,15 @@ export class ReaderEngine {
         const zip = unzipSync( data );
 
         const containerRaw = zip[ 'META-INF/container.xml' ];
-        if ( ! containerRaw ) throw new Error( re( 'invalidEpubContainer' ) );
+        if ( ! containerRaw ) throw new Error( __( 'Invalid EPUB: container.xml missing', 'jetreader' ) );
 
         const containerXml = strFromU8( containerRaw );
         const opfPathMatch = containerXml.match( /full-path="([^"]+)"/ );
-        if ( ! opfPathMatch ) throw new Error( re( 'invalidEpubOpf' ) );
+        if ( ! opfPathMatch ) throw new Error( __( 'Invalid EPUB: OPF path not found', 'jetreader' ) );
 
         const opfPath = opfPathMatch[ 1 ];
         const opfRaw = zip[ opfPath ];
-        if ( ! opfRaw ) throw new Error( re( 'invalidEpubMissingOpf' ) );
+        if ( ! opfRaw ) throw new Error( __( 'Invalid EPUB: OPF file missing', 'jetreader' ) );
 
         const opfXml = strFromU8( opfRaw );
         const opfBaseDir = opfPath.includes( '/' )
@@ -393,7 +389,7 @@ export class ReaderEngine {
             : '';
 
         // Metadata
-        const title = opfXml.match( /<dc:title[^>]*>([^<]+)<\/dc:title>/ )?.[1]?.trim() ?? re( 'untitledEpub' );
+        const title = opfXml.match( /<dc:title[^>]*>([^<]+)<\/dc:title>/ )?.[1]?.trim() ?? __( 'Untitled EPUB', 'jetreader' );
         const author = opfXml.match( /<dc:creator[^>]*>([^<]+)<\/dc:creator>/ )?.[1]?.trim();
 
         // Manifest — match any <item ...> tag (self-closing or not)
@@ -561,7 +557,7 @@ export class ReaderEngine {
         }
 
         if ( pages.length === 0 ) {
-            pages.push( { index: 0, content: re( 'noTextContent' ), label: title } );
+            pages.push( { index: 0, content: __( 'This EPUB does not contain readable text content.', 'jetreader' ), label: title } );
         }
 
         // Cover image
@@ -789,7 +785,7 @@ export class ReaderEngine {
         const pages = this.chunkText( fullText );
         return {
             pages,
-            metadata: { title: re( 'textDocument' ), totalPages: pages.length, format: 'txt' },
+            metadata: { title: __( 'Text Document', 'jetreader' ), totalPages: pages.length, format: 'txt' },
             toc: [],
         };
     }
@@ -846,10 +842,10 @@ export class ReaderEngine {
             .trim();
 
         if ( ! rawText ) {
-            const empty = re( 'emptyFile' );
+            const empty = __( 'Empty file.', 'jetreader' );
             return {
                 pages: [ { index: 0, content: empty, htmlContent: `<p>${ empty }</p>` } ],
-                metadata: { title: re( 'wordDocument' ), totalPages: 1, format: 'doc' },
+                metadata: { title: __( 'Word Document', 'jetreader' ), totalPages: 1, format: 'doc' },
                 toc: [],
             };
         }
@@ -891,7 +887,7 @@ export class ReaderEngine {
             }
         }
 
-        const title = toc.length > 0 ? toc[ 0 ].label : re( 'wordDocument' );
+        const title = toc.length > 0 ? toc[ 0 ].label : __( 'Word Document', 'jetreader' );
         return {
             pages,
             metadata: { title, totalPages: pages.length, format: 'doc' },
@@ -942,7 +938,7 @@ export class ReaderEngine {
             const fallback   = this.chunkHtml( paragraphs );
             return {
                 pages:    fallback,
-                metadata: { title: re( 'wordDocument' ), totalPages: fallback.length, format: 'docx' },
+                metadata: { title: __( 'Word Document', 'jetreader' ), totalPages: fallback.length, format: 'docx' },
                 toc:      [],
             };
         }
@@ -951,7 +947,7 @@ export class ReaderEngine {
         const MAX_CHARS = 1500;
         const pages: ReaderPage[] = [];
         const toc: TocEntry[]    = [];
-        let bookTitle = re( 'wordDocument' );
+        let bookTitle = __( 'Word Document', 'jetreader' );
 
         for ( const sec of rawSections ) {
             const headHtml   = sec.headingText
@@ -962,7 +958,7 @@ export class ReaderEngine {
 
             // Register TOC entry pointing to the first page of this section
             if ( sec.headingText ) {
-                if ( sec.headingTag === 'h1' && bookTitle === re( 'wordDocument' ) ) bookTitle = sec.headingText;
+                if ( sec.headingTag === 'h1' && bookTitle === __( 'Word Document', 'jetreader' ) ) bookTitle = sec.headingText;
                 toc.push( { label: sec.headingText, pageIndex: pages.length, depth: sec.depth } );
             }
 
@@ -1041,7 +1037,7 @@ export class ReaderEngine {
             }
         }
         if ( chunk.trim() ) pages.push( { index: pages.length, content: chunk.trim() } );
-        if ( pages.length === 0 ) pages.push( { index: 0, content: text || re( 'emptyFile' ) } );
+        if ( pages.length === 0 ) pages.push( { index: 0, content: text || __( 'Empty file.', 'jetreader' ) } );
         return pages;
     }
 }
