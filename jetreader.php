@@ -11,7 +11,7 @@
  * Plugin Name:       JetReader – Book Library, EPUB & PDF Reader (Lite)
  * Plugin URI:        https://wplector.com
  * Description:       Digital library plugin with modern reader experience. Supports EPUB, PDF, TXT, DOCX.
- * Version:           1.0.2
+ * Version:           1.0.3
  * Requires at least: 6.4
  * Requires PHP:      8.2
  * Author:            Mehdi Turan
@@ -34,7 +34,7 @@ if ( ! defined( 'WPINC' ) ) {
  * Current plugin version.
  * Start at version 1.0.0 and use SemVer - https://semver.org
  */
-define( 'JETREADER_VERSION', '1.0.2' );
+define( 'JETREADER_VERSION', '1.0.3' );
 define( 'JETREADER_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'JETREADER_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'JETREADER_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );

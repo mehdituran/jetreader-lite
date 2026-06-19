@@ -3,7 +3,7 @@ Contributors: mehdituran
 Tags: ebook, epub, pdf, reader, library
 Requires at least: 6.4
 Tested up to: 7.0
-Stable tag: 1.0.2
+Stable tag: 1.0.3
 Requires PHP: 8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -65,7 +65,7 @@ The compiled assets bundle the following third-party libraries:
 * **Mozilla PDF.js** (Apache 2.0 License) - https://mozilla.github.io/pdf.js/
 * **Mammoth.js** (BSD 2-Clause License) - https://github.com/mwilliamson/mammoth.js (including Bluebird and JSZip)
 * **DOMPurify** (Apache 2.0 / LGPL 2.1) - https://github.com/cure53/DOMPurify
-* **fflate** (MIT License) - https://github.com/101percent/fflate
+* **fflate** (MIT License) - https://github.com/101arrowz/fflate
 * **Keen Slider** (MIT License) - https://keen-slider.io/
 
 === Localization & Translation ===
@@ -106,6 +106,11 @@ See the Screenshots section below for the required images and how to place them.
 5. Admin — Add / Edit Item — The document form with metadata fields, tag selector, uploader, and visibility controls.
 
 == Changelog ==
+
+= 1.0.3 =
+* Security: file rename endpoint now rejects any new file name that changes the file extension, preventing uploads from being renamed to executable file types.
+* Fixed: critical reader page CSS is now registered through `wp_register_style()`/`wp_add_inline_style()` instead of being printed as an inline `<style>` tag.
+* Fixed: rate-limit transient keys now use the `jetreader_` prefix instead of the too-short `jr_` prefix to avoid collisions with other plugins.
 
 = 1.0.2 =
 * Collapsible Filter Sidebar: added a collapsible Filter Sidebar on desktop layout.

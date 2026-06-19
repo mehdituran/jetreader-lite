@@ -110,6 +110,58 @@ if ( ! wp_script_is( 'jetreader-frontend', 'enqueued' ) ) {
         );
     }
 }
+
+// ── Critical page CSS, registered through the style API ────────────────────
+// A virtual (no-file) handle so wp_add_inline_style can attach the rules;
+// WordPress then prints them via wp_head() instead of a hand-written <style> tag.
+if ( ! wp_style_is( 'jetreader-reader-critical', 'registered' ) ) {
+    wp_register_style( 'jetreader-reader-critical', false, array(), JETREADER_VERSION );
+}
+wp_enqueue_style( 'jetreader-reader-critical' );
+wp_add_inline_style(
+    'jetreader-reader-critical',
+    '
+    html, body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        overflow: hidden;
+    }
+    #wpadminbar { position: fixed !important; }
+    #jetreader-page-app {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 2147483647;
+        background: var(--jr-bg, #fff);
+        display: flex;
+        flex-direction: column;
+    }
+    .jr-page-loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        font-family: system-ui, -apple-system, sans-serif;
+        font-size: 1rem;
+        color: #555;
+    }
+    .jr-page-loading::after {
+        content: "";
+        display: inline-block;
+        width: 1.5rem;
+        height: 1.5rem;
+        margin-left: .75rem;
+        border: 2px solid currentColor;
+        border-top-color: transparent;
+        border-radius: 50%;
+        animation: jr-spin .7s linear infinite;
+    }
+    @keyframes jr-spin { to { transform: rotate(360deg); } }
+    '
+);
 ?>
 <!DOCTYPE html>
 <html <?php language_attributes(); ?>>
@@ -123,57 +175,6 @@ if ( ! wp_script_is( 'jetreader-frontend', 'enqueued' ) ) {
     <?php endif; ?>
 
     <title><?php echo esc_html( $title ); ?> &mdash; <?php bloginfo( 'name' ); ?></title>
-
-    <style>
-        /* ── JetReader single-reader page ───────────────────────────────── */
-        html, body {
-            margin: 0;
-            padding: 0;
-            height: 100%;
-            overflow: hidden; /* reader handles its own scroll */
-        }
-
-        /* Hide theme header/footer for full-screen reader experience.
-           If the theme does not output a header/footer at all, these have
-           no effect. Admin bar stays visible for logged-in users. */
-        #wpadminbar { position: fixed !important; }
-
-        #jetreader-page-app {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            /* Must exceed WP admin bar (99999) so the reader toolbar is always on top */
-            z-index: 2147483647;
-            background: var(--jr-bg, #fff);
-            display: flex;
-            flex-direction: column;
-        }
-
-        /* Loading state shown before React mounts */
-        .jr-page-loading {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100%;
-            font-family: system-ui, -apple-system, sans-serif;
-            font-size: 1rem;
-            color: #555;
-        }
-        .jr-page-loading::after {
-            content: '';
-            display: inline-block;
-            width: 1.5rem;
-            height: 1.5rem;
-            margin-left: .75rem;
-            border: 2px solid currentColor;
-            border-top-color: transparent;
-            border-radius: 50%;
-            animation: jr-spin .7s linear infinite;
-        }
-        @keyframes jr-spin { to { transform: rotate(360deg); } }
-    </style>
 
     <!-- Preload JetReader scripts for instant initialization -->
     <link rel="modulepreload" href="<?php echo esc_url( JETREADER_PLUGIN_URL . 'dist/js/reader.js' ); ?>">

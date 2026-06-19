@@ -951,7 +951,7 @@ class JetReader_REST_API {
         // Transient-based rate limit: IP + Item ID + View
         $ip = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
         if ( ! empty( $ip ) ) {
-            $transient_key = 'jr_rate_limit_' . md5( $ip . '_' . $item_id . '_view' );
+            $transient_key = 'jetreader_rate_limit_' . md5( $ip . '_' . $item_id . '_view' );
             if ( get_transient( $transient_key ) ) {
                 return rest_ensure_response( array( 'ok' => true, 'rate_limited' => true ) );
             }
@@ -985,7 +985,7 @@ class JetReader_REST_API {
         // Transient-based rate limit: IP + Item ID + Read
         $ip = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
         if ( ! empty( $ip ) ) {
-            $transient_key = 'jr_rate_limit_' . md5( $ip . '_' . $item_id . '_read' );
+            $transient_key = 'jetreader_rate_limit_' . md5( $ip . '_' . $item_id . '_read' );
             if ( get_transient( $transient_key ) ) {
                 return rest_ensure_response( array( 'ok' => true, 'rate_limited' => true ) );
             }
@@ -4143,6 +4143,18 @@ class JetReader_REST_API {
         if ( $old_name === $new_name ) {
             return new WP_REST_Response(
                 array( 'success' => false, 'message' => __( 'New file name must be different.', 'jetreader' ) ),
+                400
+            );
+        }
+
+        // Renaming must never change the file extension — otherwise a file could be
+        // turned into a .php (or other executable) file inside the uploads folder.
+        $old_ext = strtolower( pathinfo( $old_name, PATHINFO_EXTENSION ) );
+        $new_ext = strtolower( pathinfo( $new_name, PATHINFO_EXTENSION ) );
+
+        if ( '' === $new_ext || $old_ext !== $new_ext ) {
+            return new WP_REST_Response(
+                array( 'success' => false, 'message' => __( 'New file name must keep the same file extension.', 'jetreader' ) ),
                 400
             );
         }
