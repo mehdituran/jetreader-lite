@@ -99,11 +99,11 @@ See the Screenshots section below for the required images and how to place them.
 
 == Screenshots ==
 
-1. Main Library View — The full interactive catalog with sidebar filters, content-type tabs, and card grid.
-2. In-Reader Experience — The fullscreen React reader open on an EPUB document, showing the toolbar, reading themes toggle, and chapter navigation panel.
-3. Annotations & Highlights — A page with colored text highlights and an open annotation note panel.
-4. Admin — Library Items — The admin item list showing type tabs, cover thumbnails, and action buttons.
-5. Admin — Add / Edit Item — The document form with metadata fields, tag selector, uploader, and visibility controls.
+1. Main Library View — The full interactive digital catalog supporting PDF, EPUB, DOCX, DOC, and TXT files with sidebar filters and grid layouts.
+2. In-Reader Experience — The seamless fullscreen reader open on a document, demonstrating custom layouts for EPUB/DOCX books and optimized viewports for PDF documents.
+3. Universal Document Tools & Annotations — Live text highlighting and annotation options across different document types, from classic TXT files to complex PDFs.
+4. Admin — Library Management — Centralized WordPress admin screen showcasing organized type filters, digital format indicators, and auto-generated cover thumbnails.
+5. Admin — Document Ingest & Metadata — Form fields for file uploads (PDF, EPUB, DOCX, DOC, TXT) featuring explicit access controls and metadata handling.
 
 == Changelog ==
 
