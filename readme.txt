@@ -3,7 +3,7 @@ Contributors: mehdituran
 Tags: ebook, epub, pdf, reader, library
 Requires at least: 6.4
 Tested up to: 7.0
-Stable tag: 1.1.0
+Stable tag: 1.1.1
 Requires PHP: 8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -39,7 +39,7 @@ JetReader turns WordPress into a digital library with a fullscreen React documen
 == Documentation ==
 
 For full documentation, shortcode attributes, and REST API endpoints, please visit the official documentation page:
-https://wplector.com
+https://rikny.com
 
 == Source Code & Build Instructions ==
 
@@ -106,6 +106,10 @@ See the Screenshots section below for the required images and how to place them.
 5. Admin — Document Ingest & Metadata — Form fields for file uploads (PDF, EPUB, DOCX, DOC, TXT) featuring explicit access controls and metadata handling.
 
 == Changelog ==
+
+= 1.1.1 =
+* Fixed: activating JetReader Pro while Lite was active could trigger a "Cannot redeclare function" fatal error instead of cleanly handing off to Pro. The shared activation/deactivation functions now load through a separate include file so the Lite/Pro conflict guard can prevent the redeclaration as intended.
+* Updated documentation, support, and plugin URIs to https://rikny.com.
 
 = 1.1.0 =
 * Localization: replaced the custom `lang/*.json` + `t()` translation system with native WordPress i18n (`__()`, `_e()`, `sprintf()`) across PHP and the React admin/frontend/reader interfaces, so the plugin is now translatable through standard `.po`/`.mo` files and works correctly with Polylang/WPML.

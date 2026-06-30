@@ -22,7 +22,7 @@ msgstr ""
 
 #. Plugin URI of the plugin
 #: jetreader.php
-msgid "https://wplector.com"
+msgid "https://rikny.com"
 msgstr ""
 
 #. Description of the plugin

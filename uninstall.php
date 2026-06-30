@@ -18,6 +18,15 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
     die;
 }
 
+// JetReader Lite and JetReader Pro share the same database tables/options
+// (so upgrading from Lite to Pro keeps all library data). If JetReader Pro
+// is still installed on disk, it still "owns" that shared data — do not
+// drop anything here, otherwise deleting the now-inactive Lite plugin would
+// wipe out Pro's live data too.
+if ( file_exists( WP_PLUGIN_DIR . '/jetreader-pro/jetreader-pro.php' ) ) {
+    return;
+}
+
 /**
  * Perform all cleanup for a single blog/site.
  * Called once on single-site or once per subsite on multisite.
@@ -27,9 +36,7 @@ function jetreader_uninstall_site(): void {
 
     // ── 1. Drop all custom database tables ─────────────────────────────────────
     // Child tables first to avoid FK issues on strict servers.
-    // Includes both current (jetreader_*) and legacy (lector_*) table names.
     $tables = array(
-        // Current jetreader_* tables.
         'jetreader_search_index',
         'jetreader_notes',
         'jetreader_bookmarks',
@@ -42,19 +49,6 @@ function jetreader_uninstall_site(): void {
         'jetreader_authors',
         'jetreader_publishers',
         'jetreader_items',
-        // Legacy lector_* tables from the pre-rename version.
-        'lector_search_index',
-        'lector_notes',
-        'lector_bookmarks',
-        'lector_user_preferences',
-        'lector_item_tags',
-        'lector_item_categories',
-        'lector_tags',
-        'lector_categories',
-        'lector_chapters',
-        'lector_authors',
-        'lector_publishers',
-        'lector_items',
     );
 
     foreach ( $tables as $table ) {
@@ -63,11 +57,9 @@ function jetreader_uninstall_site(): void {
     }
 
     // ── 2. Delete all CPT posts created by JetReader ───────────────────────────
-    // Includes current (jetreader_*) and legacy (lector_*) post types.
     // wp_delete_post( $id, true ) also removes all associated post meta automatically.
     $cpt_slugs = array(
         'jetreader_book', 'jetreader_article', 'jetreader_magazine', 'jetreader_qa',
-        'lector_book',    'lector_article',    'lector_magazine',    'lector_qa',
     );
 
     foreach ( $cpt_slugs as $cpt ) {
@@ -86,7 +78,6 @@ function jetreader_uninstall_site(): void {
 
     // ── 3. Delete plugin options ────────────────────────────────────────────────
     $options = array(
-        // Current jetreader_* options.
         'jetreader_settings',
         'jetreader_db_version',
         'jetreader_cpt_slugs',
@@ -97,16 +88,6 @@ function jetreader_uninstall_site(): void {
         'jetreader_license_expires',
         'jetreader_license_instance_id',
         'jetreader_edition',
-        // Legacy lector_* options from the pre-rename version.
-        'lector_settings',
-        'lector_db_version',
-        'lector_cpt_slugs',
-        'lector_cpt_migrated',
-        'lector_rewrite_flushed_v2',
-        'lector_license_key',
-        'lector_license_status',
-        'lector_license_expires',
-        'lector_license_instance_id',
     );
 
     foreach ( $options as $option ) {
@@ -131,9 +112,6 @@ function jetreader_uninstall_site(): void {
         '_transient_timeout_jetreader_%',
         '_transient_jr_%',
         '_transient_timeout_jr_%',
-        // Legacy lector_* transients from the pre-rename version.
-        '_transient_lector_%',
-        '_transient_timeout_lector_%',
     );
 
     foreach ( $patterns as $pattern ) {
@@ -147,27 +125,16 @@ function jetreader_uninstall_site(): void {
     }
 
     // ── 5. Clear scheduled WP-Cron events ──────────────────────────────────────
-    // Current jetreader_* events.
     wp_clear_scheduled_hook( 'jetreader_process_queue' );
     wp_clear_scheduled_hook( 'jetreader_cleanup_temp' );
-    // Legacy lector_* events from the pre-rename version.
-    wp_clear_scheduled_hook( 'lector_process_queue' );
-    wp_clear_scheduled_hook( 'lector_cleanup_temp' );
 
     // ── 6. Delete uploaded files ────────────────────────────────────────────────
     $upload_dir    = wp_upload_dir();
     $base          = trailingslashit( $upload_dir['basedir'] );
 
-    // Current jetreader/ uploads directory.
     $jetreader_dir = $base . 'jetreader';
     if ( is_dir( $jetreader_dir ) ) {
         jetreader_uninstall_rmdir( $jetreader_dir );
-    }
-
-    // Legacy lector/ uploads directory from the pre-rename version.
-    $lector_dir = $base . 'lector';
-    if ( is_dir( $lector_dir ) ) {
-        jetreader_uninstall_rmdir( $lector_dir );
     }
 
     // ── 7. Flush rewrite rules ─────────────────────────────────────────────────

@@ -4538,17 +4538,17 @@ const AboutPage: React.FC = () => {
         {
             icon: '📚',
             label: __( 'Documentation', 'jetreader' ),
-            href: 'https://wplector.com',
+            href: 'https://rikny.com',
         },
         {
             icon: '🐛',
             label: __( 'Report a Bug', 'jetreader' ),
-            href: 'https://wplector.com',
+            href: 'https://rikny.com',
         },
         {
             icon: '✉️',
             label: __( 'Get Support', 'jetreader' ),
-            href: 'https://wplector.com',
+            href: 'https://rikny.com',
         },
         {
             icon: '⭐',
